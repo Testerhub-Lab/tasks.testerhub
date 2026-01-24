@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  desc        String?
+  status      Status   @default(NEW)
+  priority    Priority @default(MEDIUM)
+  labels      String[]
+  project     String
+  attachments String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String?
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  text      String
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id          String  @id @default(uuid())
+  email       String  @unique
+  name        String?
+  role        Role    @default(USER)
+  testerHubId String?
+}
+
+model Setting {
+  id           Int     @id @default(1)
+  boardPrivate Boolean @default(false)
+}
+
+enum Status {
+  NEW
+  HOLD
+  IN_PROGRESS
+  TESTING
+  DONE
+  REJECT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Role {
+  ADMIN
+  USER
+}
