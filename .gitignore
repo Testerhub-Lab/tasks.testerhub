@@ -19,6 +19,8 @@
 
 # production
 /build
+/public/uploads
+src/generated
 
 # misc
 .DS_Store

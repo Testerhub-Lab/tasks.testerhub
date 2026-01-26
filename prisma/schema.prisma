@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  engineType = "binary"
 }
 
 datasource db {
@@ -8,17 +8,17 @@ datasource db {
 }
 
 model Task {
-  id          String   @id @default(uuid())
-  title       String
-  desc        String?
-  status      Status   @default(NEW)
-  priority    Priority @default(MEDIUM)
-  labels      String[]
-  project     String
-  attachments String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String?
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  priority      String   @default("Medium")
+  dueDate       DateTime?
+  tags          String[] @default([])
+  attachments   String[] @default([])
+  requesterName String?
+  requesterEmail String?
+  status        String   @default("Open")
+  createdAt     DateTime @default(now())
 }
 
 model Comment {
