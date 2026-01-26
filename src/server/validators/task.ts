@@ -3,6 +3,7 @@ export const TaskTypeEnum = z.enum(["Bug", "Task"]);
 export const PriorityEnum = z.enum(["Low", "Medium", "High", "Critical"]);
 
 export const taskSchema = z.object({
+  projectId: z.string().min(1),
   type: z.enum(["Bug", "Task"]),
   title: z.string().min(3).max(120),
   description: z.string().max(2000).optional(),
@@ -16,5 +17,15 @@ export const taskSchema = z.object({
 });
 
 export type TaskInput = z.infer<typeof taskSchema>;
+export type TaskPriority = TaskInput["priority"];
+
+export const taskStatusSchema = z.enum([
+  "New",
+  "In Progress",
+  "Testing",
+  "Done",
+]);
+
+export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export type TaskType = z.infer<typeof TaskTypeEnum>;
 export type Priority = z.infer<typeof PriorityEnum>;

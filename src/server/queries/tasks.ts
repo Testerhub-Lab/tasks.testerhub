@@ -18,3 +18,16 @@ export async function getTaskById(id: string) {
     where: { id },
   });
 }
+
+export async function getTaskByKey(key: string) {
+  return prisma.task.findUnique({
+    where: { key },
+  });
+}
+
+export async function getCommentsByTaskId(taskId: string) {
+  return prisma.comment.findMany({
+    where: { taskId },
+    orderBy: { createdAt: "asc" },
+  });
+}

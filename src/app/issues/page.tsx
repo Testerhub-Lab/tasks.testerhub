@@ -2,6 +2,7 @@ import React from "react";
 import IssueTable from "../../components/issues/IssueTable";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import { getAllTasks } from "../../server/queries/tasks";
+import { normalizePriority } from "../../components/issues/utils";
 
 const IssuesPage = async () => {
   const tasks = await getAllTasks();
@@ -27,7 +28,13 @@ const IssuesPage = async () => {
           </div>
         </div>
       ) : (
-        <IssueTable items={tasks} />
+        <IssueTable
+          items={tasks.map((task) => ({
+            ...task,
+            key: task.key ?? undefined,
+            priority: normalizePriority(task.priority),
+          }))}
+        />
       )}
     </div>
   );

@@ -1,13 +1,18 @@
+"use client";
+
 import React from "react";
+import { useRouter } from "next/navigation";
 import Badge from "../ui/Badge";
-import { getPriorityClasses, getStatusLabel } from "./utils";
+import { formatDate, getPriorityClasses, getStatusLabel } from "./utils";
+import type { TaskPriority, TaskStatus } from "../../server/validators/task";
 
 interface IssueTableItem {
   id: string;
+  key?: string | null;
   title: string;
-  status?: string | null;
-  priority?: string | null;
-  createdAt?: Date | null;
+  status?: TaskStatus | string | null;
+  priority?: TaskPriority | null;
+  createdAt?: Date | string | null;
 }
 
 interface IssueTableProps {
@@ -15,6 +20,7 @@ interface IssueTableProps {
 }
 
 const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
+  const router = useRouter();
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--color-card-border)]">
       <table className="w-full text-left text-sm">
@@ -28,8 +34,17 @@ const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
         </thead>
         <tbody className="divide-y divide-[var(--color-card-border)] bg-[var(--color-card-bg)]">
           {items.map((item) => (
-            <tr key={item.id} className="hover:bg-[rgba(255,255,255,0.04)]">
-              <td className="px-4 py-3 text-white">{item.title}</td>
+            <tr
+              key={item.id}
+              className="cursor-pointer hover:bg-[rgba(255,255,255,0.04)]"
+              onClick={() => router.push(`/tasks/${item.key ?? item.id}`)}
+            >
+              <td className="px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                  {item.key ?? "—"}
+                </div>
+                <div className="text-white">{item.title}</div>
+              </td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                 {getStatusLabel(item.status)}
               </td>
@@ -39,7 +54,7 @@ const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
                 </Badge>
               </td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                {item.createdAt ? item.createdAt.toLocaleDateString() : "—"}
+                {formatDate(item.createdAt)}
               </td>
             </tr>
           ))}

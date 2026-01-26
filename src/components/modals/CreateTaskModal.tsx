@@ -14,6 +14,7 @@ interface CreateTaskModalProps {
   onSubmit?: (data: TaskInput) => Promise<void> | void;
   loading?: boolean;
   errorMessage?: string | null;
+  projects: Array<{ id: string; name: string; key: string }>;
 }
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
@@ -22,9 +23,11 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   onSubmit,
   loading = false,
   errorMessage,
+  projects,
 }) => {
   const [isMounted, setMounted] = useState(false);
   const [formData, setFormData] = useState<TaskInput>({
+    projectId: "",
     type: "Bug",
     title: "",
     description: "",
@@ -41,6 +44,18 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!projects.length) {
+      return;
+    }
+    setFormData((prev) => {
+      if (prev.projectId) {
+        return prev;
+      }
+      return { ...prev, projectId: projects[0].id };
+    });
+  }, [projects]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,135 +143,148 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </div>
           ) : null}
           <form onSubmit={handleSubmit} className="grid gap-4">
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Тип</span>
-            <Select
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              options={[
-                { value: "Bug", label: "Баг" },
-                { value: "Task", label: "Таск" },
-              ]}
-            />
-          </label>
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Заголовок</span>
-            <Input
-              type="text"
-              name="title"
-              placeholder="Коротко: что сломалось"
-              value={formData.title}
-              onChange={handleChange}
-              required
-            />
-          </label>
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Описание</span>
-            <Textarea
-              name="description"
-              placeholder="Контекст, где это происходит"
-              value={formData.description}
-              onChange={handleChange}
-            />
-          </label>
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Шаги воспроизведения</span>
-            <Textarea
-              name="steps"
-              placeholder="1) ... 2) ... 3) ..."
-              value={formData.steps}
-              onChange={handleChange}
-            />
-          </label>
-          <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <span className="font-medium text-white">Ожидаемое</span>
-              <Textarea
-                name="expected"
-                placeholder="Что должно было произойти"
-                value={formData.expected}
-                onChange={handleChange}
-              />
-            </label>
-            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <span className="font-medium text-white">Фактическое</span>
-              <Textarea
-                name="actual"
-                placeholder="Что произошло на самом деле"
-                value={formData.actual}
-                onChange={handleChange}
-              />
-            </label>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <span className="font-medium text-white">Приоритет</span>
+              <span className="font-medium text-white">Проект</span>
               <Select
-                name="priority"
-                value={formData.priority}
+                name="projectId"
+                value={formData.projectId}
+                onChange={handleChange}
+                disabled={projects.length <= 1}
+                options={projects.map((project) => ({
+                  value: project.id,
+                  label: `${project.key} — ${project.name}`,
+                }))}
+              />
+            </label>
+            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              <span className="font-medium text-white">Тип</span>
+              <Select
+                name="type"
+                value={formData.type}
                 onChange={handleChange}
                 options={[
-                  { value: "Low", label: "Низкий" },
-                  { value: "Medium", label: "Средний" },
-                  { value: "High", label: "Высокий" },
+                  { value: "Bug", label: "Баг" },
+                  { value: "Task", label: "Таск" },
                 ]}
               />
             </label>
             <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <span className="font-medium text-white">Окружение</span>
+              <span className="font-medium text-white">Заголовок</span>
               <Input
                 type="text"
-                name="environment"
-                placeholder="Браузер, версия, устройство"
-                value={formData.environment}
+                name="title"
+                placeholder="Коротко: что сломалось"
+                value={formData.title}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              <span className="font-medium text-white">Описание</span>
+              <Textarea
+                name="description"
+                placeholder="Контекст, где это происходит"
+                value={formData.description}
                 onChange={handleChange}
               />
             </label>
-          </div>
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Метки</span>
-            <Input
-              type="text"
-              name="tags"
-              placeholder="Например: ui, auth, regression"
-              value={formData.tags}
-              onChange={handleChange}
-            />
-          </label>
-          <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-            <span className="font-medium text-white">Скриншоты и файлы</span>
-            <input
-              type="file"
-              multiple
-              className="input"
-              onChange={(event) =>
-                setFiles(Array.from(event.target.files ?? []))
-              }
-            />
-            {files.length ? (
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                Выбрано файлов: {files.length}
-              </div>
-            ) : null}
-          </label>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              disabled={loading || isUploading}
-            >
-              Отмена
-            </Button>
+            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              <span className="font-medium text-white">Шаги воспроизведения</span>
+              <Textarea
+                name="steps"
+                placeholder="1) ... 2) ... 3) ..."
+                value={formData.steps}
+                onChange={handleChange}
+              />
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span className="font-medium text-white">Ожидаемое</span>
+                <Textarea
+                  name="expected"
+                  placeholder="Что должно было произойти"
+                  value={formData.expected}
+                  onChange={handleChange}
+                />
+              </label>
+              <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span className="font-medium text-white">Фактическое</span>
+                <Textarea
+                  name="actual"
+                  placeholder="Что произошло на самом деле"
+                  value={formData.actual}
+                  onChange={handleChange}
+                />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span className="font-medium text-white">Приоритет</span>
+                <Select
+                  name="priority"
+                  value={formData.priority}
+                  onChange={handleChange}
+                  options={[
+                    { value: "Low", label: "Низкий" },
+                    { value: "Medium", label: "Средний" },
+                    { value: "High", label: "Высокий" },
+                  ]}
+                />
+              </label>
+              <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span className="font-medium text-white">Окружение</span>
+                <Input
+                  type="text"
+                  name="environment"
+                  placeholder="Браузер, версия, устройство"
+                  value={formData.environment}
+                  onChange={handleChange}
+                />
+              </label>
+            </div>
+            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              <span className="font-medium text-white">Метки</span>
+              <Input
+                type="text"
+                name="tags"
+                placeholder="Например: ui, auth, regression"
+                value={formData.tags}
+                onChange={handleChange}
+              />
+            </label>
+            <label className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              <span className="font-medium text-white">Скриншоты и файлы</span>
+              <input
+                type="file"
+                multiple
+                className="input"
+                onChange={(event) =>
+                  setFiles(Array.from(event.target.files ?? []))
+                }
+              />
+              {files.length ? (
+                <div className="text-xs text-[var(--color-text-secondary)]">
+                  Выбрано файлов: {files.length}
+                </div>
+              ) : null}
+            </label>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onClose}
+                disabled={loading || isUploading}
+              >
+                Отмена
+              </Button>
             <Button
               type="submit"
               variant="primary"
-              disabled={loading || isUploading}
+              disabled={loading || isUploading || !formData.projectId}
             >
               {isUploading ? "Загрузка..." : "Создать"}
             </Button>
-          </div>
+            </div>
           </form>
         </div>
       </div>

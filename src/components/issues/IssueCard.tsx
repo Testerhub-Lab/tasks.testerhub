@@ -2,16 +2,19 @@ import React from "react";
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import { getPriorityClasses, getStatusLabel } from "./utils";
+import type { TaskPriority, TaskStatus } from "../../server/validators/task";
 
 interface IssueCardProps {
   title: string;
-  priority?: string | null;
-  status?: string | null;
+  issueKey?: string | null;
+  priority?: TaskPriority | null;
+  status?: TaskStatus | string | null;
   description?: string | null;
 }
 
 const IssueCard: React.FC<IssueCardProps> = ({
   title,
+  issueKey,
   priority,
   status,
   description,
@@ -19,7 +22,14 @@ const IssueCard: React.FC<IssueCardProps> = ({
   return (
     <Card className="space-y-3 border border-transparent hover:border-[var(--color-card-border)] transition-colors">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold text-white">{title}</h3>
+        <div className="space-y-1">
+          {issueKey ? (
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+              {issueKey}
+            </div>
+          ) : null}
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+        </div>
         <Badge className={getPriorityClasses(priority)}>{priority ?? "—"}</Badge>
       </div>
       {description ? (

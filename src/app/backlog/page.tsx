@@ -2,6 +2,7 @@ import React from "react";
 import IssueRow from "../../components/issues/IssueRow";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import { getAllTasks } from "../../server/queries/tasks";
+import { normalizePriority } from "../../components/issues/utils";
 
 const BacklogPage = async () => {
   const tasks = await getAllTasks();
@@ -31,9 +32,11 @@ const BacklogPage = async () => {
           {tasks.map((task) => (
             <IssueRow
               key={task.id}
+              href={`/tasks/${task.key ?? task.id}`}
+              issueKey={task.key ?? undefined}
               title={task.title}
               description={task.description}
-              priority={task.priority}
+              priority={normalizePriority(task.priority)}
               status={task.status}
               createdAt={task.createdAt}
             />

@@ -8,17 +8,23 @@ datasource db {
 }
 
 model Task {
-  id            String   @id @default(cuid())
-  title         String
-  description   String?
-  priority      String   @default("Medium")
-  dueDate       DateTime?
-  tags          String[] @default([])
-  attachments   String[] @default([])
-  requesterName String?
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  priority       String   @default("Medium")
+  dueDate        DateTime?
+  tags           String[] @default([])
+  attachments    String[] @default([])
+  requesterName  String?
   requesterEmail String?
-  status        String   @default("Open")
-  createdAt     DateTime @default(now())
+  status         String   @default("Open")
+  projectId      String?
+  number         Int?
+  key            String?  @unique
+  createdAt      DateTime @default(now())
+  project        Project? @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, number])
 }
 
 model Comment {
@@ -26,6 +32,7 @@ model Comment {
   taskId    String
   text      String
   userId    String?
+  authorName String?
   createdAt DateTime @default(now())
 }
 
@@ -40,6 +47,15 @@ model User {
 model Setting {
   id          Int      @id @default(1)
   boardPrivate Boolean @default(false)
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  name            String
+  nextIssueNumber Int      @default(1)
+  createdAt       DateTime @default(now())
+  tasks           Task[]
 }
 
 enum Status {
