@@ -40,9 +40,13 @@ const TaskPage = async ({ params }: TaskPageProps) => {
   return (
     <div className="space-y-6">
       <IssueDetails task={task} />
-      <div className="mx-auto max-w-6xl space-y-4">
-        <h2 className="text-lg font-semibold">Comments</h2>
-        <TaskComments taskId={task.id} comments={comments} />
+      <div id="activity" className="mx-auto max-w-6xl space-y-4 scroll-mt-24">
+      <TaskComments
+        taskId={task.id}
+        issueKey={(task as { key?: string | null }).key ?? task.id}
+        createdAt={task.createdAt}
+        comments={comments}
+      />
       </div>
     </div>
   );

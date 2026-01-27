@@ -23,7 +23,7 @@ type CommentItem = {
   } | null;
 };
 
-type PendingState = "pending" | "failed";
+type PendingState = "pending" | "sent" | "failed";
 
 type PendingComment = {
   clientId: string;
@@ -35,8 +35,35 @@ type PendingComment = {
   error?: string;
 };
 
+type ActivityItem =
+  | {
+      kind: "created";
+      id: string;
+      createdAt: Date;
+      title: string;
+      subtitle?: string;
+    }
+  | {
+      kind: "comment";
+      id: string;
+      createdAt: Date;
+      authorName: string;
+      text: string;
+      state?: PendingState;
+      error?: string;
+      clientId?: string;
+    }
+  | {
+      kind: "empty";
+      id: string;
+      createdAt: Date;
+      text: string;
+    };
+
 interface TaskCommentsProps {
   taskId: string;
+  issueKey: string;
+  createdAt: Date;
   comments: CommentItem[];
 }
 
@@ -51,7 +78,14 @@ const emailPrefix = (email?: string | null) => {
   return idx > 0 ? email.slice(0, idx) : email;
 };
 
-const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
+const makeClientId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+const TaskComments: React.FC<TaskCommentsProps> = ({
+  taskId,
+  issueKey,
+  createdAt,
+  comments,
+}) => {
   const router = useRouter();
 
   const [text, setText] = useState("");
@@ -59,60 +93,108 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
   const [isFocused, setFocused] = useState(false);
 
   const [pending, setPending] = useState<PendingComment[]>([]);
+  const [isSubmitting, setSubmitting] = useState(false);
+
   const listRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const displayed = useMemo(() => {
-    const serverAsList = comments.map((c) => {
-      const displayName =
-        c.user?.name ?? c.authorName ?? emailPrefix(c.user?.email) ?? "Anonymous";
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
-      return {
-        id: c.id,
-        authorName: displayName,
-        text: c.text,
-        createdAt: c.createdAt,
-        _state: undefined as undefined,
-        _error: undefined as undefined,
-        _clientId: undefined as undefined,
-      };
-    });
-
-    const pendingAsList = pending.map((p) => ({
-      id: `pending:${p.clientId}`,
-      authorName: p.authorName || "Anonymous",
-      text: p.text,
-      createdAt: p.createdAt,
-      _state: p.state,
-      _error: p.error,
-      _clientId: p.clientId,
-    }));
-
-    return [...serverAsList, ...pendingAsList];
-  }, [comments, pending]);
-
-  const scrollToBottomIfNeeded = useCallback(() => {
-    const el = listRef.current;
-    if (!el) return;
-    if (!isNearBottom(el)) return;
-
-    requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    });
+  const setHighlight = useCallback((id: string) => {
+    setHighlightId(id);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightId(null), 1500);
   }, []);
 
   useEffect(() => {
-    scrollToBottomIfNeeded();
-  }, [displayed.length, scrollToBottomIfNeeded]);
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
+  // 1) Hash #activity — мягко скроллим к Activity (если браузер сам не успел/не смог)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#activity") return;
+    // небольшой defer — чтобы layout точно отрисовался
+    requestAnimationFrame(() => {
+      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  const activity: ActivityItem[] = useMemo(() => {
+    const created: ActivityItem = {
+      kind: "created",
+      id: "created",
+      createdAt,
+      title: `Issue created`,
+      subtitle: issueKey,
+    };
+
+    const serverComments: ActivityItem[] = comments.map((c) => {
+      const displayName =
+        c.user?.name ?? c.authorName ?? emailPrefix(c.user?.email) ?? "Anonymous";
+      return {
+        kind: "comment",
+        id: c.id,
+        createdAt: c.createdAt,
+        authorName: displayName,
+        text: c.text,
+      };
+    });
+
+    const pendingComments: ActivityItem[] = pending.map((p) => ({
+      kind: "comment",
+      id: `pending:${p.clientId}`,
+      createdAt: p.createdAt,
+      authorName: p.authorName || "Anonymous",
+      text: p.text,
+      state: p.state,
+      error: p.error,
+      clientId: p.clientId,
+    }));
+
+    const hasAnyComments = serverComments.length > 0 || pendingComments.length > 0;
+
+    const empty: ActivityItem | null = hasAnyComments
+      ? null
+      : {
+          kind: "empty",
+          id: "empty",
+          createdAt: createdAt,
+          text: "No comments yet. Be the first to comment.",
+        };
+
+    return empty
+      ? [created, empty, ...serverComments, ...pendingComments]
+      : [created, ...serverComments, ...pendingComments];
+  }, [comments, createdAt, issueKey, pending]);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  // 2) При добавлении/обновлении ленты — если пользователь “у низа”, докручиваем
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    if (!isNearBottom(el)) return;
+    requestAnimationFrame(() => scrollToBottom("smooth"));
+  }, [activity.length, scrollToBottom]);
 
   const submit = useCallback(
     async (override?: { text?: string; authorName?: string; clientId?: string }) => {
       const nextText = (override?.text ?? text).trim();
       const nextAuthor = (override?.authorName ?? authorName).trim();
-
       if (!nextText) return;
 
-      const clientId =
-        override?.clientId ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const clientId = override?.clientId ?? makeClientId();
+
+      const el = listRef.current;
+      const shouldAutoScroll = el ? isNearBottom(el) : true;
 
       const optimistic: PendingComment = {
         clientId,
@@ -128,6 +210,14 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
       setAuthorName("");
       setFocused(false);
 
+      // подсветка и скролл на “наш” новый элемент
+      const optimisticDomId = `pending:${clientId}`;
+      setHighlight(optimisticDomId);
+      if (shouldAutoScroll) {
+        requestAnimationFrame(() => scrollToBottom("smooth"));
+      }
+
+      setSubmitting(true);
       try {
         const result = await addCommentAction({
           taskId,
@@ -139,25 +229,42 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
           setPending((prev) =>
             prev.map((p) =>
               p.clientId === clientId
-                ? { ...p, state: "failed", error: result.formError ?? "Failed to send." }
+                ? {
+                    ...p,
+                    state: "failed",
+                    error: result.formError ?? "Failed to send.",
+                  }
                 : p
             )
           );
           return;
         }
 
-        setPending((prev) => prev.filter((p) => p.clientId !== clientId));
+        // помечаем как sent, чтобы UI выглядел уверенно
+        setPending((prev) =>
+          prev.map((p) => (p.clientId === clientId ? { ...p, state: "sent" } : p))
+        );
+
         router.refresh();
+
+        // чуть позже убираем оптимистичный (серверный уже подтянется)
+        setTimeout(() => {
+          setPending((prev) => prev.filter((p) => p.clientId !== clientId));
+        }, 500);
       } catch (e) {
         console.error(e);
         setPending((prev) =>
           prev.map((p) =>
-            p.clientId === clientId ? { ...p, state: "failed", error: "Failed to send." } : p
+            p.clientId === clientId
+              ? { ...p, state: "failed", error: "Failed to send." }
+              : p
           )
         );
+      } finally {
+        setSubmitting(false);
       }
     },
-    [authorName, router, taskId, text]
+    [authorName, router, scrollToBottom, setHighlight, taskId, text]
   );
 
   const retry = useCallback(
@@ -182,51 +289,128 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
     setFocused(false);
   };
 
+  const activityCount = 1 + comments.length; // created + server comments (MVP)
+  // если хочешь учитывать pending — можно сделать 1 + comments.length + pending.length
+
   return (
-    <div className="space-y-3">
-      <div ref={listRef} className="max-h-[420px] space-y-3 overflow-auto pr-1">
-        {displayed.length === 0 ? (
-          <Card>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              No comments yet. Be the first.
-            </p>
-          </Card>
-        ) : (
-          displayed.map((c) => (
-            <Card
-              key={c.id}
-              className={[
-                "space-y-2",
-                c._state === "pending" ? "opacity-70" : "",
-                c._state === "failed" ? "border border-[var(--color-error)]/40" : "",
-              ].join(" ")}
-            >
-              <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                <span>{c.authorName}</span>
-                <span className="flex items-center gap-2">
-                  {c._state === "pending" ? <span>Sending…</span> : null}
-                  {c._state === "failed" ? (
-                    <span className="text-[var(--color-error)]">Failed</span>
-                  ) : null}
-                  <span>{formatDate(c.createdAt)}</span>
-                </span>
-              </div>
-
-              <p className="whitespace-pre-wrap text-sm text-[var(--color-text)]">{c.text}</p>
-
-              {c._state === "failed" ? (
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-xs text-[var(--color-error)]">{c._error ?? "Failed to send."}</div>
-                  <Button type="button" variant="secondary" onClick={() => retry(c._clientId)}>
-                    Retry
-                  </Button>
-                </div>
-              ) : null}
-            </Card>
-          ))
-        )}
+    <div ref={rootRef} className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold">
+          Activity{" "}
+          <span className="text-[var(--color-text-secondary)]">· {activityCount}</span>
+        </div>
+        {pending.length ? (
+          <div className="text-xs text-[var(--color-text-secondary)]">
+            +{pending.length} local
+          </div>
+        ) : null}
       </div>
 
+      {/* Feed */}
+      <Card className="p-0">
+        <div ref={listRef} className="max-h-[420px] overflow-auto px-4 py-3 pr-3">
+          <div className="divide-y divide-white/10">
+            {activity.map((item) => {
+              if (item.kind === "created") {
+                return (
+                  <div key={item.id} className="py-3">
+                    <div className="text-xs text-[var(--color-text-secondary)]">
+                      <span className="text-[var(--color-text)]">System</span>
+                      <span className="mx-2 text-white/20">•</span>
+                      <span>{formatDate(item.createdAt)}</span>
+                    </div>
+                    <div className="mt-2 text-sm text-[var(--color-text)]">
+                      {item.title}
+                      {item.subtitle ? (
+                        <span className="ml-2 text-[var(--color-text-secondary)]">
+                          ({item.subtitle})
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (item.kind === "empty") {
+                return (
+                  <div key={item.id} className="py-3">
+                    <div className="text-sm text-[var(--color-text-secondary)]">
+                      {item.text}
+                    </div>
+                  </div>
+                );
+              }
+
+              const rowId = item.id;
+              const isHighlighted = highlightId === rowId;
+
+              return (
+                <div
+                  key={rowId}
+                  className={[
+                    "py-3 transition-colors",
+                    item.state === "pending" ? "opacity-70" : "",
+                    item.state === "failed" ? "bg-white/[0.02]" : "",
+                    isHighlighted ? "bg-white/[0.04]" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-xs text-[var(--color-text-secondary)]">
+                      <span className="text-[var(--color-text)]">{item.authorName}</span>
+                      <span className="mx-2 text-white/20">•</span>
+                      <span>{formatDate(item.createdAt)}</span>
+
+                      {item.state === "pending" ? (
+                        <>
+                          <span className="mx-2 text-white/20">•</span>
+                          <span>Sending…</span>
+                        </>
+                      ) : null}
+
+                      {item.state === "sent" ? (
+                        <>
+                          <span className="mx-2 text-white/20">•</span>
+                          <span>Sent</span>
+                        </>
+                      ) : null}
+
+                      {item.state === "failed" ? (
+                        <>
+                          <span className="mx-2 text-white/20">•</span>
+                          <span className="text-[var(--color-error)]">Failed</span>
+                        </>
+                      ) : null}
+                    </div>
+
+                    {item.state === "failed" && item.clientId ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => retry(item.clientId!)}
+                      >
+                        Retry
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-[var(--color-text)]">
+                    {item.text}
+                  </div>
+
+                  {item.state === "failed" ? (
+                    <div className="mt-2 text-xs text-[var(--color-error)]">
+                      {item.error ?? "Failed to send."}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
+      {/* Composer */}
       <Card className="space-y-3">
         <Textarea
           name="text"
@@ -246,38 +430,38 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, comments }) => {
           }}
         />
 
-        {isFocused ? (
-          <>
-            <Input
-              type="text"
-              name="authorName"
-              placeholder="Your name (optional)"
-              value={authorName}
-              onChange={(event) => setAuthorName(event.target.value)}
-            />
+        {isFocused || authorName.trim() ? (
+          <Input
+            type="text"
+            name="authorName"
+            placeholder="Your name (optional)"
+            value={authorName}
+            onChange={(event) => setAuthorName(event.target.value)}
+          />
+        ) : null}
 
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                Ctrl/Cmd + Enter to send • Esc to cancel
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-[var(--color-text-secondary)]">
+            Ctrl/Cmd + Enter to send • Esc to cancel
+          </div>
 
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={cancel}>
-                  Cancel
-                </Button>
-                <Button type="button" variant="primary" disabled={!text.trim()} onClick={() => void submit()}>
-                  Send
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex justify-end">
-            <Button type="button" variant="primary" disabled={!text.trim()} onClick={() => void submit()}>
-              Send
+          <div className="flex gap-2">
+            {isFocused ? (
+              <Button type="button" variant="secondary" onClick={cancel}>
+                Cancel
+              </Button>
+            ) : null}
+
+            <Button
+              type="button"
+              variant="primary"
+              disabled={isSubmitting || !text.trim()}
+              onClick={() => void submit()}
+            >
+              {isSubmitting ? "Sending..." : "Send"}
             </Button>
           </div>
-        )}
+        </div>
       </Card>
     </div>
   );
