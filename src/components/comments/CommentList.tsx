@@ -23,7 +23,10 @@ const CommentList: React.FC<CommentListProps> = ({ comments }) => {
       {comments.map((comment) => (
         <Card key={comment.id} className="space-y-2">
           <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-            <span>{comment.authorName || "Anonymous"}</span>
+            <span>
+              {comment.authorName ||
+                (comment.userId ? `User ${comment.userId.slice(0, 6)}` : "Anonymous")}
+            </span>
             <span>{formatDate(comment.createdAt)}</span>
           </div>
           <p className="text-sm text-[var(--color-text)]">{comment.text}</p>

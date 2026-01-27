@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import CreateTaskModal from "../modals/CreateTaskModal";
 import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
+import { ISSUE_FILTER_QUERY_KEYS } from "../../shared/issueFilterQueryKeys";
 
 const tabs = [
   { label: "Board", href: "/board" },
@@ -29,8 +30,21 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
   const [isSubmitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // ✅ стабильный паттерн state↔URL для поиска
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
+
+  const searchParams = useSearchParams();
+
+  const allowedQuery = useMemo(() => {
+    const params = new URLSearchParams();
+  
+    for (const key of ISSUE_FILTER_QUERY_KEYS) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
+  
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }, [searchParams]);
 
   const openModal = () => {
     setFormError(null);
@@ -86,7 +100,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
               return (
                 <Link
                   key={tab.href}
-                  href={tab.href}
+                  href={`${tab.href}${allowedQuery}`}
                   aria-current={isActive ? "page" : undefined}
                   className={[
                     "relative inline-flex h-8 items-center justify-center rounded-full px-3 text-sm",

@@ -23,6 +23,7 @@ const priorityOptions: Array<{ value: TaskPriority; label: string }> = [
 
 interface IssueMetaPanelProps {
   id: string;
+  projectLabel?: string | null; 
   status?: string | null;
   priority?: string | null;
   environment?: string | null;
@@ -33,6 +34,7 @@ interface IssueMetaPanelProps {
 const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   id,
   status,
+  projectLabel,
   priority,
   environment,
   createdAt,
@@ -76,6 +78,12 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </span>
         ) : null}
       </div>
+      {projectLabel ? (
+        <div className="space-y-1">
+          <div className="text-xs text-[var(--color-text-secondary)]">Project</div>
+          <div className="text-sm text-[var(--color-text)]">{projectLabel}</div>
+        </div>
+      ) : null}
       <label className="space-y-2 text-xs text-[var(--color-text-secondary)]">
         <span className="font-medium text-white">Status</span>
         <Select
@@ -103,19 +111,22 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         />
       </label>
       {environment ? (
-        <div className="space-y-1 text-xs text-[var(--color-text-secondary)]">
-          <span className="font-medium text-white">Environment</span>
-          <div>{environment}</div>
+        <div className="space-y-1">
+          <div className="text-xs text-[var(--color-text-secondary)]">Environment</div>
+          <div className="text-sm text-[var(--color-text)]">{environment}</div>
         </div>
       ) : null}
-      <div className="space-y-1 text-xs text-[var(--color-text-secondary)]">
-        <span className="font-medium text-white">Created</span>
-        <div>{formatDate(createdAt)}</div>
-      </div>
-      <div className="space-y-1 text-xs text-[var(--color-text-secondary)]">
-        <span className="font-medium text-white">Updated</span>
-        <div>{formatDate(updatedAt ?? createdAt)}</div>
-      </div>
+      <div className="my-2 border-t border-white/10" />
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="text-xs text-[var(--color-text-secondary)]">Created</div>
+          <div className="text-sm text-[var(--color-text)]">{formatDate(createdAt)}</div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-xs text-[var(--color-text-secondary)]">Updated</div>
+          <div className="text-sm text-[var(--color-text)]">{formatDate(updatedAt ?? createdAt)}</div>
+        </div>
+     </div>
     </div>
   );
 };

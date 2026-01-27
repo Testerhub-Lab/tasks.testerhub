@@ -29,15 +29,19 @@ model Task {
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  taskId    String
-  text      String
-  userId    String?
+  id         String   @id @default(uuid())
+  taskId     String
+  text       String
+  userId     String?
   authorName String?
-  createdAt DateTime @default(now())
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([taskId, createdAt])
+  @@index([userId])
 }
 
 model User {
@@ -46,6 +50,8 @@ model User {
   name        String?
   role        Role     @default(USER)
   testerHubId String?
+
+  comments    Comment[]
 }
 
 model Setting {

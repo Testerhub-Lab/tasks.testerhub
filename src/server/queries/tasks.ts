@@ -2,6 +2,7 @@ import prisma from "../../lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { IssueFilters } from "../validators/issueFilters";
 
+
 export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {};
 
@@ -73,5 +74,21 @@ export async function getCommentsByTaskId(taskId: string) {
   return prisma.comment.findMany({
     where: { taskId },
     orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      taskId: true,
+      text: true,
+      userId: true,
+      authorName: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
   });
 }
+
