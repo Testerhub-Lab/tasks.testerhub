@@ -10,31 +10,37 @@ import {
   getTaskByKey,
 } from "../../../server/queries/tasks";
 import { getProjectById } from "../../../server/queries/projects";
+import { permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 interface TaskPageProps {
-  params: Promise<{ id: string }>;
+  params: { ref: string };
 }
 
 const TaskPage = async ({ params }: TaskPageProps) => {
-  const { id } = await params;
-  if (!id) {
+  const { ref } = params;
+  if (!ref) {
     return notFound();
   }
 
-  const issueKeyPattern = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
-  const task = issueKeyPattern.test(id)
-    ? await getTaskByKey(id.toUpperCase())
-    : await getTaskById(id);
+  const normalizedRef = ref.toUpperCase();
+  const issueKeyPattern = /^[A-Z0-9]+-\d+$/;
+  const task = issueKeyPattern.test(normalizedRef)
+    ? await getTaskByKey(normalizedRef)
+    : await getTaskById(ref);
 
   if (!task) {
     return notFound();
   }
 
-  const project = task.projectId
-    ? await getProjectById(task.projectId)
-    : null;
+  const taskKey = (task as { key?: string | null }).key;
+  if (!issueKeyPattern.test(normalizedRef) && taskKey) {
+    permanentRedirect(`/tasks/${taskKey}`);
+  }
+
+  const taskProjectId = (task as { projectId?: string | null }).projectId;
+  const project = taskProjectId ? await getProjectById(taskProjectId) : null;
   const comments = await getCommentsByTaskId(task.id);
 
   return (

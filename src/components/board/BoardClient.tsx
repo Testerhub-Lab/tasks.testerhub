@@ -115,14 +115,6 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">Board</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Канбан-представление для ежедневной работы.
-          </p>
-        </div>
-      </div>
       {errorMessage ? (
         <div className="text-sm text-[var(--color-error)]">{errorMessage}</div>
       ) : null}

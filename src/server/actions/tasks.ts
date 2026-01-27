@@ -36,6 +36,7 @@ export async function createTaskAction(data: TaskInput) {
     const validatedData = taskSchema.parse(data);
     const project = await prisma.project.findUnique({
       where: { id: validatedData.projectId },
+      select: { id: true, key: true, nextIssueNumber: true },
     });
     if (!project) {
       return { ok: false, formError: "Project not found" };
@@ -52,14 +53,13 @@ export async function createTaskAction(data: TaskInput) {
       .join("\n\n");
 
     const task = await prisma.$transaction(async (tx) => {
-      const currentProject = await tx.project.findUnique({
+      const updatedProject = await tx.project.update({
         where: { id: project.id },
+        data: { nextIssueNumber: { increment: 1 } },
+        select: { id: true, key: true, nextIssueNumber: true },
       });
-      if (!currentProject) {
-        throw new Error("Project not found");
-      }
-      const nextNumber = currentProject.nextIssueNumber;
-      const taskKey = `${currentProject.key}-${nextNumber}`;
+      const nextNumber = updatedProject.nextIssueNumber - 1;
+      const taskKey = `${updatedProject.key}-${nextNumber}`;
       const created = await tx.task.create({
         data: {
           title: validatedData.title,
@@ -67,19 +67,15 @@ export async function createTaskAction(data: TaskInput) {
           priority: validatedData.priority,
           tags: validatedData.tags ? validatedData.tags.split(",") : [],
           attachments: validatedData.attachments ?? [],
-          projectId: currentProject.id,
+          projectId: updatedProject.id,
           number: nextNumber,
           key: taskKey,
         },
       });
-      await tx.project.update({
-        where: { id: currentProject.id },
-        data: { nextIssueNumber: nextNumber + 1 },
-      });
       return { task: created, taskKey };
     });
 
-    return { ok: true, id: task.task.id, taskKey: task.taskKey };
+    return { ok: true, id: task.task.id, key: task.taskKey };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { ok: false, fieldErrors: error.flatten().fieldErrors };

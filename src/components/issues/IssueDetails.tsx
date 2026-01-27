@@ -88,8 +88,8 @@ const IssueDetails: React.FC<IssueDetailsProps> = ({ task }) => {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-            <span className="font-semibold uppercase tracking-wide text-white">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
               {issueKey}
             </span>
             {details.type ? <Badge className="text-xs">{details.type}</Badge> : null}

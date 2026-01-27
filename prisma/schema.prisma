@@ -18,13 +18,14 @@ model Task {
   requesterName  String?
   requesterEmail String?
   status         String   @default("Open")
-  projectId      String?
-  number         Int?
-  key            String?  @unique
+  projectId      String
+  number         Int
+  key            String   @unique
   createdAt      DateTime @default(now())
-  project        Project? @relation(fields: [projectId], references: [id])
+  project        Project  @relation(fields: [projectId], references: [id])
+  comments       Comment[]
 
-  @@index([projectId, number])
+  @@unique([projectId, number])
 }
 
 model Comment {
@@ -34,6 +35,9 @@ model Comment {
   userId    String?
   authorName String?
   createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
 }
 
 model User {
