@@ -1,12 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
 import type { Task } from "@prisma/client";
-import { getPriorityClasses, normalizePriority } from "./utils";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -84,43 +83,127 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 }) => {
   const details = parseDetails(task.description);
   const isBug = details.type?.toLowerCase() === "bug";
-  const priority = normalizePriority(task.priority);
   const issueKey = task.key ?? task.id;
+  const [copied, setCopied] = useState<"key" | "link" | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const showCopied = (value: "key" | "link") => {
+    setCopied(value);
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+    }
+    timerRef.current = window.setTimeout(() => {
+      setCopied(null);
+    }, 1200);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return ok;
+      } catch (fallbackError) {
+        console.error(fallbackError);
+        return false;
+      }
+    }
+  };
+
+  const handleCopyKey = async () => {
+    const ok = await copyToClipboard(issueKey);
+    if (ok) {
+      showCopied("key");
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (typeof window === "undefined") return;
+    const ok = await copyToClipboard(window.location.href);
+    if (ok) {
+      showCopied("link");
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="space-y-2">
-        {/* line 1: key + type */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-            {issueKey}
-          </span>
-          {details.type ? <Badge className="text-xs">{details.type}</Badge> : null}
-        </div>
-
-        {/* line 2: title */}
-        <h1 className="text-3xl font-semibold leading-tight">{task.title}</h1>
-
-        {/* line 3: status + priority */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge className={getPriorityClasses(priority)}>
-            {priority ?? task.priority ?? "—"}
-          </Badge>
-          <Badge>{task.status}</Badge>
-        </div>
-
-        {/* line 4: tags */}
-        {task.tags.length ? (
-          <div className="flex flex-wrap gap-2">
-            {task.tags.map((tag) => (
-              <Badge key={tag} className="text-xs">
-                {tag}
-              </Badge>
-            ))}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyKey}
+              className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] transition-colors hover:text-white"
+            >
+              {issueKey}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              aria-label="Copy issue link"
+              className="flex items-center text-[var(--color-text-secondary)] transition-colors hover:text-white"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
+                <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
+              </svg>
+            </button>
+            {copied === "key" ? (
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                Copied
+              </span>
+            ) : null}
+            {copied === "link" ? (
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                Copied
+              </span>
+            ) : null}
+            {details.type ? (
+              <Badge className="text-xs">{details.type}</Badge>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+
+          <h1 className="text-3xl font-semibold leading-tight">
+            {task.title}
+          </h1>
+
+          {task.tags.length ? (
+            <div className="flex flex-wrap gap-2">
+              {task.tags.map((tag) => (
+                <Badge key={tag} className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         <BackButton />
       </div>

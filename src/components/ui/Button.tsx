@@ -1,7 +1,7 @@
 import React from "react";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "ghost";
 };
 
 const Button: React.FC<ButtonProps> = ({
@@ -15,7 +15,9 @@ const Button: React.FC<ButtonProps> = ({
   const variantStyles =
     variant === "primary"
       ? "bg-[var(--color-primary)] hover:bg-[#0088a3]"
-      : "bg-transparent border border-[var(--color-card-border)] hover:border-[var(--color-primary)]";
+      : variant === "secondary"
+        ? "bg-transparent border border-[var(--color-card-border)] hover:border-[var(--color-primary)]"
+        : "bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]";
 
   return (
     <button

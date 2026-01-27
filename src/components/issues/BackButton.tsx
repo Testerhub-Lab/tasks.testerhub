@@ -10,7 +10,7 @@ const BackButton: React.FC = () => {
   return (
     <Button
       type="button"
-      variant="secondary"
+      variant="ghost"
       onClick={() => {
         if (window.history.length > 1) {
           router.back();
