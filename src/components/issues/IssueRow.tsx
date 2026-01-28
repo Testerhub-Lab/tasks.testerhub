@@ -19,32 +19,40 @@ const IssueRow: React.FC<IssueRowProps> = ({
   issueKey,
   priority,
   status,
-  description,
   createdAt,
   href,
 }) => {
   const content = (
-    <div className="flex flex-col gap-2 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-4 transition-colors hover:border-[rgba(0,184,217,0.4)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          {issueKey ? (
-            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-              {issueKey}
-            </div>
-          ) : null}
-          <h3 className="text-base font-semibold text-white">{title}</h3>
-          {description ? (
-            <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2">
-              {description}
-            </p>
-          ) : null}
+    <div className="group flex items-start justify-between gap-4 px-4 py-2.5 border-b border-[var(--divider)] hover:bg-[var(--hover)] transition-colors">
+      <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+          <div className="flex items-baseline gap-2 min-w-0">
+            {issueKey ? (
+              <span className="shrink-0 text-xs font-medium text-white/50 font-mono">
+                {issueKey}
+              </span>
+            ) : null}
+
+            <h3 className="min-w-0 text-sm font-semibold text-white/90 leading-5 truncate">
+              {title}
+            </h3>
+          </div>
         </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3 text-xs text-[var(--color-text-secondary)]">
         <Badge className={getPriorityClasses(priority)}>{priority ?? "—"}</Badge>
+
+        <span className="whitespace-nowrap">
+          {getStatusLabel(status)}
+        </span>
+
+        <span className="whitespace-nowrap text-white/40">·</span>
+
+        <span className="whitespace-nowrap">
+          {formatDate(createdAt)}
+        </span>
       </div>
-      <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--color-text-secondary)]">
-        <span>{getStatusLabel(status)}</span>
-        <span>Created {formatDate(createdAt)}</span>
-      </div>
+
     </div>
   );
 

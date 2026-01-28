@@ -1,15 +1,16 @@
-import React from "react";
 import Link from "next/link";
-import IssueTable from "../../components/issues/IssueTable";
+import IssueRow from "../../components/issues/IssueRow";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
-import { normalizePriority } from "../../components/issues/utils";
 import {
   hasActiveFilters,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
+import Card from "../../components/ui/Card";
+import { normalizePriority } from "../../components/issues/utils";
+
 
 interface IssuesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -35,13 +36,15 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
           {tasks.length} issues
         </div>
       </div>
+
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}
         basePath="/issues"
       />
+
       {tasks.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">
+        <Card variant="surface" className="rounded-2xl p-8 text-center">
           <p className="text-lg text-white">
             {isFiltered ? "No issues found" : "No tasks yet"}
           </p>
@@ -54,7 +57,7 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
             {isFiltered ? (
               <Link
                 href="/issues"
-                className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
+                className="rounded-full border border-[rgba(255,255,255,0.14)] px-4 py-2 text-sm text-white/90 hover:bg-white/5 transition-colors"
               >
                 Clear filters
               </Link>
@@ -62,15 +65,25 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
               <CreateIssueButton />
             )}
           </div>
-        </div>
+        </Card>
       ) : (
-        <IssueTable
-          items={tasks.map((task) => ({
-            ...task,
-            key: task.key ?? undefined,
-            priority: normalizePriority(task.priority),
-          }))}
-        />
+        <Card
+          variant="surface"
+          className="overflow-hidden rounded-2xl p-0"
+        >
+          {tasks.map((task) => (
+            <IssueRow
+              key={task.id}
+              title={task.title}
+              issueKey={task.key}
+              priority={normalizePriority(task.priority)}
+              status={task.status}
+              description={task.description}
+              createdAt={task.createdAt}
+              href={`/tasks/${task.key ?? task.id}`}
+            />
+          ))}
+        </Card>
       )}
     </div>
   );

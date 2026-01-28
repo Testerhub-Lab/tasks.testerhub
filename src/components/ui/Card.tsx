@@ -1,16 +1,22 @@
-import React from "react";
+import * as React from "react";
 
-interface CardProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-const Card: React.FC<CardProps> = ({ children, className = "" }) => {
-  return (
-    <div className={`card ${className}`}>
-      {children}
-    </div>
-  );
+type CardProps = React.HTMLAttributes<HTMLDivElement> & {
+  variant?: "glass" | "surface";
 };
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className = "", variant = "surface", ...props }, ref) => {
+    const base = variant === "glass" ? "glass" : "surface";
+    return (
+      <div
+        ref={ref}
+        className={`${base} ${className}`.trim()}
+        {...props}
+      />
+    );
+  }
+);
+
+Card.displayName = "Card";
 
 export default Card;
