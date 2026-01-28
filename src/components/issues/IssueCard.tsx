@@ -20,26 +20,43 @@ const IssueCard: React.FC<IssueCardProps> = ({
   description,
 }) => {
   return (
-    <Card className="space-y-3 border border-transparent hover:border-[var(--color-card-border)] transition-colors">
+    <Card
+      variant="surface"
+      className={[
+        "rounded-2xl p-4",
+        "border border-[rgba(255,255,255,0.08)]",
+        "hover:border-[rgba(255,255,255,0.14)] hover:bg-white/[0.02]",
+        "transition-colors",
+      ].join(" ")}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          {issueKey ? (
-            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-              {issueKey}
-            </div>
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2 min-w-0">
+            {issueKey ? (
+              <span className="shrink-0 text-xs font-medium text-white/50 font-mono">
+                {issueKey}
+              </span>
+            ) : null}
+
+            <h3 className="min-w-0 text-sm font-semibold text-white/90 truncate">
+              {title}
+            </h3>
+          </div>
+
+          {description ? (
+            <p className="mt-2 text-sm text-white/60 line-clamp-2">
+              {description}
+            </p>
           ) : null}
-          <h3 className="text-base font-semibold text-white">{title}</h3>
         </div>
-        <Badge className={getPriorityClasses(priority)}>{priority ?? "—"}</Badge>
+
+        <div className="shrink-0">
+          <Badge className={getPriorityClasses(priority)}>{priority ?? "—"}</Badge>
+        </div>
       </div>
-      {description ? (
-        <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3">
-          {description}
-        </p>
-      ) : null}
-      <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-        <span>Status:</span>
-        <span className="text-white">{getStatusLabel(status)}</span>
+
+      <div className="mt-3 flex items-center gap-2 text-xs text-white/50">
+        <span className="whitespace-nowrap">{getStatusLabel(status)}</span>
       </div>
     </Card>
   );

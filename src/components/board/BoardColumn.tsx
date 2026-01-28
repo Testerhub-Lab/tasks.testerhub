@@ -3,6 +3,7 @@
 import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import type { TaskStatus } from "../../server/validators/task";
+import Card from "../ui/Card";
 
 interface BoardColumnProps {
   status: TaskStatus;
@@ -17,34 +18,45 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
   count,
   children,
 }) => {
-  const { isOver, setNodeRef } = useDroppable({
-    id: status,
-  });
+  const { isOver, setNodeRef } = useDroppable({ id: status });
 
   return (
-    <section
+    <Card
       ref={setNodeRef}
-      className={`rounded-2xl border border-[var(--color-card-border)] bg-[rgba(18,24,46,0.4)] p-4 transition-all ${
-        isOver
-          ? "border-cyan-400/30 bg-white/5 ring-2 ring-cyan-400/60"
-          : ""
-      }`}
+      variant="surface"
+      className={[
+        "rounded-2xl p-3",
+        "!bg-[rgba(255,255,255,0.03)]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+        "transition-[border-color,background-color,box-shadow] duration-150",
+        isOver ? "ring-2 ring-cyan-400/35 border-cyan-400/30" : "",
+      ].join(" ")}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-          {title}
-        </h2>
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {isOver ? (
-            <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
-              Drop here
-            </span>
-          ) : null}
-          <span className="text-xs text-[var(--color-text-secondary)]">{count}</span>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/55">
+            {title}
+          </h2>
+          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
+            {count}
+          </span>
         </div>
+
+        {isOver ? (
+          <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+            Drop
+          </span>
+        ) : null}
       </div>
-      <div className="space-y-4">{children}</div>
-    </section>
+
+      <div className="space-y-2">{children}</div>
+
+      {count === 0 ? (
+      <div className="mt-3 text-xs text-white/30">
+        Empty
+      </div>
+    ) : null}
+    </Card>
   );
 };
 

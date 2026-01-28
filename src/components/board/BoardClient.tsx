@@ -12,7 +12,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { Task } from "@prisma/client";
-import IssueCard from "../issues/IssueCard";
+import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
@@ -119,21 +119,21 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
         <div className="text-sm text-[var(--color-error)]">{errorMessage}</div>
       ) : null}
       {!isMounted ? (
-        <div className="grid gap-6 lg:grid-cols-4">
+        <div className="grid gap-4 lg:grid-cols-4">
           {columns.map((column) => (
             <section
               key={column.status}
-              className="rounded-2xl border border-[var(--color-card-border)] bg-[rgba(18,24,46,0.4)] p-4"
+              className="rounded-2xl border border-[var(--divider)] bg-[var(--surface-1)] p-3"
             >
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-white/60">
                   {column.title}
                 </h2>
-                <span className="text-xs text-[var(--color-text-secondary)]">
+                <span className="text-xs text-white/40">
                   {grouped[column.status]?.length ?? 0}
                 </span>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {grouped[column.status]?.map((task) => (
                   <IssueCard
                     key={task.id}
@@ -155,7 +155,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-6 lg:grid-cols-4">
+          <div className="grid gap-4 lg:grid-cols-4">
             {columns.map((column) => (
               <BoardColumn
                 key={column.status}
@@ -175,7 +175,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
           </div>
           <DragOverlay dropAnimation={defaultDropAnimation}>
             {activeTask ? (
-              <div className="pointer-events-none opacity-95">
+              <div className="pointer-events-none">
                 <IssueCard
                   issueKey={activeTask.key ?? undefined}
                   title={activeTask.title}
@@ -186,6 +186,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
               </div>
             ) : null}
           </DragOverlay>
+
         </DndContext>
       )}
     </div>
@@ -225,8 +226,8 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
       {...listeners}
     >
       {isSaving ? (
-        <span className="absolute right-3 top-3 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
-          Saving...
+        <span className="absolute right-3 top-3 text-[10px] font-semibold uppercase tracking-wide text-cyan-200/90">
+          Saving…
         </span>
       ) : null}
       <IssueCard

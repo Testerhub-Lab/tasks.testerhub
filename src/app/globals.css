@@ -66,6 +66,12 @@ body::before {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
 }
 
+/* Plain (no bg/border) — for inner cards that style themselves */
+.plain {
+  background: transparent;
+  border: 1px solid transparent;
+}
+
 
 .topbar {
   @apply flex items-center justify-between px-6 py-3;
