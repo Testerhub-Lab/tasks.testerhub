@@ -25,10 +25,16 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
     ];
   }
 
-  // Каноничное правило: Board никогда не показывает New
-  if (filters.view === "board") {
+  // ✅ Канон: Backlog всегда только NEW
+  if (filters.view === "backlog") {
+    where.status = Status.NEW;
+  }
+  // ✅ Канон: Board никогда не показывает NEW
+  else if (filters.view === "board") {
     where.status = { in: [...BOARD_STATUSES] };
-  } else if (filters.status?.length) {
+  }
+  // ✅ Остальные страницы: если status-фильтр есть — применяем
+  else if (filters.status?.length) {
     where.status = { in: filters.status };
   }
 

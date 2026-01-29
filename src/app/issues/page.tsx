@@ -9,8 +9,6 @@ import {
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import Card from "../../components/ui/Card";
-import { normalizePriority } from "../../components/issues/utils";
-
 
 interface IssuesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,6 +17,7 @@ interface IssuesPageProps {
 const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
+
   const tasks = await getTasks(filters);
   const projects = await getProjects();
   const isFiltered = hasActiveFilters(filters);
@@ -37,11 +36,7 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
         </div>
       </div>
 
-      <IssueFiltersBar
-        projects={projects}
-        initialFilters={filters}
-        basePath="/issues"
-      />
+      <IssueFiltersBar projects={projects} initialFilters={filters} basePath="/issues" />
 
       {tasks.length === 0 ? (
         <Card variant="surface" className="rounded-2xl p-8 text-center">
@@ -67,17 +62,15 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
           </div>
         </Card>
       ) : (
-        <Card
-          variant="surface"
-          className="overflow-hidden rounded-2xl p-0"
-        >
+        <Card variant="surface" className="overflow-hidden rounded-2xl p-0">
           {tasks.map((task) => (
             <IssueRow
               key={task.id}
+              id={task.id}
               title={task.title}
               issueKey={task.key}
-              priority={normalizePriority(task.priority)}
-              status={task.status}
+              priority={task.priority}     // <-- напрямую Prisma enum
+              status={task.status}         // <-- напрямую Prisma enum
               description={task.description}
               createdAt={task.createdAt}
               href={`/tasks/${task.key ?? task.id}`}

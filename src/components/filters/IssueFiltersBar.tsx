@@ -220,7 +220,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // =========================
   if (isCompact) {
     return (
-      <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] px-4 py-3">
+      <div className="rounded-2xl px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {showProjectSelect ? (

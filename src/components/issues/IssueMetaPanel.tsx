@@ -1,32 +1,34 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Select from "../ui/Select";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
-import type { TaskPriority, TaskStatus } from "../../server/validators/task";
-import { formatDate, normalizePriority, normalizeStatus } from "./utils";
+import { Priority, Status } from "@prisma/client";
+import { formatDate } from "./utils";
 
-const statusOptions: Array<{ value: TaskStatus; label: string }> = [
-  { value: "New", label: "New" },
-  { value: "Todo", label: "To Do" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Testing", label: "Testing" },
-  { value: "Done", label: "Done" },
-];
+const statusLabel: Record<Status, string> = {
+  [Status.NEW]: "New",
+  [Status.TODO]: "To Do",
+  [Status.HOLD]: "Hold",
+  [Status.IN_PROGRESS]: "In Progress",
+  [Status.TESTING]: "Testing",
+  [Status.DONE]: "Done",
+  [Status.REJECT]: "Reject",
+};
 
-const priorityOptions: Array<{ value: TaskPriority; label: string }> = [
-  { value: "Low", label: "Low" },
-  { value: "Medium", label: "Medium" },
-  { value: "High", label: "High" },
-  { value: "Critical", label: "Critical" },
-];
+const priorityLabel: Record<Priority, string> = {
+  [Priority.LOW]: "Low",
+  [Priority.MEDIUM]: "Medium",
+  [Priority.HIGH]: "High",
+  [Priority.CRITICAL]: "Critical",
+};
 
 interface IssueMetaPanelProps {
   id: string;
-  projectLabel?: string | null; 
-  status?: string | null;
-  priority?: string | null;
+  projectLabel?: string | null;
+  status?: Status | null;
+  priority?: Priority | null;
   environment?: string | null;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
@@ -42,15 +44,32 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   updatedAt,
 }) => {
   const router = useRouter();
-  const [currentStatus, setCurrentStatus] = useState<TaskStatus>(
-    normalizeStatus(status)
+
+  const statusOptions = useMemo(
+    () =>
+      (Object.values(Status) as Status[]).map((s) => ({
+        value: s,
+        label: statusLabel[s] ?? s,
+      })),
+    []
   );
-  const [currentPriority, setCurrentPriority] = useState<TaskPriority>(
-    normalizePriority(priority) ?? "Medium"
+
+  const priorityOptions = useMemo(
+    () =>
+      (Object.values(Priority) as Priority[]).map((p) => ({
+        value: p,
+        label: priorityLabel[p] ?? p,
+      })),
+    []
+  );
+
+  const [currentStatus, setCurrentStatus] = useState<Status>(status ?? Status.NEW);
+  const [currentPriority, setCurrentPriority] = useState<Priority>(
+    priority ?? Priority.MEDIUM
   );
   const [isSaving, setSaving] = useState(false);
 
-  const handleUpdate = async (next: { status?: TaskStatus; priority?: TaskPriority }) => {
+  const handleUpdate = async (next: { status?: Status; priority?: Priority }) => {
     setSaving(true);
     try {
       const result = await updateTaskFieldsAction({
@@ -58,9 +77,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         status: next.status ?? currentStatus,
         priority: next.priority ?? currentPriority,
       });
-      if (!result.ok) {
-        return;
-      }
+      if (!result.ok) return;
       router.refresh();
     } finally {
       setSaving(false);
@@ -74,60 +91,67 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           Details
         </h3>
         {isSaving ? (
-          <span className="text-xs text-[var(--color-text-secondary)]">
-            Saving...
-          </span>
+          <span className="text-xs text-[var(--color-text-secondary)]">Saving...</span>
         ) : null}
       </div>
+
       {projectLabel ? (
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-text-secondary)]">Project</div>
           <div className="text-sm text-[var(--color-text)]">{projectLabel}</div>
         </div>
       ) : null}
+
       <label className="space-y-2 text-xs text-[var(--color-text-secondary)]">
         <span className="font-medium text-white">Status</span>
         <Select
           name="status"
           value={currentStatus}
           onChange={(event) => {
-            const nextStatus = event.target.value as TaskStatus;
+            const nextStatus = event.target.value as Status;
             setCurrentStatus(nextStatus);
             handleUpdate({ status: nextStatus });
           }}
           options={statusOptions}
         />
       </label>
+
       <label className="space-y-2 text-xs text-[var(--color-text-secondary)]">
         <span className="font-medium text-white">Priority</span>
         <Select
           name="priority"
           value={currentPriority}
           onChange={(event) => {
-            const nextPriority = event.target.value as TaskPriority;
+            const nextPriority = event.target.value as Priority;
             setCurrentPriority(nextPriority);
             handleUpdate({ priority: nextPriority });
           }}
           options={priorityOptions}
         />
       </label>
+
       {environment ? (
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-text-secondary)]">Environment</div>
           <div className="text-sm text-[var(--color-text)]">{environment}</div>
         </div>
       ) : null}
+
       <div className="my-2 border-t border-white/10" />
+
       <div className="space-y-3">
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-text-secondary)]">Created</div>
           <div className="text-sm text-[var(--color-text)]">{formatDate(createdAt)}</div>
         </div>
+
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-text-secondary)]">Updated</div>
-          <div className="text-sm text-[var(--color-text)]">{formatDate(updatedAt ?? createdAt)}</div>
+          <div className="text-sm text-[var(--color-text)]">
+            {formatDate(updatedAt ?? createdAt)}
+          </div>
         </div>
-     </div>
+      </div>
     </div>
   );
 };
