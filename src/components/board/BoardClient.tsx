@@ -26,7 +26,7 @@ type BoardTask = Omit<Task, "status" | "priority"> & {
 };
 
 const columns: Array<{ status: TaskStatus; title: string }> = [
-  { status: "New", title: "New" },
+  { status: "Todo", title: "To Do" },
   { status: "In Progress", title: "In Progress" },
   { status: "Testing", title: "Testing" },
   { status: "Done", title: "Done" },

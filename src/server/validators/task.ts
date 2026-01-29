@@ -21,6 +21,7 @@ export type TaskPriority = TaskInput["priority"];
 
 export const taskStatusSchema = z.enum([
   "New",
+  "Todo",
   "In Progress",
   "Testing",
   "Done",

@@ -1,4 +1,3 @@
-import React from "react";
 import Link from "next/link";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import BoardClient from "../../components/board/BoardClient";
@@ -17,7 +16,18 @@ interface BoardPageProps {
 const BoardPage = async ({ searchParams }: BoardPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
-  const tasks = await getTasks(filters);
+
+  type Filters = ReturnType<typeof parseSearchParams>;
+
+  const queryFilters: Filters =
+    filters.status?.length
+      ? filters
+      : {
+          ...filters,
+          status: ["Todo", "In Progress", "Testing", "Done"] as const,
+        };
+
+  const tasks = await getTasks(queryFilters);
   const projects = await getProjects();
   const isFiltered = hasActiveFilters(filters);
 

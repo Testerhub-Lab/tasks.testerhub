@@ -15,8 +15,19 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
   }
 
   if (filters.status?.length) {
-    where.status = { in: filters.status };
-  }
+    const statusSet = new Set(filters.status);
+  
+    // для запроса в БД расширяем список статусов строками legacy-значений
+    const dbStatuses: string[] = Array.from(statusSet);
+  
+    // legacy: "Open" считаем как "New"
+    if (statusSet.has("New")) {
+      dbStatuses.push("Open");
+    }
+  
+    where.status = { in: dbStatuses };
+  }  
+  
 
   if (filters.priority?.length) {
     where.priority = { in: filters.priority };

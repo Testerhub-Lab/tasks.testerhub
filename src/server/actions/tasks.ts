@@ -65,6 +65,7 @@ export async function createTaskAction(data: TaskInput) {
           title: validatedData.title,
           description: details || validatedData.description,
           priority: validatedData.priority,
+          status: "New",
           tags: validatedData.tags ? validatedData.tags.split(",") : [],
           attachments: validatedData.attachments ?? [],
           projectId: updatedProject.id,

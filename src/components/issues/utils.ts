@@ -3,28 +3,39 @@ import type { TaskPriority, TaskStatus } from "../../server/validators/task";
 const statusLabelMap: Record<string, TaskStatus> = {
   new: "New",
   open: "New",
-  todo: "New",
   backlog: "New",
+
+  todo: "Todo",
+  to_do: "Todo",
+
   in_progress: "In Progress",
   progress: "In Progress",
+
   testing: "Testing",
   qa: "Testing",
   review: "Testing",
+
   done: "Done",
   closed: "Done",
   resolved: "Done",
 };
 
 export const normalizeStatus = (status?: string | null): TaskStatus => {
-  if (!status) {
-    return "New";
-  }
+  if (!status) return "New";
   const normalized = status.toLowerCase().replace(/\s+/g, "_");
   return statusLabelMap[normalized] ?? "New";
 };
 
+const statusUiLabels: Record<TaskStatus, string> = {
+  New: "New",
+  Todo: "To Do",
+  "In Progress": "In Progress",
+  Testing: "Testing",
+  Done: "Done",
+};
+
 export const getStatusLabel = (status?: string | null) => {
-  return normalizeStatus(status);
+  return statusUiLabels[normalizeStatus(status)];
 };
 
 export const normalizePriority = (

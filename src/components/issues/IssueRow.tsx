@@ -3,8 +3,11 @@ import Link from "next/link";
 import Badge from "../ui/Badge";
 import { formatDate, getPriorityClasses, getStatusLabel } from "./utils";
 import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import MoveToTodoButton from "./MoveToTodoButton";
+
 
 interface IssueRowProps {
+  id?: string;
   title: string;
   issueKey?: string | null;
   priority?: TaskPriority | null;
@@ -12,18 +15,30 @@ interface IssueRowProps {
   description?: string | null;
   createdAt?: Date | null;
   href?: string;
+  showMoveToTodo?: boolean;
+  rightActions?: React.ReactNode;
+  rowClassName?: string;
 }
 
 const IssueRow: React.FC<IssueRowProps> = ({
+  id,
   title,
   issueKey,
+  showMoveToTodo,
   priority,
   status,
   createdAt,
+  rightActions,
+  rowClassName,
   href,
 }) => {
   const content = (
-    <div className="group flex items-start justify-between gap-4 px-4 py-2.5 border-b border-[var(--divider)] hover:bg-[var(--hover)] transition-colors">
+    <div
+        className={[
+          "group flex items-start justify-between gap-4 px-4 py-2.5 border-b border-[var(--divider)] hover:bg-[var(--hover)] transition-colors",
+          rowClassName ?? "",
+        ].join(" ")}
+      >
       <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
           <div className="min-w-0">
           <div className="flex items-baseline gap-2 min-w-0">
@@ -51,6 +66,8 @@ const IssueRow: React.FC<IssueRowProps> = ({
         <span className="whitespace-nowrap">
           {formatDate(createdAt)}
         </span>
+        {showMoveToTodo && id ? <MoveToTodoButton taskId={id} /> : null}
+        {rightActions}
       </div>
 
     </div>

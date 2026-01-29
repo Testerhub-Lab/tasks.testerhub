@@ -17,7 +17,7 @@ model Task {
   attachments    String[] @default([])
   requesterName  String?
   requesterEmail String?
-  status         String   @default("Open")
+  status         String   @default("New")
   projectId      String
   number         Int
   key            String   @unique

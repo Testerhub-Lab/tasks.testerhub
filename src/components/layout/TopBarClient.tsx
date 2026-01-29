@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -25,6 +25,7 @@ interface TopBarClientProps {
 const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
@@ -62,6 +63,31 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
       window.removeEventListener("open-create-modal", handleOpen);
     };
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+K — стандартный поиск
+      const isCmdK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+      // "/" — как в Linear/Notion
+      const isSlash = e.key === "/";
+  
+      if (!isCmdK && !isSlash) return;
+  
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isTypingContext =
+        tag === "input" || tag === "textarea" || target?.isContentEditable;
+  
+      if (isTypingContext) return;
+  
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+  
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  
 
   const handleCreateTask = async (data: Parameters<typeof createTaskAction>[0]) => {
     setSubmitting(true);
@@ -128,8 +154,9 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
       <div className="topbar__right">
         <div className="topbar__search">
           <Input
+            ref={searchRef}
             type="text"
-            placeholder="Search issues"
+            placeholder="Search issues ( / )"
             value={q.value}
             onChange={(event) => q.setValue(event.target.value)}
             onKeyDown={(event) => {
@@ -140,6 +167,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
               if (event.key === "Escape") {
                 event.preventDefault();
                 q.resetToUrl();
+                (event.currentTarget as HTMLInputElement).blur();
               }
             }}
           />

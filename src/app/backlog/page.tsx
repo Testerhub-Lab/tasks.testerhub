@@ -1,15 +1,14 @@
-import React from "react";
 import Link from "next/link";
-import IssueRow from "../../components/issues/IssueRow";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
-import { normalizePriority } from "../../components/issues/utils";
 import {
   hasActiveFilters,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
+import BacklogRowClient from "../../components/issues/BacklogRowClient";
+
 
 interface BacklogPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -18,7 +17,20 @@ interface BacklogPageProps {
 const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
-  const tasks = await getTasks(filters);
+
+  type Filters = ReturnType<typeof parseSearchParams>;
+
+  const queryFilters: Filters =
+    filters.status?.length
+      ? filters
+      : {
+          ...filters,
+          status: ["New"] as const,
+        };
+
+  const tasks = await getTasks(queryFilters);
+
+
   const projects = await getProjects();
   const isFiltered = hasActiveFilters(filters);
 
@@ -39,6 +51,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         projects={projects}
         initialFilters={filters}
         basePath="/backlog"
+        mode="compact"
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">
@@ -65,16 +78,16 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         </div>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task) => (
-            <IssueRow
-              key={task.id}
-              href={`/tasks/${task.key ?? task.id}`}
-              issueKey={task.key ?? undefined}
-              title={task.title}
-              description={task.description}
-              priority={normalizePriority(task.priority)}
-              status={task.status}
-              createdAt={task.createdAt}
+          {tasks.map((t) => (
+            <BacklogRowClient
+              key={t.id}
+              id={t.id}
+              title={t.title}
+              issueKey={t.key}
+              priority={t.priority}
+              status={t.status}
+              createdAt={t.createdAt}
+              href={`/tasks/${t.key ?? t.id}`}
             />
           ))}
         </div>

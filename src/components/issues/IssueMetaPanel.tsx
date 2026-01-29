@@ -9,6 +9,7 @@ import { formatDate, normalizePriority, normalizeStatus } from "./utils";
 
 const statusOptions: Array<{ value: TaskStatus; label: string }> = [
   { value: "New", label: "New" },
+  { value: "Todo", label: "To Do" },
   { value: "In Progress", label: "In Progress" },
   { value: "Testing", label: "Testing" },
   { value: "Done", label: "Done" },
