@@ -25,7 +25,8 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
       ? filters
       : {
           ...filters,
-          status: ["New"] as const,
+          view: "backlog",
+          status: ["NEW"] as const,
         };
 
   const tasks = await getTasks(queryFilters);

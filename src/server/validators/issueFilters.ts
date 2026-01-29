@@ -2,7 +2,7 @@ import { z } from "zod";
 import { taskStatusSchema } from "./task";
 import type { TaskPriority, TaskStatus } from "./task";
 
-const prioritySchema = z.enum(["Low", "Medium", "High", "Critical"]);
+const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 const viewSchema = z.enum(["board", "backlog", "issues"]);
 
 const normalizeString = (value?: string | string[] | null) => {

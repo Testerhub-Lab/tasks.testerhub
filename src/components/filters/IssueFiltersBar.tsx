@@ -1,27 +1,46 @@
 "use client";
 
-import React, {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-  useEffect,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Priority, Status } from "@prisma/client";
+
 import Input from "../ui/Input";
 import Select from "../ui/Select";
 import FilterChip from "./FilterChip";
 import SegmentedChips from "./SegmentedChips";
-import {
-  parseSearchParams,
-  type IssueFilters,
-  type IssueFilterPriority,
-  type IssueFilterStatus,
-} from "../../server/validators/issueFilters";
+import { parseSearchParams, type IssueFilters } from "../../server/validators/issueFilters";
 
-const statusOptions: IssueFilterStatus[] = ["New", "Todo", "In Progress", "Testing", "Done"];
-const priorityOptions: IssueFilterPriority[] = ["Low", "Medium", "High", "Critical"];
+const STATUS_OPTIONS: Status[] = [
+  Status.NEW,
+  Status.TODO,
+  Status.IN_PROGRESS,
+  Status.TESTING,
+  Status.DONE,
+];
+
+const PRIORITY_OPTIONS: Priority[] = [
+  Priority.LOW,
+  Priority.MEDIUM,
+  Priority.HIGH,
+  Priority.CRITICAL,
+];
+
+const STATUS_LABEL: Record<Status, string> = {
+  [Status.NEW]: "New",
+  [Status.TODO]: "To Do",
+  [Status.HOLD]: "Hold",
+  [Status.IN_PROGRESS]: "In Progress",
+  [Status.TESTING]: "Testing",
+  [Status.DONE]: "Done",
+  [Status.REJECT]: "Reject",
+};
+
+const PRIORITY_LABEL: Record<Priority, string> = {
+  [Priority.LOW]: "Low",
+  [Priority.MEDIUM]: "Medium",
+  [Priority.HIGH]: "High",
+  [Priority.CRITICAL]: "Critical",
+};
 
 interface IssueFiltersBarProps {
   projects: Array<{ id: string; name: string; key: string }>;
@@ -71,7 +90,7 @@ const RemovableChip = ({
   );
 };
 
-const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
+const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   projects,
   initialFilters,
   basePath,
@@ -80,9 +99,11 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [tagInput, setTagInput] = useState("");
   const [isOpen, setOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentFilters = useMemo(() => {
     const raw: Record<string, string> = {};
@@ -92,12 +113,8 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const filters = Object.keys(currentFilters).length ? currentFilters : initialFilters;
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-
   const getLatestParams = useCallback(() => {
-    if (typeof window !== "undefined")
-      return new URLSearchParams(window.location.search);
+    if (typeof window !== "undefined") return new URLSearchParams(window.location.search);
     return new URLSearchParams(searchParams.toString());
   }, [searchParams]);
 
@@ -119,8 +136,9 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
         if (next.q) params.set("q", next.q);
         else params.delete("q");
 
-        applyArray("status", next.status);
-        applyArray("priority", next.priority);
+        // В URL пишем enum-строки (TODO, IN_PROGRESS, LOW...)
+        applyArray("status", next.status as unknown as string[] | undefined);
+        applyArray("priority", next.priority as unknown as string[] | undefined);
         applyArray("tags", next.tags);
 
         if (next.projectId) params.set("projectId", next.projectId);
@@ -129,9 +147,7 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
         const query = params.toString();
 
         startTransition(() => {
-          router.replace(query ? `${basePath}?${query}` : basePath, {
-            scroll: false,
-          });
+          router.replace(query ? `${basePath}?${query}` : basePath, { scroll: false });
         });
       }, 200);
     },
@@ -150,6 +166,9 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
     });
   };
 
+  const showProjectSelect = projects.length > 1;
+  const isCompact = mode === "compact";
+
   const hasActive =
     (filters.status?.length ?? 0) > 0 ||
     (filters.priority?.length ?? 0) > 0 ||
@@ -162,13 +181,13 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
     (filters.tags?.length ?? 0) +
     (filters.projectId ? 1 : 0);
 
-  // --- removable handlers
-  const removeStatus = (status: IssueFilterStatus) => {
+  // --- removable handlers (тут типы уже enum)
+  const removeStatus = (status: Status) => {
     const next = (filters.status ?? []).filter((s) => s !== status);
     updateParams({ ...filters, status: next.length ? next : undefined });
   };
 
-  const removePriority = (priority: IssueFilterPriority) => {
+  const removePriority = (priority: Priority) => {
     const next = (filters.priority ?? []).filter((p) => p !== priority);
     updateParams({ ...filters, priority: next.length ? next : undefined });
   };
@@ -196,79 +215,85 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
     setTagInput("");
   };
 
-  const showProjectSelect = projects.length > 1;
-  const isCompact = mode === "compact";
-
+  // =========================
+  // Compact: только Project + Clear
+  // =========================
   if (isCompact) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          {showProjectSelect ? (
-            <Select
-              name="projectId"
-              value={filters.projectId ?? ""}
-              onChange={(event) =>
-                updateParams({
-                  ...filters,
-                  projectId: event.target.value || undefined,
-                })
-              }
-              className="h-9 max-w-[320px] rounded-xl text-sm"
-              options={[
-                { value: "", label: "All projects" },
-                ...projects.map((project) => ({
-                  value: project.id,
-                  label: `${project.key} — ${project.name}`,
-                })),
-              ]}
-            />
-          ) : (
-            <span className="text-sm text-white/80">
-              {projects[0] ? `${projects[0].key} — ${projects[0].name}` : "—"}
-            </span>
-          )}
+      <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {showProjectSelect ? (
+              <Select
+                name="projectId"
+                value={filters.projectId ?? ""}
+                onChange={(event) =>
+                  updateParams({
+                    ...filters,
+                    projectId: event.target.value || undefined,
+                  })
+                }
+                className="h-9 max-w-[320px] rounded-xl text-sm"
+                options={[
+                  { value: "", label: "All projects" },
+                  ...projects.map((project) => ({
+                    value: project.id,
+                    label: `${project.key} — ${project.name}`,
+                  })),
+                ]}
+              />
+            ) : (
+              <span className="text-sm text-white/80">
+                {projects[0] ? `${projects[0].key} — ${projects[0].name}` : "—"}
+              </span>
+            )}
+          </div>
+
+          {(filters.q || filters.projectId) ? (
+            <FilterChip onClick={clearFilters}>Clear</FilterChip>
+          ) : null}
         </div>
-  
-        {(filters.q || filters.projectId) ? (
-          <FilterChip onClick={clearFilters}>Clear</FilterChip>
-        ) : null}
       </div>
     );
-  }  
+  }
 
-  const statusValues: string[] = filters.status ?? [];
-  const priorityValues: string[] = filters.priority ?? [];
+  const statusValues = (filters.status ?? []) as unknown as string[];
+  const priorityValues = (filters.priority ?? []) as unknown as string[];
 
   return (
     <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] px-4 py-3">
-      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-
-          <FilterChip selected={isOpen} onClick={() => setOpen((prev) => !prev)}>
-            <span className="mr-2">Filters</span>
-            {hasActive ? (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[12px] text-white/70">
-                {activeCount}
-              </span>
-            ) : null}
-            <span className="ml-2 text-white/45">{isOpen ? "▴" : "▾"}</span>
-          </FilterChip>
+          {!hideFiltersButton ? (
+            <FilterChip selected={isOpen} onClick={() => setOpen((prev) => !prev)}>
+              <span className="mr-2">Filters</span>
+              {hasActive ? (
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[12px] text-white/70">
+                  {activeCount}
+                </span>
+              ) : null}
+              <span className="ml-2 text-white/45">{isOpen ? "▴" : "▾"}</span>
+            </FilterChip>
+          ) : null}
 
           <div className="flex flex-wrap gap-2 overflow-hidden">
-            {(filters.status ?? []).map((status) => (
-              <RemovableChip key={status} onRemove={() => removeStatus(status)} title="Remove status">
-                {status}
+            {(filters.status ?? []).map((s) => (
+              <RemovableChip
+                key={s}
+                onRemove={() => removeStatus(s as Status)}
+                title="Remove status"
+              >
+                {STATUS_LABEL[s as Status] ?? String(s)}
               </RemovableChip>
             ))}
 
-            {(filters.priority ?? []).map((priority) => (
+            {(filters.priority ?? []).map((p) => (
               <RemovableChip
-                key={priority}
-                onRemove={() => removePriority(priority)}
+                key={p}
+                onRemove={() => removePriority(p as Priority)}
                 title="Remove priority"
               >
-                {priority}
+                {PRIORITY_LABEL[p as Priority] ?? String(p)}
               </RemovableChip>
             ))}
 
@@ -293,16 +318,14 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
         {hasActive ? <FilterChip onClick={clearFilters}>Clear</FilterChip> : null}
       </div>
-      
+
       <div
         className={`overflow-hidden transition-all duration-200 ${
-          isOpen
-            ? "mt-3 max-h-[420px] opacity-100 pointer-events-auto"
-            : "max-h-0 opacity-0 pointer-events-none"
+          isOpen ? "mt-3 max-h-[420px] opacity-100 pointer-events-auto" : "max-h-0 opacity-0 pointer-events-none"
         }`}
       >
         <div className="grid grid-cols-12 gap-4">
-          {/* STATUS (multi) */}
+          {/* STATUS */}
           <div className="col-span-12 lg:col-span-8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-[var(--color-text-secondary)]">Status</span>
@@ -315,8 +338,8 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   onChange={(next) => {
                     const arr = Array.isArray(next) ? next : [];
                     const normalized = arr.filter((v) =>
-                      statusOptions.includes(v as IssueFilterStatus)
-                    ) as IssueFilterStatus[];
+                      STATUS_OPTIONS.includes(v as Status)
+                    ) as Status[];
 
                     requestAnimationFrame(() => {
                       updateParams({
@@ -327,14 +350,14 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   }}
                   options={[
                     { label: "All", value: "__all__" },
-                    ...statusOptions.map((status) => ({ label: status, value: status })),
+                    ...STATUS_OPTIONS.map((s) => ({ label: STATUS_LABEL[s], value: s })),
                   ]}
                 />
               </div>
             </div>
           </div>
 
-          {/* PRIORITY (multi) */}
+          {/* PRIORITY */}
           <div className="col-span-12 lg:col-span-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-[var(--color-text-secondary)]">Priority</span>
@@ -347,8 +370,8 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   onChange={(next) => {
                     const arr = Array.isArray(next) ? next : [];
                     const normalized = arr.filter((v) =>
-                      priorityOptions.includes(v as IssueFilterPriority)
-                    ) as IssueFilterPriority[];
+                      PRIORITY_OPTIONS.includes(v as Priority)
+                    ) as Priority[];
 
                     requestAnimationFrame(() => {
                       updateParams({
@@ -359,10 +382,7 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   }}
                   options={[
                     { label: "All", value: "__all__" },
-                    ...priorityOptions.map((priority) => ({
-                      label: priority,
-                      value: priority,
-                    })),
+                    ...PRIORITY_OPTIONS.map((p) => ({ label: PRIORITY_LABEL[p], value: p })),
                   ]}
                 />
               </div>
@@ -441,10 +461,7 @@ const IssuesFiltersBar: React.FC<IssueFiltersBarProps> = ({
         </div>
       </div>
     </div>
-  
   );
-  
 };
 
-
-export default IssuesFiltersBar;
+export default IssueFiltersBar;

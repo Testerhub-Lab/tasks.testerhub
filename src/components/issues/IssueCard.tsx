@@ -2,15 +2,15 @@ import React from "react";
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import { getPriorityClasses, getStatusLabel } from "./utils";
-import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import { Priority, Status } from "@prisma/client";
 
-interface IssueCardProps {
+type IssueCardProps = {
+  issueKey?: string;
   title: string;
-  issueKey?: string | null;
-  priority?: TaskPriority | null;
-  status?: TaskStatus | string | null;
   description?: string | null;
-}
+  priority?: Priority | null;
+  status?: Status | null;
+};
 
 const IssueCard: React.FC<IssueCardProps> = ({
   title,

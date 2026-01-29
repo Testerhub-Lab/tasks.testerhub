@@ -19,13 +19,10 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
 
   type Filters = ReturnType<typeof parseSearchParams>;
 
-  const queryFilters: Filters =
-    filters.status?.length
-      ? filters
-      : {
-          ...filters,
-          status: ["Todo", "In Progress", "Testing", "Done"] as const,
-        };
+  const queryFilters: Filters = {
+    ...filters,
+    view: "board",
+  };
 
   const tasks = await getTasks(queryFilters);
   const projects = await getProjects();

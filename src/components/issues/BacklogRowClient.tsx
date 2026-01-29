@@ -4,14 +4,15 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import IssueRow from "./IssueRow";
 import BacklogActionButton from "./BacklogActionButton";
-import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import type { Priority, Status } from "@prisma/client";
+
 
 export default function BacklogRowClient(props: {
   id: string;
   title: string;
   issueKey?: string | null;
-  priority?: TaskPriority | null;
-  status?: TaskStatus | string | null;
+  priority?: Priority | null;
+  status?: Status | null;
   createdAt?: Date | null;
   href: string;
 }) {
@@ -53,7 +54,7 @@ export default function BacklogRowClient(props: {
           <div className="flex items-center gap-2">
             <BacklogActionButton
               taskId={props.id}
-              toStatus="Todo"
+              toStatus="TODO"
               tone="cyan"
               icon="↗"
               label="Move"
@@ -61,7 +62,7 @@ export default function BacklogRowClient(props: {
             />
             <BacklogActionButton
               taskId={props.id}
-              toStatus="Done"
+              toStatus="DONE"
               tone="red"
               icon="✕"
               label="Dismiss"

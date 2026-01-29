@@ -19,9 +19,9 @@ export default function MoveToTodoButton({ taskId }: { taskId: string }) {
         setError(null);
         startTransition(async () => {
           try {
-            await updateTaskStatusAction({ id: taskId, status: "Todo" });
+            await updateTaskStatusAction({ id: taskId, status: "TODO" });
             router.refresh(); // backlog сам уберёт задачу (она перестанет быть New)
-          } catch (err) {
+          } catch {
             setError("Failed");
           }
         });

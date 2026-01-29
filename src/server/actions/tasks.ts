@@ -3,9 +3,11 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { Status } from "@prisma/client";
 import {
   taskSchema,
   taskStatusSchema,
+  taskPrioritySchema,
   type TaskInput,
   type TaskPriority,
 } from "../validators/task";
@@ -19,7 +21,7 @@ const updateFieldsSchema = z
   .object({
     id: z.string().cuid(),
     status: taskStatusSchema.optional(),
-    priority: z.enum(["Low", "Medium", "High", "Critical"]).optional(),
+    priority: taskPrioritySchema.optional(),
   })
   .refine((data) => data.status || data.priority, {
     message: "At least one field must be provided.",
@@ -34,13 +36,16 @@ const addCommentSchema = z.object({
 export async function createTaskAction(data: TaskInput) {
   try {
     const validatedData = taskSchema.parse(data);
+
     const project = await prisma.project.findUnique({
       where: { id: validatedData.projectId },
       select: { id: true, key: true, nextIssueNumber: true },
     });
+
     if (!project) {
-      return { ok: false, formError: "Project not found" };
+      return { ok: false as const, formError: "Project not found" };
     }
+
     const details = [
       `Тип: ${validatedData.type}`,
       validatedData.description ? `Описание: ${validatedData.description}` : null,
@@ -52,36 +57,40 @@ export async function createTaskAction(data: TaskInput) {
       .filter(Boolean)
       .join("\n\n");
 
-    const task = await prisma.$transaction(async (tx) => {
+    const txResult = await prisma.$transaction(async (tx) => {
       const updatedProject = await tx.project.update({
         where: { id: project.id },
         data: { nextIssueNumber: { increment: 1 } },
         select: { id: true, key: true, nextIssueNumber: true },
       });
+
       const nextNumber = updatedProject.nextIssueNumber - 1;
       const taskKey = `${updatedProject.key}-${nextNumber}`;
+
       const created = await tx.task.create({
         data: {
           title: validatedData.title,
           description: details || validatedData.description,
-          priority: validatedData.priority,
-          status: "New",
+          priority: validatedData.priority ?? undefined,
+          status: Status.NEW,
           tags: validatedData.tags ? validatedData.tags.split(",") : [],
           attachments: validatedData.attachments ?? [],
           projectId: updatedProject.id,
           number: nextNumber,
           key: taskKey,
         },
+        select: { id: true },
       });
-      return { task: created, taskKey };
+
+      return { id: created.id, key: taskKey };
     });
 
-    return { ok: true, id: task.task.id, key: task.taskKey };
+    return { ok: true as const, id: txResult.id, key: txResult.key };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { ok: false, fieldErrors: error.flatten().fieldErrors };
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
-    return { ok: false, formError: "Произошла ошибка при создании задачи." };
+    return { ok: false as const, formError: "Произошла ошибка при создании задачи." };
   }
 }
 
@@ -91,16 +100,19 @@ export async function updateTaskStatusAction(data: {
 }) {
   try {
     const validatedData = updateStatusSchema.parse(data);
+
     await prisma.task.update({
       where: { id: validatedData.id },
       data: { status: validatedData.status },
+      select: { id: true, key: true },
     });
-    return { ok: true };
+
+    return { ok: true as const };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { ok: false, fieldErrors: error.flatten().fieldErrors };
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
-    return { ok: false, formError: "Не удалось обновить статус." };
+    return { ok: false as const, formError: "Не удалось обновить статус." };
   }
 }
 
@@ -111,6 +123,7 @@ export async function updateTaskFieldsAction(data: {
 }) {
   try {
     const validatedData = updateFieldsSchema.parse(data);
+
     const updated = await prisma.task.update({
       where: { id: validatedData.id },
       data: {
@@ -119,13 +132,14 @@ export async function updateTaskFieldsAction(data: {
       },
       select: { key: true },
     });
+
     revalidatePath(`/tasks/${updated.key ?? validatedData.id}`);
-    return { ok: true };
+    return { ok: true as const };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { ok: false, fieldErrors: error.flatten().fieldErrors };
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
-    return { ok: false, formError: "Не удалось обновить задачу." };
+    return { ok: false as const, formError: "Не удалось обновить задачу." };
   }
 }
 
@@ -136,23 +150,27 @@ export async function addCommentAction(data: {
 }) {
   try {
     const validatedData = addCommentSchema.parse(data);
+
     await prisma.comment.create({
       data: {
         taskId: validatedData.taskId,
         text: validatedData.text,
         authorName: validatedData.authorName,
       },
+      select: { id: true },
     });
+
     const task = await prisma.task.findUnique({
       where: { id: validatedData.taskId },
       select: { key: true },
     });
+
     revalidatePath(`/tasks/${task?.key ?? validatedData.taskId}`);
-    return { ok: true };
+    return { ok: true as const };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { ok: false, fieldErrors: error.flatten().fieldErrors };
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
-    return { ok: false, formError: "Не удалось добавить комментарий." };
+    return { ok: false as const, formError: "Не удалось добавить комментарий." };
   }
 }

@@ -1,83 +1,64 @@
-import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import { Priority, Status } from "@prisma/client";
 
-const statusLabelMap: Record<string, TaskStatus> = {
-  new: "New",
-  open: "New",
-  backlog: "New",
+// -------- Status (канон: только Prisma enum)
 
-  todo: "Todo",
-  to_do: "Todo",
-
-  in_progress: "In Progress",
-  progress: "In Progress",
-
-  testing: "Testing",
-  qa: "Testing",
-  review: "Testing",
-
-  done: "Done",
-  closed: "Done",
-  resolved: "Done",
-};
-
-export const normalizeStatus = (status?: string | null): TaskStatus => {
-  if (!status) return "New";
-  const normalized = status.toLowerCase().replace(/\s+/g, "_");
-  return statusLabelMap[normalized] ?? "New";
-};
-
-const statusUiLabels: Record<TaskStatus, string> = {
-  New: "New",
-  Todo: "To Do",
-  "In Progress": "In Progress",
-  Testing: "Testing",
-  Done: "Done",
-};
-
-export const getStatusLabel = (status?: string | null) => {
-  return statusUiLabels[normalizeStatus(status)];
-};
-
-export const normalizePriority = (
-  priority?: string | null
-): TaskPriority | null => {
-  if (!priority) {
-    return null;
+export const getStatusLabel = (status?: Status | null) => {
+  switch (status) {
+    case Status.NEW:
+      return "New";
+    case Status.TODO:
+      return "To Do";
+    case Status.HOLD:
+      return "Hold";
+    case Status.IN_PROGRESS:
+      return "In Progress";
+    case Status.TESTING:
+      return "Testing";
+    case Status.DONE:
+      return "Done";
+    case Status.REJECT:
+      return "Reject";
+    default:
+      return "—";
   }
-  const normalized = priority.toLowerCase();
-  switch (normalized) {
-    case "critical":
+};
+
+// -------- Priority (канон: только Prisma enum)
+
+export const getPriorityLabel = (priority?: Priority | null) => {
+  switch (priority) {
+    case Priority.CRITICAL:
       return "Critical";
-    case "high":
+    case Priority.HIGH:
       return "High";
-    case "medium":
+    case Priority.MEDIUM:
       return "Medium";
-    case "low":
+    case Priority.LOW:
       return "Low";
     default:
-      return null;
+      return "—";
   }
 };
 
-export const getPriorityClasses = (priority?: TaskPriority | null) => {
+export const getPriorityClasses = (priority?: Priority | null) => {
   switch (priority) {
-    case "Critical":
+    case Priority.CRITICAL:
       return "border-red-400/40 text-red-200 bg-red-500/10";
-    case "High":
+    case Priority.HIGH:
       return "border-orange-400/40 text-orange-200 bg-orange-500/10";
-    case "Medium":
+    case Priority.MEDIUM:
       return "border-amber-400/40 text-amber-200 bg-amber-500/10";
-    case "Low":
+    case Priority.LOW:
       return "border-emerald-400/40 text-emerald-200 bg-emerald-500/10";
     default:
       return "border-[var(--color-card-border)] text-[var(--color-text-secondary)] bg-[var(--color-card-bg)]";
   }
 };
 
+// -------- Date
+
 export const formatDate = (value?: Date | string | null) => {
-  if (!value) {
-    return "—";
-  }
+  if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
   return date.toISOString().slice(0, 10);
 };

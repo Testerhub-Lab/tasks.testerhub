@@ -1,7 +1,18 @@
 import prisma from "../../lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { Status, type Prisma } from "@prisma/client";
 import type { IssueFilters } from "../validators/issueFilters";
 
+// Board никогда не показывает NEW
+const BOARD_STATUSES = [
+  Status.TODO,
+  Status.IN_PROGRESS,
+  Status.TESTING,
+  Status.DONE,
+] as const;
+
+export type TaskWithProject = Prisma.TaskGetPayload<{
+  include: { project: true };
+}>;
 
 export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {};
@@ -14,20 +25,12 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
     ];
   }
 
-  if (filters.status?.length) {
-    const statusSet = new Set(filters.status);
-  
-    // для запроса в БД расширяем список статусов строками legacy-значений
-    const dbStatuses: string[] = Array.from(statusSet);
-  
-    // legacy: "Open" считаем как "New"
-    if (statusSet.has("New")) {
-      dbStatuses.push("Open");
-    }
-  
-    where.status = { in: dbStatuses };
-  }  
-  
+  // Каноничное правило: Board никогда не показывает New
+  if (filters.view === "board") {
+    where.status = { in: [...BOARD_STATUSES] };
+  } else if (filters.status?.length) {
+    where.status = { in: filters.status };
+  }
 
   if (filters.priority?.length) {
     where.priority = { in: filters.priority };
@@ -44,7 +47,7 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
   return where;
 };
 
-export async function getTasks(filters: IssueFilters) {
+export async function getTasks(filters: IssueFilters): Promise<TaskWithProject[]> {
   return prisma.task.findMany({
     where: buildTaskWhere(filters),
     include: { project: true },
@@ -52,7 +55,7 @@ export async function getTasks(filters: IssueFilters) {
   });
 }
 
-export async function getLatestTasks(limit = 10) {
+export async function getLatestTasks(limit = 10): Promise<TaskWithProject[]> {
   return prisma.task.findMany({
     include: { project: true },
     orderBy: { createdAt: "desc" },
@@ -60,21 +63,21 @@ export async function getLatestTasks(limit = 10) {
   });
 }
 
-export async function getAllTasks() {
+export async function getAllTasks(): Promise<TaskWithProject[]> {
   return prisma.task.findMany({
     include: { project: true },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getTaskById(id: string) {
+export async function getTaskById(id: string): Promise<TaskWithProject | null> {
   return prisma.task.findUnique({
     include: { project: true },
     where: { id },
   });
 }
 
-export async function getTaskByKey(key: string) {
+export async function getTaskByKey(key: string): Promise<TaskWithProject | null> {
   return prisma.task.findUnique({
     include: { project: true },
     where: { key },
@@ -102,4 +105,3 @@ export async function getCommentsByTaskId(taskId: string) {
     },
   });
 }
-

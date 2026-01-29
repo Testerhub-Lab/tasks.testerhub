@@ -11,45 +11,35 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { Task } from "@prisma/client";
 import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
-import type { TaskStatus } from "../../server/validators/task";
-import { normalizePriority, normalizeStatus } from "../issues/utils";
+import { Status } from "@prisma/client";
+import type { TaskWithProject } from "../../server/queries/tasks";
 
-type BoardTask = Omit<Task, "status" | "priority"> & {
-  status: TaskStatus;
-  priority: ReturnType<typeof normalizePriority>;
-  key?: string | null;
-};
 
-const columns: Array<{ status: TaskStatus; title: string }> = [
-  { status: "Todo", title: "To Do" },
-  { status: "In Progress", title: "In Progress" },
-  { status: "Testing", title: "Testing" },
-  { status: "Done", title: "Done" },
+type BoardTask = TaskWithProject;
+
+const columns: Array<{ status: Status; title: string }> = [
+  { status: Status.TODO, title: "To Do" },
+  { status: Status.IN_PROGRESS, title: "In Progress" },
+  { status: Status.TESTING, title: "Testing" },
+  { status: Status.DONE, title: "Done" },
 ];
 
 interface BoardClientProps {
-  tasks: Task[];
+  tasks: TaskWithProject[];
 }
 
 const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
   const router = useRouter();
   const [isMounted, setMounted] = useState(false);
-  const [items, setItems] = useState<BoardTask[]>(
-    tasks.map((task) => ({
-      ...task,
-      status: normalizeStatus(task.status),
-      priority: normalizePriority(task.priority),
-    }))
-  );
+  const [items, setItems] = useState<BoardTask[]>(tasks);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [savingMove, setSavingMove] = useState<{
     id: string;
-    to: TaskStatus;
+    to: Status;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -62,12 +52,12 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
   }, []);
 
   const grouped = useMemo(() => {
-    return columns.reduce<Record<TaskStatus, BoardTask[]>>((acc, column) => {
+    return columns.reduce<Record<Status, BoardTask[]>>((acc, column) => {
       acc[column.status] = items.filter(
         (task) => task.status === column.status
       );
       return acc;
-    }, {} as Record<TaskStatus, BoardTask[]>);
+    }, {} as Record<Status, BoardTask[]>);
   }, [items]);
 
   const activeTask = items.find((task) => task.id === activeId);
@@ -79,7 +69,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       return;
     }
     const taskId = String(active.id);
-    const targetStatus = over.id as TaskStatus;
+    const targetStatus = over.id as Status;
     const currentTask = items.find((task) => task.id === taskId);
     if (!currentTask || currentTask.status === targetStatus) {
       return;

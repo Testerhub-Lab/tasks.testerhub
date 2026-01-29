@@ -101,7 +101,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     try {
       await navigator.clipboard.writeText(text);
       return true;
-    } catch (error) {
+    } catch {
       try {
         const textarea = document.createElement("textarea");
         textarea.value = text;
@@ -113,8 +113,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
         const ok = document.execCommand("copy");
         document.body.removeChild(textarea);
         return ok;
-      } catch (fallbackError) {
-        console.error(fallbackError);
+      } catch {
         return false;
       }
     }

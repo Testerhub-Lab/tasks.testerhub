@@ -11,13 +11,13 @@ model Task {
   id             String   @id @default(cuid())
   title          String
   description    String?
-  priority       String   @default("Medium")
+  priority       Priority   @default(MEDIUM)
   dueDate        DateTime?
   tags           String[] @default([])
   attachments    String[] @default([])
   requesterName  String?
   requesterEmail String?
-  status         String   @default("New")
+  status         Status   @default(NEW)
   projectId      String
   number         Int
   key            String   @unique
@@ -70,6 +70,7 @@ model Project {
 
 enum Status {
   NEW
+  TODO
   HOLD
   IN_PROGRESS
   TESTING
