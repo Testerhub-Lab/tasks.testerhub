@@ -1,3 +1,4 @@
+// src/server/actions/tasks.ts
 "use server";
 
 import { z } from "zod";
@@ -33,29 +34,48 @@ const addCommentSchema = z.object({
   authorName: z.string().max(120).optional(),
 });
 
+function buildDescription(base: string | null | undefined, extra: string[]) {
+  const cleanBase = (base ?? "").trim();
+  const cleanExtra = extra.map((x) => x.trim()).filter(Boolean);
+
+  if (!cleanBase && cleanExtra.length === 0) return null;
+  if (!cleanBase) return cleanExtra.join("\n\n");
+  if (cleanExtra.length === 0) return cleanBase;
+  return `${cleanBase}\n\n${cleanExtra.join("\n\n")}`;
+}
+
 export async function createTaskAction(data: TaskInput) {
   try {
-    const validatedData = taskSchema.parse(data);
+    const validated = taskSchema.parse(data);
 
     const project = await prisma.project.findUnique({
-      where: { id: validatedData.projectId },
-      select: { id: true, key: true, nextIssueNumber: true },
+      where: { id: validated.projectId },
+      select: { id: true, key: true, nextIssueNumber: true, allowGuest: true },
     });
 
     if (!project) {
       return { ok: false as const, formError: "Project not found" };
     }
 
-    const details = [
-      `Тип: ${validatedData.type}`,
-      validatedData.description ? `Описание: ${validatedData.description}` : null,
-      validatedData.steps ? `Шаги: ${validatedData.steps}` : null,
-      validatedData.expected ? `Ожидаемое: ${validatedData.expected}` : null,
-      validatedData.actual ? `Фактическое: ${validatedData.actual}` : null,
-      validatedData.environment ? `Окружение: ${validatedData.environment}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    const isGuest = !validated.reporterId;
+
+    if (isGuest && !project.allowGuest) {
+      return { ok: false as const, formError: "Гостевой режим для проекта запрещён" };
+    }
+
+    if (isGuest && !validated.requesterName?.trim()) {
+      return { ok: false as const, formError: "Укажите имя (кто создаёт задачу)" };
+    }
+
+    // Пока нет отдельных колонок steps/expected/actual/environment — складываем в description
+    const extraBlocks = [
+      validated.steps ? `Шаги:\n${validated.steps}` : "",
+      validated.expected ? `Ожидаемое:\n${validated.expected}` : "",
+      validated.actual ? `Фактическое:\n${validated.actual}` : "",
+      validated.environment ? `Окружение:\n${validated.environment}` : "",
+    ].filter(Boolean);
+
+    const finalDescription = buildDescription(validated.description, extraBlocks);
 
     const txResult = await prisma.$transaction(async (tx) => {
       const updatedProject = await tx.project.update({
@@ -69,12 +89,24 @@ export async function createTaskAction(data: TaskInput) {
 
       const created = await tx.task.create({
         data: {
-          title: validatedData.title,
-          description: details || validatedData.description,
-          priority: validatedData.priority ?? undefined,
-          status: Status.NEW,
-          tags: validatedData.tags ? validatedData.tags.split(",") : [],
-          attachments: validatedData.attachments ?? [],
+          title: validated.title,
+          description: finalDescription,
+
+          type: validated.type,
+          priority: validated.priority,
+          status: Status.NEW, // фиксируем NEW на создание (можно поменять, если нужно)
+
+          tags: validated.tags,
+          attachments: validated.attachments,
+
+          dueDate: validated.dueDate ?? null,
+
+          reporterId: validated.reporterId ?? null,
+          assigneeId: validated.assigneeId ?? null,
+
+          requesterName: validated.requesterName?.trim() ?? null,
+          requesterEmail: validated.requesterEmail?.trim() ?? null,
+
           projectId: updatedProject.id,
           number: nextNumber,
           key: taskKey,
@@ -84,6 +116,10 @@ export async function createTaskAction(data: TaskInput) {
 
       return { id: created.id, key: taskKey };
     });
+
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
 
     return { ok: true as const, id: txResult.id, key: txResult.key };
   } catch (error) {
@@ -106,6 +142,10 @@ export async function updateTaskStatusAction(data: {
       data: { status: validatedData.status },
       select: { id: true, key: true },
     });
+
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
 
     return { ok: true as const };
   } catch (error) {
@@ -134,6 +174,10 @@ export async function updateTaskFieldsAction(data: {
     });
 
     revalidatePath(`/tasks/${updated.key ?? validatedData.id}`);
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
+
     return { ok: true as const };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -166,6 +210,10 @@ export async function addCommentAction(data: {
     });
 
     revalidatePath(`/tasks/${task?.key ?? validatedData.taskId}`);
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
+
     return { ok: true as const };
   } catch (error) {
     if (error instanceof z.ZodError) {

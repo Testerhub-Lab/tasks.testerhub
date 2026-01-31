@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE "Project" ADD COLUMN     "allowGuest" BOOLEAN NOT NULL DEFAULT true;
+
+-- AlterTable
+ALTER TABLE "Task" ADD COLUMN     "assigneeId" TEXT,
+ADD COLUMN     "reporterId" TEXT,
+ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'TASK',
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_reporterId_fkey" FOREIGN KEY ("reporterId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

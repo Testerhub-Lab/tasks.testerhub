@@ -18,11 +18,15 @@ const tabs = [
   { label: "List", href: "/issues" },
 ];
 
+type ProjectOption = { id: string; name: string; key: string };
+type UserOption = { id: string; name: string | null; email: string };
+
 interface TopBarClientProps {
-  projects: Array<{ id: string; name: string; key: string }>;
+  projects: ProjectOption[];
+  users: UserOption[];
 }
 
-const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
+const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
   const pathname = usePathname();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -32,17 +36,16 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
   const [formError, setFormError] = useState<string | null>(null);
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
-
   const searchParams = useSearchParams();
 
   const allowedQuery = useMemo(() => {
     const params = new URLSearchParams();
-  
+
     for (const key of ISSUE_FILTER_QUERY_KEYS) {
       const value = searchParams.get(key);
       if (value) params.set(key, value);
     }
-  
+
     const query = params.toString();
     return query ? `?${query}` : "";
   }, [searchParams]);
@@ -66,28 +69,25 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl+K — стандартный поиск
       const isCmdK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
-      // "/" — как в Linear/Notion
       const isSlash = e.key === "/";
-  
+
       if (!isCmdK && !isSlash) return;
-  
+
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       const isTypingContext =
         tag === "input" || tag === "textarea" || target?.isContentEditable;
-  
+
       if (isTypingContext) return;
-  
+
       e.preventDefault();
       searchRef.current?.focus();
     };
-  
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-  
 
   const handleCreateTask = async (data: Parameters<typeof createTaskAction>[0]) => {
     setSubmitting(true);
@@ -185,6 +185,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects }) => {
         loading={isSubmitting}
         errorMessage={formError}
         projects={projects}
+        users={users}
       />
     </header>
   );

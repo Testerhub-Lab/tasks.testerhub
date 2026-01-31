@@ -78,7 +78,8 @@ const emailPrefix = (email?: string | null) => {
   return idx > 0 ? email.slice(0, idx) : email;
 };
 
-const makeClientId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+const makeClientId = () =>
+  `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
 const TaskComments: React.FC<TaskCommentsProps> = ({
   taskId,
@@ -117,7 +118,6 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.location.hash !== "#activity") return;
-    // небольшой defer — чтобы layout точно отрисовался
     requestAnimationFrame(() => {
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -134,7 +134,10 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
 
     const serverComments: ActivityItem[] = comments.map((c) => {
       const displayName =
-        c.user?.name ?? c.authorName ?? emailPrefix(c.user?.email) ?? "Anonymous";
+        c.user?.name ??
+        c.authorName ??
+        emailPrefix(c.user?.email) ??
+        "Anonymous";
       return {
         kind: "comment",
         id: c.id,
@@ -155,7 +158,8 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       clientId: p.clientId,
     }));
 
-    const hasAnyComments = serverComments.length > 0 || pendingComments.length > 0;
+    const hasAnyComments =
+      serverComments.length > 0 || pendingComments.length > 0;
 
     const empty: ActivityItem | null = hasAnyComments
       ? null
@@ -186,7 +190,11 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   }, [activity.length, scrollToBottom]);
 
   const submit = useCallback(
-    async (override?: { text?: string; authorName?: string; clientId?: string }) => {
+    async (override?: {
+      text?: string;
+      authorName?: string;
+      clientId?: string;
+    }) => {
       const nextText = (override?.text ?? text).trim();
       const nextAuthor = (override?.authorName ?? authorName).trim();
       if (!nextText) return;
@@ -210,7 +218,6 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       setAuthorName("");
       setFocused(false);
 
-      // подсветка и скролл на “наш” новый элемент
       const optimisticDomId = `pending:${clientId}`;
       setHighlight(optimisticDomId);
       if (shouldAutoScroll) {
@@ -240,14 +247,14 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
           return;
         }
 
-        // помечаем как sent, чтобы UI выглядел уверенно
         setPending((prev) =>
-          prev.map((p) => (p.clientId === clientId ? { ...p, state: "sent" } : p))
+          prev.map((p) =>
+            p.clientId === clientId ? { ...p, state: "sent" } : p
+          )
         );
 
         router.refresh();
 
-        // чуть позже убираем оптимистичный (серверный уже подтянется)
         setTimeout(() => {
           setPending((prev) => prev.filter((p) => p.clientId !== clientId));
         }, 500);
@@ -274,7 +281,9 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
 
       setPending((prev) =>
         prev.map((p) =>
-          p.clientId === clientId ? { ...p, state: "pending", error: undefined } : p
+          p.clientId === clientId
+            ? { ...p, state: "pending", error: undefined }
+            : p
         )
       );
 
@@ -290,128 +299,127 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   };
 
   const activityCount = 1 + comments.length; // created + server comments (MVP)
-  // если хочешь учитывать pending — можно сделать 1 + comments.length + pending.length
 
   return (
-    <div ref={rootRef} className="space-y-3">
+    <Card ref={rootRef} className="space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold">
-          Activity{" "}
-          <span className="text-[var(--color-text-secondary)]">· {activityCount}</span>
+        <div className="text-sm font-medium text-white/70">
+          Activity <span className="text-white/40">· {activityCount}</span>
         </div>
         {pending.length ? (
-          <div className="text-xs text-[var(--color-text-secondary)]">
-            +{pending.length} local
-          </div>
+          <div className="text-xs text-white/40">+{pending.length} local</div>
         ) : null}
       </div>
 
       {/* Feed */}
-      <Card className="p-0">
-        <div ref={listRef} className="max-h-[420px] overflow-auto px-4 py-3 pr-3">
-          <div className="divide-y divide-white/10">
-            {activity.map((item) => {
-              if (item.kind === "created") {
-                return (
-                  <div key={item.id} className="py-3">
-                    <div className="text-xs text-[var(--color-text-secondary)]">
-                      <span className="text-[var(--color-text)]">System</span>
-                      <span className="mx-2 text-white/20">•</span>
-                      <span>{formatDate(item.createdAt)}</span>
-                    </div>
-                    <div className="mt-2 text-sm text-[var(--color-text)]">
-                      {item.title}
-                      {item.subtitle ? (
-                        <span className="ml-2 text-[var(--color-text-secondary)]">
-                          ({item.subtitle})
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (item.kind === "empty") {
-                return (
-                  <div key={item.id} className="py-3">
-                    <div className="text-sm text-[var(--color-text-secondary)]">
-                      {item.text}
-                    </div>
-                  </div>
-                );
-              }
-
-              const rowId = item.id;
-              const isHighlighted = highlightId === rowId;
-
+      <div ref={listRef} className="max-h-[420px] overflow-auto pr-2">
+        <div className="divide-y divide-white/10">
+          {activity.map((item) => {
+            if (item.kind === "created") {
               return (
-                <div
-                  key={rowId}
-                  className={[
-                    "py-3 transition-colors",
-                    item.state === "pending" ? "opacity-70" : "",
-                    item.state === "failed" ? "bg-white/[0.02]" : "",
-                    isHighlighted ? "bg-white/[0.04]" : "",
-                  ].join(" ")}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-xs text-[var(--color-text-secondary)]">
-                      <span className="text-[var(--color-text)]">{item.authorName}</span>
-                      <span className="mx-2 text-white/20">•</span>
-                      <span>{formatDate(item.createdAt)}</span>
+                <div key={item.id} className="py-3">
+                  <div className="text-xs text-[var(--color-text-secondary)]">
+                    <span className="text-[var(--color-text)]">System</span>
+                    <span className="mx-2 text-white/20">•</span>
+                    <span>{formatDate(item.createdAt)}</span>
+                  </div>
+                  <div className="mt-2 text-sm text-[var(--color-text)]">
+                    {item.title}
+                    {item.subtitle ? (
+                      <span className="ml-2 text-[var(--color-text-secondary)]">
+                        ({item.subtitle})
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            }
 
-                      {item.state === "pending" ? (
-                        <>
-                          <span className="mx-2 text-white/20">•</span>
-                          <span>Sending…</span>
-                        </>
-                      ) : null}
+            if (item.kind === "empty") {
+              return (
+                <div key={item.id} className="py-3">
+                  <div className="text-sm text-[var(--color-text-secondary)]">
+                    {item.text}
+                  </div>
+                </div>
+              );
+            }
 
-                      {item.state === "sent" ? (
-                        <>
-                          <span className="mx-2 text-white/20">•</span>
-                          <span>Sent</span>
-                        </>
-                      ) : null}
+            const rowId = item.id;
+            const isHighlighted = highlightId === rowId;
 
-                      {item.state === "failed" ? (
-                        <>
-                          <span className="mx-2 text-white/20">•</span>
-                          <span className="text-[var(--color-error)]">Failed</span>
-                        </>
-                      ) : null}
-                    </div>
+            return (
+              <div
+                key={rowId}
+                className={[
+                  "py-3 transition-colors",
+                  item.state === "pending" ? "opacity-70" : "",
+                  item.state === "failed" ? "bg-white/[0.02]" : "",
+                  isHighlighted ? "bg-white/[0.04]" : "",
+                ].join(" ")}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-xs text-[var(--color-text-secondary)]">
+                    <span className="text-[var(--color-text)]">
+                      {item.authorName}
+                    </span>
+                    <span className="mx-2 text-white/20">•</span>
+                    <span>{formatDate(item.createdAt)}</span>
 
-                    {item.state === "failed" && item.clientId ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => retry(item.clientId!)}
-                      >
-                        Retry
-                      </Button>
+                    {item.state === "pending" ? (
+                      <>
+                        <span className="mx-2 text-white/20">•</span>
+                        <span>Sending…</span>
+                      </>
+                    ) : null}
+
+                    {item.state === "sent" ? (
+                      <>
+                        <span className="mx-2 text-white/20">•</span>
+                        <span>Sent</span>
+                      </>
+                    ) : null}
+
+                    {item.state === "failed" ? (
+                      <>
+                        <span className="mx-2 text-white/20">•</span>
+                        <span className="text-[var(--color-error)]">Failed</span>
+                      </>
                     ) : null}
                   </div>
 
-                  <div className="mt-2 whitespace-pre-wrap text-sm text-[var(--color-text)]">
-                    {item.text}
-                  </div>
-
-                  {item.state === "failed" ? (
-                    <div className="mt-2 text-xs text-[var(--color-error)]">
-                      {item.error ?? "Failed to send."}
-                    </div>
+                  {item.state === "failed" && item.clientId ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => retry(item.clientId!)}
+                    >
+                      Retry
+                    </Button>
                   ) : null}
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="mt-2 whitespace-pre-wrap text-sm text-[var(--color-text)]">
+                  {item.text}
+                </div>
+
+                {item.state === "failed" ? (
+                  <div className="mt-2 text-xs text-[var(--color-error)]">
+                    {item.error ?? "Failed to send."}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
-      </Card>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-white/10" />
 
       {/* Composer */}
-      <Card className="space-y-3">
+      <div className="space-y-3">
         <Textarea
           name="text"
           placeholder="Add a comment…"
@@ -462,8 +470,8 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
             </Button>
           </div>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Card>
   );
 };
 

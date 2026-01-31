@@ -5,33 +5,47 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #00B8D9;
-  --color-secondary: rgba(255, 255, 255, 0.7);
-  --color-background: linear-gradient(135deg, #0A0F1E, #1A1F36);
-  --color-card-bg: rgba(26, 31, 54, 0.8);
-  --color-card-border: rgba(255, 255, 255, 0.1);
-  --color-text: #FFFFFF;
-  --color-text-secondary: rgba(255, 255, 255, 0.7);
-  --color-error: #FF6B6B;
+  /* Brand */
+  --primary: #00a9c7;
+  --primary-hover: #00a6c3;
 
-    /* Surfaces */
-    --surface-0: #0a0f1d; /* page background */
-    --surface-1: rgba(18, 22, 40, 0.92); /* solid-ish surface (lists/columns) */
-  
-    /* Glass */
-    --glass-1: rgba(26, 31, 54, 0.55); /* topbar/panels/modals */
-    --glass-border: rgba(255, 255, 255, 0.10);
-  
-    /* Dividers for rows */
-    --divider: rgba(255, 255, 255, 0.08);
-    --hover: rgba(255, 255, 255, 0.04);
-  
+  /* Text */
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.72);
+
+  /* Backgrounds */
+  --bg-gradient: linear-gradient(135deg, #0a0f1e, #1a1f36);
+  --surface-0: #0a0f1d; /* page */
+  --surface-1: rgba(18, 22, 40, 0.92); /* solid surface */
+
+  /* Glass */
+  --glass-1: rgba(26, 31, 54, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.10);
+
+  /* Borders / dividers */
+  --border: rgba(255, 255, 255, 0.12);
+  --divider: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.05);
+  --frame: rgba(255, 255, 255, 0.10);
+
+  /* Controls */
+  --control-bg: rgba(18, 24, 46, 0.65);
+  --control-bg-hover: rgba(18, 24, 46, 0.80);
+  --control-border: rgba(255, 255, 255, 0.12);
+
+  /* Focus ring */
+  --ring: rgba(0, 184, 217, 0.35);
+
+  /* Radius */
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 }
 
 body {
   @apply antialiased;
-  background: var(--color-background);
-  color: var(--color-text);
+  background: var(--bg-gradient);
+  color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans", "Liberation Sans", sans-serif;
   position: relative;
@@ -39,13 +53,14 @@ body {
 }
 
 body::before {
-  content: '';
+  content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+  inset: 0;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.05) 0%,
+    transparent 70%
+  );
   pointer-events: none;
   z-index: 0;
 }
@@ -53,30 +68,33 @@ body::before {
 /* Glass container (TopBar, FiltersBar, Modals, etc.) */
 .glass {
   background: var(--glass-1);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  border: 1px solid var(--divider);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
-/* Solid surface (lists, columns, rows containers) */
 .surface {
   background: var(--surface-1);
   border: 1px solid var(--divider);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
-/* Plain (no bg/border) — for inner cards that style themselves */
+/* Plain (no bg/border) */
 .plain {
   background: transparent;
   border: 1px solid transparent;
 }
 
-
+/* ===== Topbar (оставил как было, только без лишних конфликтов) ===== */
 .topbar {
   @apply flex items-center justify-between px-6 py-3;
   background: rgba(14, 20, 38, 0.85);
-  border-bottom: 1px solid var(--color-card-border);
+  border-bottom: 1px solid var(--divider);
   backdrop-filter: blur(18px);
   position: sticky;
   top: 0;
@@ -88,24 +106,26 @@ body::before {
 }
 
 .topbar__tabs {
-  @apply flex items-center gap-2 rounded-full border border-[var(--color-card-border)] bg-[rgba(18,24,46,0.6)] px-2 py-1;
+  @apply flex items-center gap-2 rounded-full border px-2 py-1;
+  border-color: var(--divider);
+  background: rgba(18, 24, 46, 0.6);
 }
 
 .topbar__tab {
-  @apply relative inline-flex items-center justify-center rounded-full px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors overflow-hidden;
+  color: rgba(255,255,255,0.62);
 }
 
 .topbar__tab:hover {
-  color: var(--color-text);
+  color: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.04);
 }
 
 .topbar__tab--active {
-  color: var(--color-text);
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset;
 }
 
-.segmented-pill {
-  @apply flex items-center gap-2 p-0 bg-transparent border-0 rounded-none;
-}
 
 .topbar__right {
   @apply flex items-center gap-3;
@@ -115,31 +135,93 @@ body::before {
   width: min(280px, 40vw);
 }
 
+/* ===== Buttons / Inputs base ===== */
+
+/* Default button = secondary (чтобы не ломать существующие <button class="button">) */
 .button {
-  @apply px-4 py-2 rounded-lg font-medium;
-  background-color: var(--color-primary);
-  color: var(--color-text);
-  transition: background-color 0.3s, box-shadow 0.3s;
+  @apply inline-flex items-center justify-center gap-2 px-3 text-sm font-medium transition-colors;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  user-select: none;
+
+  background: rgba(18, 24, 46, 0.65);
+  border: 1px solid var(--divider);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .button:hover {
-  background-color: #0088a3;
-  box-shadow: 0 0 10px var(--color-primary);
+  background: rgba(18, 24, 46, 0.85);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
+.button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Variants */
+.button--primary {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: #fff;
+}
+.button--primary:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.button--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.72);
+}
+.button--ghost:hover {
+  background: var(--hover);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+
+/* Unified control style for input/select/textarea */
 .input {
-  @apply w-full px-4 py-2 rounded-lg border;
-  background: var(--color-card-bg);
-  border: 1px solid var(--color-card-border);
-  color: var(--color-text);
+  @apply w-full px-3 text-sm transition-colors;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.input:hover {
+  background: var(--control-bg-hover);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .input:focus {
-  @apply outline-none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 5px var(--color-primary);
+  outline: none;
+  border-color: rgba(0, 184, 217, 0.55);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
+/* textarea should be taller by default */
+textarea.input {
+  height: auto;
+  min-height: 88px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  resize: vertical;
+}
+
+/* ===== Modal (оставил, но чуть подчистил визуально) ===== */
 .modal {
   position: fixed;
   inset: 0;
@@ -152,18 +234,69 @@ body::before {
 .modal__overlay {
   position: absolute;
   inset: 0;
-  background: rgba(8, 12, 24, 0.7);
-  backdrop-filter: blur(6px);
+  background: rgba(8, 12, 24, 0.72);
+  backdrop-filter: blur(8px);
 }
 
 .modal__content {
   position: relative;
-  width: min(680px, 90vw);
+  width: min(720px, 92vw);
   max-height: 85vh;
   overflow: auto;
   padding: 24px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: rgba(18, 24, 46, 0.95);
-  border: 1px solid var(--color-card-border);
+  border: 1px solid var(--divider);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+/* ===== Scrollbars (убрать белую полосу) ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.section-card {
+  border: 1px solid var(--divider);
+  background: rgba(18, 24, 46, 0.35);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 10px 30px rgba(0, 0, 0, 0.22);
+}
+.section-title {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.60);
+  margin-bottom: 10px;
+}
+.section-body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.90);
 }

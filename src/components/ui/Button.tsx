@@ -11,19 +11,19 @@ const Button: React.FC<ButtonProps> = ({
   type = "button",
   ...props
 }) => {
-  const baseStyles = "button";
-  const variantStyles =
+  const base = "button";
+  const variantClass =
     variant === "primary"
-      ? "bg-[var(--color-primary)] hover:bg-[#0088a3]"
-      : variant === "secondary"
-        ? "bg-transparent border border-[var(--color-card-border)] hover:border-[var(--color-primary)]"
-        : "bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]";
+      ? "button--primary"
+      : variant === "ghost"
+        ? "button--ghost"
+        : "";
 
   return (
     <button
       {...props}
       type={type}
-      className={`${baseStyles} ${variantStyles} ${className}`}
+      className={[base, variantClass, className].filter(Boolean).join(" ")}
     >
       {children}
     </button>

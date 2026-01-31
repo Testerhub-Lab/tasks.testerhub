@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { Priority, Status } from "@prisma/client";
 
-// Тип задачи — доменный, не Prisma enum
-export const TaskTypeEnum = z.enum(["Bug", "Task"]);
-export type TaskType = z.infer<typeof TaskTypeEnum>;
-
-// --- helpers: enum from Prisma values (без z.nativeEnum)
 const statusValues = Object.values(Status) as [Status, ...Status[]];
 const priorityValues = Object.values(Priority) as [Priority, ...Priority[]];
 
@@ -15,21 +10,49 @@ export const taskPrioritySchema = z.enum(priorityValues);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export type TaskPriority = z.infer<typeof taskPrioritySchema>;
 
-// совместимость со старым именем (если где-то использовал)
-export const PriorityEnum = taskPrioritySchema;
+const tagsInputSchema = z
+  .union([z.array(z.string().min(1)), z.string(), z.undefined(), z.null()])
+  .transform((v) => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v.map((t) => t.trim()).filter(Boolean);
+    return v
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  });
 
-export const taskSchema = z.object({
-  projectId: z.string().min(1),
-  type: TaskTypeEnum,
-  title: z.string().min(3).max(120),
-  description: z.string().max(2000).optional(),
-  steps: z.string().max(2000).optional(),
-  expected: z.string().max(2000).optional(),
-  actual: z.string().max(2000).optional(),
-  priority: taskPrioritySchema, // LOW/MEDIUM/HIGH/CRITICAL
-  tags: z.string().optional(),
-  attachments: z.array(z.string()).optional(),
-  environment: z.string().optional(),
-});
+export const taskSchema = z
+  .object({
+    projectId: z.string().min(1, "projectId обязателен"),
 
-export type TaskInput = z.infer<typeof taskSchema>;
+    title: z.string().min(3, "Минимум 3 символа").max(120),
+    description: z.string().max(2000).optional().nullable(),
+
+    type: z.string().min(1).default("TASK"),
+
+    priority: taskPrioritySchema.default(Priority.MEDIUM),
+    status: taskStatusSchema.optional().default(Status.NEW),
+
+    steps: z.string().max(2000).optional().nullable(),
+    expected: z.string().max(2000).optional().nullable(),
+    actual: z.string().max(2000).optional().nullable(),
+    environment: z.string().max(2000).optional().nullable(),
+
+    tags: tagsInputSchema.default([]),
+    attachments: z.array(z.string()).default([]),
+
+    dueDate: z.coerce.date().optional().nullable(),
+
+    reporterId: z.string().optional().nullable(),
+    assigneeId: z.string().optional().nullable(),
+
+    requesterName: z.string().max(120).optional().nullable(),
+    requesterEmail: z.string().email().optional().nullable(),
+  })
+  .transform((v) => ({
+    ...v,
+    type: (v.type ?? "TASK").trim().toUpperCase(),
+  }));
+
+export type TaskInput = z.input<typeof taskSchema>;
+export type TaskData = z.infer<typeof taskSchema>;

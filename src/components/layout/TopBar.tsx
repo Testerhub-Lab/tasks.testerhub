@@ -1,11 +1,8 @@
-import React from "react";
 import TopBarClient from "./TopBarClient";
-import { getProjects } from "../../server/queries/projects";
+import { getProjects } from "@/server/queries/projects";
+import { getUsersForAssignee } from "@/server/queries/users";
 
-const TopBar = async () => {
-  const projects = await getProjects();
-
-  return <TopBarClient projects={projects} />;
-};
-
-export default TopBar;
+export default async function TopBar() {
+  const [projects, users] = await Promise.all([getProjects(), getUsersForAssignee()]);
+  return <TopBarClient projects={projects} users={users} />;
+}

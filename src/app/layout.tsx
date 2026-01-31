@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import React from "react";
 import TopBar from "../components/layout/TopBar";
+import ToastViewport from "@/components/ui/ToastViewport";
 
 export const metadata: Metadata = {
   title: "Tasks Tracker",
@@ -13,6 +14,7 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
     <html lang="ru">
       <body className="antialiased">
         <TopBar />
+        <ToastViewport />
         <main className="px-6 pb-10 pt-6">{children}</main>
       </body>
     </html>

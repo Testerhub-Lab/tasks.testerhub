@@ -85,9 +85,9 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   };
 
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-4">
+    <div className="space-y-4 rounded-2xl border border-[var(--divider)] bg-[var(--color-card-bg)] p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+        <h3 className="text-sm font-medium text-white/70">
           Details
         </h3>
         {isSaving ? (

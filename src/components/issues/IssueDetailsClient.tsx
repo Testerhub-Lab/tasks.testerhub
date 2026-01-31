@@ -209,8 +209,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-6">
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+          <Card className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-white/70">
               Description
             </h2>
 
@@ -226,8 +226,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           </Card>
 
           {isBug ? (
-            <Card className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+            <Card className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-white/70">
                 Bug details
               </h2>
 
@@ -262,8 +262,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             </Card>
           ) : null}
 
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+          <Card className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-white/70">
               Attachments
             </h2>
             {task.attachments.length ? (
