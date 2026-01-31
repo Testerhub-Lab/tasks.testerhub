@@ -7,7 +7,7 @@ const taskSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(3).max(120),
   description: z.string().max(2000).optional(),
-  priority: z.enum(["Low", "Medium", "High"]),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
   dueDate: z.string().optional(),
   tags: z.string().optional(),
   requesterName: z.string().optional(),

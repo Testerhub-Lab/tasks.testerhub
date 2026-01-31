@@ -16,7 +16,7 @@ const taskSchema = z.object({
   steps: z.string().max(2000).optional(),
   expected: z.string().max(2000).optional(),
   actual: z.string().max(2000).optional(),
-  priority: z.enum(["Low", "Medium", "High"]),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
   tags: z.string().optional(),
   attachments: z.array(z.string()).optional(),
   environment: z.string().optional(),

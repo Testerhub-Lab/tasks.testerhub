@@ -10,7 +10,7 @@ interface IssueTableItem {
   id: string;
   key?: string | null;
   title: string;
-  status?: TaskStatus | string | null;
+  status?: TaskStatus | null;
   priority?: TaskPriority | null;
   createdAt?: Date | string | null;
 }
