@@ -57,12 +57,14 @@ model User {
   email       String   @unique
   name        String?
   role        Role     @default(USER)
-  testerHubId String?
+  testerHubId String?  @unique
 
   comments      Comment[]
 
   reportedTasks Task[] @relation("TaskReporter")
   assignedTasks Task[] @relation("TaskAssignee")
+
+  sessions Session[]
 }
 
 model Setting {
@@ -100,4 +102,19 @@ enum Priority {
 enum Role {
   ADMIN
   USER
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
