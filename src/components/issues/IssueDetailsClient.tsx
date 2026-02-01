@@ -5,7 +5,7 @@ import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
-import type { Task } from "@prisma/client";
+import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -73,7 +73,7 @@ const parseDetails = (raw?: string | null) => {
 };
 
 interface IssueDetailsClientProps {
-  task: Task;
+  task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
 }
 
@@ -84,6 +84,11 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const details = parseDetails(task.description);
   const isBug = details.type?.toLowerCase() === "bug";
   const issueKey = task.key ?? task.id;
+  const reporterName =
+    task.reporter?.name ??
+    task.reporter?.email ??
+    task.requesterName ??
+    "Гость";
   const [copied, setCopied] = useState<"key" | "link" | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -295,6 +300,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           status={task.status}
           priority={task.priority}
           environment={details.environment}
+          reporterName={reporterName}
           createdAt={task.createdAt}
           updatedAt={task.createdAt}
         />

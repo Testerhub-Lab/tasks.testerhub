@@ -30,6 +30,7 @@ interface IssueMetaPanelProps {
   status?: Status | null;
   priority?: Priority | null;
   environment?: string | null;
+  reporterName?: string | null;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
 }
@@ -40,6 +41,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   projectLabel,
   priority,
   environment,
+  reporterName,
   createdAt,
   updatedAt,
 }) => {
@@ -134,6 +136,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         <div className="space-y-1">
           <div className="text-xs text-[var(--color-text-secondary)]">Environment</div>
           <div className="text-sm text-[var(--color-text)]">{environment}</div>
+        </div>
+      ) : null}
+
+      {reporterName ? (
+        <div className="space-y-1">
+          <div className="text-xs text-[var(--color-text-secondary)]">Reporter</div>
+          <div className="text-sm text-[var(--color-text)]">{reporterName}</div>
         </div>
       ) : null}
 

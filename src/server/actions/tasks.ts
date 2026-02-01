@@ -62,16 +62,14 @@ export async function createTaskAction(data: TaskInput) {
     const effectiveReporterId = authUser ? authUser.id : (validated.reporterId ?? null);
     const isGuest = !authUser && !effectiveReporterId;
     const effectiveRequesterName = authUser
-      ? (authUser.name ?? authUser.email ?? "User")
-      : (validated.requesterName?.trim() ?? null);
+      ? null
+      : (validated.requesterName?.trim() || "Гость");
 
     if (isGuest && !project.allowGuest) {
       return { ok: false as const, formError: "Гостевой режим для проекта запрещён" };
     }
 
-    if (isGuest && !effectiveRequesterName) {
-      return { ok: false as const, formError: "Укажите имя (кто создаёт задачу)" };
-    }
+    // guest name defaults to "Гость", so no extra validation here
 
     if (process.env.NODE_ENV !== "production") {
       console.info("[createTask] reporter resolved", { mode: authUser ? "auth" : "guest" });
@@ -204,12 +202,16 @@ export async function addCommentAction(data: {
 }) {
   try {
     const validatedData = addCommentSchema.parse(data);
+    const authUser = await getCurrentUser();
 
     await prisma.comment.create({
       data: {
         taskId: validatedData.taskId,
         text: validatedData.text,
-        authorName: validatedData.authorName,
+        userId: authUser?.id ?? null,
+        authorName: authUser
+          ? null
+          : (validatedData.authorName?.trim() ?? "Гость"),
       },
       select: { id: true },
     });

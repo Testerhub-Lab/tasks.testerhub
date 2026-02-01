@@ -14,6 +14,13 @@ export type TaskWithProject = Prisma.TaskGetPayload<{
   include: { project: true };
 }>;
 
+export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
+  include: {
+    project: true;
+    reporter: { select: { id: true; name: true; email: true } };
+  };
+}>;
+
 export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {};
 
@@ -76,16 +83,22 @@ export async function getAllTasks(): Promise<TaskWithProject[]> {
   });
 }
 
-export async function getTaskById(id: string): Promise<TaskWithProject | null> {
+export async function getTaskById(id: string): Promise<TaskWithProjectAndReporter | null> {
   return prisma.task.findUnique({
-    include: { project: true },
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+    },
     where: { id },
   });
 }
 
-export async function getTaskByKey(key: string): Promise<TaskWithProject | null> {
+export async function getTaskByKey(key: string): Promise<TaskWithProjectAndReporter | null> {
   return prisma.task.findUnique({
-    include: { project: true },
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+    },
     where: { key },
   });
 }

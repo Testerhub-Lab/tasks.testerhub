@@ -1,10 +1,10 @@
 import React from "react";
-import type { Task } from "@prisma/client";
 import { getProjectById } from "../../server/queries/projects";
+import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import IssueDetailsClient from "./IssueDetailsClient";
 
 interface IssueDetailsProps {
-  task: Task;
+  task: TaskWithProjectAndReporter;
 }
 
 const IssueDetails = async ({ task }: IssueDetailsProps) => {
