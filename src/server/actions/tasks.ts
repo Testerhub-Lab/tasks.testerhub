@@ -59,11 +59,11 @@ export async function createTaskAction(data: TaskInput) {
       return { ok: false as const, formError: "Project not found" };
     }
 
-    const effectiveReporterId = authUser ? authUser.id : (validated.reporterId ?? null);
-    const isGuest = !authUser && !effectiveReporterId;
-    const effectiveRequesterName = authUser
-      ? null
-      : (validated.requesterName?.trim() || "Гость");
+    const trimmedRequesterName = validated.requesterName?.trim() || null;
+    const isAuth = Boolean(authUser);
+    const isGuest = !isAuth;
+    const effectiveReporterId = isAuth ? authUser!.id : null;
+    const effectiveRequesterName = isAuth ? null : (trimmedRequesterName ?? "Гость");
 
     if (isGuest && !project.allowGuest) {
       return { ok: false as const, formError: "Гостевой режим для проекта запрещён" };
