@@ -24,7 +24,7 @@ function getSessionTtlDays(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
 }
 
-function getCookieSameSite(): "lax" | "strict" | "none" {
+export function getCookieSameSite(): "lax" | "strict" | "none" {
   const raw = (process.env.COOKIE_SAMESITE ?? "lax").toLowerCase();
   if (raw === "strict" || raw === "none") return raw;
   return "lax";
@@ -43,15 +43,19 @@ function buildExpiresAt(now = Date.now()): Date {
   return new Date(now + ttlMs);
 }
 
-async function setSessionCookie(token: string, expiresAt: Date) {
-  const jar = await cookies();
-  jar.set(COOKIE_NAME, token, {
+export function getSessionCookieOptions(expiresAt: Date) {
+  return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: getCookieSameSite(),
     path: "/",
     expires: expiresAt,
-  });
+  } as const;
+}
+
+async function setSessionCookie(token: string, expiresAt: Date) {
+  const jar = await cookies();
+  jar.set(COOKIE_NAME, token, getSessionCookieOptions(expiresAt));
 }
 
 export async function getRequestMeta(): Promise<SessionMeta> {
@@ -62,7 +66,7 @@ export async function getRequestMeta(): Promise<SessionMeta> {
   return { userAgent: userAgent ?? null, ip };
 }
 
-export async function createSession(userId: string, meta: SessionMeta = {}) {
+export async function createSessionRecord(userId: string, meta: SessionMeta = {}) {
   const token = makeToken();
   const tokenHash = hashToken(token);
   const expiresAt = buildExpiresAt();
@@ -78,6 +82,11 @@ export async function createSession(userId: string, meta: SessionMeta = {}) {
     select: { id: true },
   });
 
+  return { token, expiresAt };
+}
+
+export async function createSession(userId: string, meta: SessionMeta = {}) {
+  const { token, expiresAt } = await createSessionRecord(userId, meta);
   await setSessionCookie(token, expiresAt);
 }
 
