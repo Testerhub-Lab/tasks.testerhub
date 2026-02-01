@@ -5,6 +5,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { Status } from "@prisma/client";
+import { getCurrentUser } from "../auth/session";
 import {
   taskSchema,
   taskStatusSchema,
@@ -47,6 +48,7 @@ function buildDescription(base: string | null | undefined, extra: string[]) {
 export async function createTaskAction(data: TaskInput) {
   try {
     const validated = taskSchema.parse(data);
+    const authUser = await getCurrentUser();
 
     const project = await prisma.project.findUnique({
       where: { id: validated.projectId },
@@ -57,14 +59,22 @@ export async function createTaskAction(data: TaskInput) {
       return { ok: false as const, formError: "Project not found" };
     }
 
-    const isGuest = !validated.reporterId;
+    const effectiveReporterId = authUser ? authUser.id : (validated.reporterId ?? null);
+    const isGuest = !authUser && !effectiveReporterId;
+    const effectiveRequesterName = authUser
+      ? (authUser.name ?? authUser.email ?? "User")
+      : (validated.requesterName?.trim() ?? null);
 
     if (isGuest && !project.allowGuest) {
       return { ok: false as const, formError: "Гостевой режим для проекта запрещён" };
     }
 
-    if (isGuest && !validated.requesterName?.trim()) {
+    if (isGuest && !effectiveRequesterName) {
       return { ok: false as const, formError: "Укажите имя (кто создаёт задачу)" };
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[createTask] reporter resolved", { mode: authUser ? "auth" : "guest" });
     }
 
     // Пока нет отдельных колонок steps/expected/actual/environment — складываем в description
@@ -101,10 +111,10 @@ export async function createTaskAction(data: TaskInput) {
 
           dueDate: validated.dueDate ?? null,
 
-          reporterId: validated.reporterId ?? null,
+          reporterId: effectiveReporterId,
           assigneeId: validated.assigneeId ?? null,
 
-          requesterName: validated.requesterName?.trim() ?? null,
+          requesterName: effectiveRequesterName,
           requesterEmail: validated.requesterEmail?.trim() ?? null,
 
           projectId: updatedProject.id,
