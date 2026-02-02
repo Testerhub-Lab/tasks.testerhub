@@ -5,6 +5,7 @@ import { LayoutGroup, motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { z } from "zod";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import CreateTaskModal from "../modals/CreateTaskModal";
@@ -20,11 +21,21 @@ const tabs = [
 
 type ProjectOption = { id: string; name: string; key: string };
 type UserOption = { id: string; name: string | null; email: string };
+type CurrentUser = { id: string; name: string | null; email: string | null };
 
 interface TopBarClientProps {
   projects: ProjectOption[];
   users: UserOption[];
 }
+
+const meResponseSchema = z.object({
+  ok: z.literal(true),
+  user: z.object({
+    id: z.string().min(1),
+    name: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
+  }),
+});
 
 const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
   const pathname = usePathname();
@@ -34,6 +45,8 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isUserMenuOpen, setUserMenuOpen] = useState(false);
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
@@ -64,6 +77,42 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
     window.addEventListener("open-create-modal", handleOpen);
     return () => {
       window.removeEventListener("open-create-modal", handleOpen);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { method: "GET" });
+        if (res.status === 401) {
+          if (active) setCurrentUser(null);
+          return;
+        }
+        if (!res.ok) {
+          if (active) setCurrentUser(null);
+          return;
+        }
+        const json = (await res.json().catch(() => null)) as unknown;
+        const parsed = meResponseSchema.safeParse(json);
+        if (!parsed.success) {
+          if (active) setCurrentUser(null);
+          return;
+        }
+        if (active) {
+          setCurrentUser({
+            id: parsed.data.user.id,
+            name: parsed.data.user.name ?? null,
+            email: parsed.data.user.email ?? null,
+          });
+        }
+      } catch {
+        if (active) setCurrentUser(null);
+      }
+    };
+    loadUser();
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -106,6 +155,13 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    setCurrentUser(null);
+    setUserMenuOpen(false);
+    router.refresh();
   };
 
   return (
@@ -176,6 +232,29 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
         <Button variant="primary" onClick={openModal}>
           Create
         </Button>
+
+        {currentUser ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="ml-2 inline-flex h-9 items-center rounded-full border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5"
+            >
+              {currentUser.name || currentUser.email || "User"}
+            </button>
+            {isUserMenuOpen ? (
+              <div className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-slate-950/90 p-1 shadow-lg backdrop-blur">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <CreateTaskModal
