@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import { createHash, randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { type Role } from "@prisma/client";
+import { fetchMainCurrentUser } from "./mainApp";
 
 const COOKIE_NAME = "th_session";
 
@@ -93,31 +94,63 @@ export async function createSession(userId: string, meta: SessionMeta = {}) {
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;
-  if (!token) return null;
+  if (token) {
+    const tokenHash = hashToken(token);
+    const now = new Date();
 
-  const tokenHash = hashToken(token);
-  const now = new Date();
-
-  const session = await prisma.session.findFirst({
-    where: {
-      tokenHash,
-      revokedAt: null,
-      expiresAt: { gt: now },
-    },
-    select: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          testerHubId: true,
+    const session = await prisma.session.findFirst({
+      where: {
+        tokenHash,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            testerHubId: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  return session?.user ?? null;
+    if (session?.user) return session.user;
+  }
+
+  try {
+    const h = await headers();
+    const cookieHeader = h.get("cookie");
+    const mainUser = await fetchMainCurrentUser(cookieHeader);
+    if (!mainUser) return null;
+
+    const user = await prisma.user.upsert({
+      where: { testerHubId: mainUser.id },
+      create: {
+        testerHubId: mainUser.id,
+        email: mainUser.email,
+        name: mainUser.name ?? null,
+      },
+      update: {
+        email: mainUser.email,
+        name: mainUser.name ?? undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        testerHubId: true,
+      },
+    });
+
+    await createSession(user.id, await getRequestMeta());
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export async function clearSession() {
