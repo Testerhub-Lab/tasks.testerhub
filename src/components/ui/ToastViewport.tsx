@@ -32,14 +32,28 @@ export default function ToastViewport() {
               )}
             </div>
 
-            <button
-              type="button"
-              className="rounded-md p-1.5 text-slate-200/60 hover:bg-white/5 hover:text-slate-100"
-              aria-label="Dismiss"
-              onClick={() => dismissToast(t.id)}
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              {t.action ? (
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 text-[12px] text-cyan-100/90 hover:bg-white/5"
+                  onClick={() => {
+                    t.action?.onClick();
+                    dismissToast(t.id);
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-slate-200/60 hover:bg-white/5 hover:text-slate-100"
+                aria-label="Dismiss"
+                onClick={() => dismissToast(t.id)}
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       ))}

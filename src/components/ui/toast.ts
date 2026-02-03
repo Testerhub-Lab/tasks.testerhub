@@ -7,6 +7,7 @@ export type ToastItem = {
   description?: string;
   createdAt: number;
   durationMs: number;
+  action?: { label: string; onClick: () => void };
 };
 
 type Listener = (items: ToastItem[]) => void;
@@ -35,9 +36,23 @@ export function dismissToast(id: string) {
   emit();
 }
 
-export function toast(kind: ToastKind, title: string, description?: string, durationMs = 2800) {
+export function toast(
+  kind: ToastKind,
+  title: string,
+  description?: string,
+  durationMs = 2800,
+  action?: { label: string; onClick: () => void }
+) {
   const id = makeId();
-  const t: ToastItem = { id, kind, title, description, createdAt: Date.now(), durationMs };
+  const t: ToastItem = {
+    id,
+    kind,
+    title,
+    description,
+    createdAt: Date.now(),
+    durationMs,
+    action,
+  };
   items = [t, ...items].slice(0, 5);
   emit();
 

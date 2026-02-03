@@ -10,6 +10,7 @@ import ProjectKeyPicker from "./ProjectKeyPicker";
 import AttachmentsPanel, { type AttachmentItem } from "./AttachmentsPanel";
 import { createTaskAction } from "@/server/actions/tasks";
 import type { TaskInput } from "@/server/validators/task";
+import { getSignInUrl, isAuthRequiredError } from "@/lib/authRequired";
 
 type ProjectOption = { id: string; name: string; key: string };
 type UserOption = { id: string; name: string | null; email: string };
@@ -373,7 +374,24 @@ export default function CreateTaskModal({
             ? Object.values(res.fieldErrors).flat().filter(Boolean).join("\n")
             : "Не удалось создать задачу.");
         setLocalError(msg || "Не удалось создать задачу.");
-        toast.error("Issue not created", msg || "Не удалось создать задачу.");
+        if (isAuthRequiredError({ formError: res.formError ?? null })) {
+          const current = `${window.location.pathname}${window.location.search}`;
+          const url = getSignInUrl(current, window.location.origin);
+          toast(
+            "error",
+            "Нужна авторизация",
+            "Чтобы продолжить, войдите через основной аккаунт.",
+            4200,
+            {
+              label: "Sign in",
+              onClick: () => {
+                window.location.href = url;
+              },
+            }
+          );
+        } else {
+          toast.error("Issue not created", msg || "Не удалось создать задачу.");
+        }
         return;
       }
 
