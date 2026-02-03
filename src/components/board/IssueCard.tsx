@@ -8,6 +8,7 @@ import { getDisplayName } from "../../server/auth/displayName";
 interface IssueCardProps {
   title: string;
   issueKey?: string | null;
+  type?: string | null;
   priority?: TaskPriority | null;
   status?: TaskStatus | string | null; // на Board не используем, но пусть останется в пропсах
   description?: string | null;
@@ -18,13 +19,13 @@ interface IssueCardProps {
 const IssueCard: React.FC<IssueCardProps> = ({
   title,
   issueKey,
+  type,
   priority,
   description,
   reporter,
   requesterName,
 }) => {
-  const typeMatch = description?.match(/Тип:\s*([A-Za-zА-Яа-я_-]+)/i);
-  const type = typeMatch?.[1] ?? null;
+  const resolvedType = type?.trim() || null;
 
   const cleanDescription = description
     ? description
@@ -51,9 +52,9 @@ const IssueCard: React.FC<IssueCardProps> = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          {type ? (
+          {resolvedType ? (
             <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
-              {type}
+              {resolvedType}
             </span>
           ) : null}
 

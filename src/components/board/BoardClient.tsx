@@ -129,6 +129,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                     key={task.id}
                     issueKey={task.key ?? undefined}
                     title={task.title}
+                    type={task.type ?? null}
                     description={task.description}
                     priority={task.priority}
                     status={task.status}
@@ -171,6 +172,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                 <IssueCard
                   issueKey={activeTask.key ?? undefined}
                   title={activeTask.title}
+                  type={activeTask.type ?? null}
                   description={activeTask.description}
                   priority={activeTask.priority}
                   status={activeTask.status}
@@ -227,6 +229,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
       <IssueCard
         issueKey={task.key ?? undefined}
         title={task.title}
+        type={task.type ?? null}
         description={task.description}
         priority={task.priority}
         status={task.status}
