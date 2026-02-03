@@ -52,21 +52,13 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
 
+  const [signInUrl, setSignInUrl] = useState<string | null>(null);
+  const [isMounted, setMounted] = useState(false);
+
   const currentPath = useMemo(() => {
     const qs = searchParams.toString();
     return qs ? `${pathname}?${qs}` : pathname;
   }, [pathname, searchParams]);
-
-  const signInUrl = useMemo(() => {
-    if (!mainAppBaseUrl || typeof window === "undefined") return null;
-    const redirectToTasks = `${window.location.origin}/sso?redirect=${encodeURIComponent(
-      currentPath
-    )}`;
-    const url = new URL("/sso/start", mainAppBaseUrl);
-    url.searchParams.set("audience", "tasks");
-    url.searchParams.set("redirect", redirectToTasks);
-    return url.toString();
-  }, [currentPath, mainAppBaseUrl]);
 
   const allowedQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -135,6 +127,22 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!mainAppBaseUrl) {
+      setSignInUrl(null);
+      return;
+    }
+    const origin = window.location.origin;
+    const redirectToTasks = `${origin}/sso?redirect=${encodeURIComponent(
+      currentPath
+    )}`;
+    const url = new URL("/sso/start", mainAppBaseUrl);
+    url.searchParams.set("audience", "tasks");
+    url.searchParams.set("redirect", redirectToTasks);
+    setSignInUrl(url.toString());
+  }, [currentPath, mainAppBaseUrl]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -274,7 +282,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
               </div>
             ) : null}
           </div>
-        ) : signInUrl ? (
+        ) : isMounted && signInUrl ? (
           <Button
             variant="secondary"
             onClick={() => {
