@@ -31,10 +31,19 @@ const updateFieldsSchema = z
     id: z.string().cuid(),
     status: taskStatusSchema.optional(),
     priority: taskPrioritySchema.optional(),
+    title: z.string().min(1).max(120).optional(),
+    description: z.string().max(2000).optional().nullable(),
   })
-  .refine((data) => data.status || data.priority, {
-    message: "At least one field must be provided.",
-  });
+  .refine(
+    (data) =>
+      data.status ||
+      data.priority ||
+      typeof data.title !== "undefined" ||
+      typeof data.description !== "undefined",
+    {
+      message: "At least one field must be provided.",
+    }
+  );
 
 const addCommentSchema = z.object({
   taskId: z.string().cuid(),
@@ -203,6 +212,8 @@ export async function updateTaskFieldsAction(data: {
   id: string;
   status?: z.infer<typeof taskStatusSchema>;
   priority?: TaskPriority;
+  title?: string;
+  description?: string | null;
 }) {
   try {
     const validatedData = updateFieldsSchema.parse(data);
@@ -225,6 +236,12 @@ export async function updateTaskFieldsAction(data: {
         !canChangePriority({
           role,
           projectAllowGuest: taskProject?.project?.allowGuest,
+        })) ||
+      ((typeof validatedData.title !== "undefined" ||
+        typeof validatedData.description !== "undefined") &&
+        !canChangeStatus({
+          role,
+          projectAllowGuest: taskProject?.project?.allowGuest,
         }))
     ) {
       return { ok: false as const, formError: "Требуется авторизация" };
@@ -235,6 +252,8 @@ export async function updateTaskFieldsAction(data: {
       data: {
         status: validatedData.status,
         priority: validatedData.priority,
+        title: validatedData.title,
+        description: validatedData.description,
       },
       select: { key: true },
     });

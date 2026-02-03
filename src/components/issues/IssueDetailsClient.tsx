@@ -7,6 +7,9 @@ import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import { getDisplayName } from "../../server/auth/displayName";
+import { updateTaskFieldsAction } from "../../server/actions/tasks";
+import { toast } from "../ui/toast";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -82,13 +85,26 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   task,
   projectLabel,
 }) => {
-  const details = parseDetails(task.description);
-  const isBug = details.type?.toLowerCase() === "bug";
   const issueKey = task.key ?? task.id;
   const reporterName = getDisplayName({
     user: task.reporter ?? null,
     fallbackName: task.requesterName ?? null,
   });
+  const [titleValue, setTitleValue] = useState(task.title ?? "");
+  const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [savingDescription, setSavingDescription] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const originalTitleRef = useRef(titleValue);
+  const originalDescriptionRef = useRef(descriptionValue);
+  const skipTitleBlurRef = useRef(false);
+  const skipDescriptionBlurRef = useRef(false);
+
+  const details = parseDetails(descriptionValue);
+  const isBug = details.type?.toLowerCase() === "bug";
   const [copied, setCopied] = useState<"key" | "link" | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -147,6 +163,122 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!editingTitle) {
+      const nextTitle = task.title ?? "";
+      setTitleValue(nextTitle);
+      originalTitleRef.current = nextTitle;
+    }
+  }, [task.title, editingTitle]);
+
+  useEffect(() => {
+    if (!editingDescription) {
+      const nextDescription = task.description ?? "";
+      setDescriptionValue(nextDescription);
+      originalDescriptionRef.current = nextDescription;
+    }
+  }, [task.description, editingDescription]);
+
+  useEffect(() => {
+    if (editingTitle && titleInputRef.current) {
+      const input = titleInputRef.current;
+      input.focus();
+      const length = input.value.length;
+      input.setSelectionRange(length, length);
+    }
+  }, [editingTitle]);
+
+  useEffect(() => {
+    if (editingDescription && descriptionRef.current) {
+      const textarea = descriptionRef.current;
+      textarea.focus();
+      const length = textarea.value.length;
+      textarea.setSelectionRange(length, length);
+    }
+  }, [editingDescription]);
+
+  const cancelTitleEdit = () => {
+    setTitleValue(originalTitleRef.current);
+    setEditingTitle(false);
+  };
+
+  const cancelDescriptionEdit = () => {
+    setDescriptionValue(originalDescriptionRef.current);
+    setEditingDescription(false);
+  };
+
+  const commitTitle = async (nextValue: string) => {
+    const trimmed = nextValue.trim();
+    if (!trimmed) {
+      toast.error("Заголовок не может быть пустым.");
+      setTitleValue(originalTitleRef.current);
+      setEditingTitle(false);
+      return;
+    }
+
+    if (trimmed === originalTitleRef.current) {
+      setEditingTitle(false);
+      return;
+    }
+
+    setSavingTitle(true);
+    setTitleValue(trimmed);
+    try {
+      const result = await updateTaskFieldsAction({
+        id: task.id,
+        title: trimmed,
+      });
+      if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+        } else {
+          toast.error("Не удалось обновить заголовок.");
+        }
+        setTitleValue(originalTitleRef.current);
+        setEditingTitle(false);
+        return;
+      }
+      originalTitleRef.current = trimmed;
+      setEditingTitle(false);
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
+  const commitDescription = async (nextValue: string) => {
+    const trimmed = nextValue.trim();
+    const payload = trimmed.length ? trimmed : null;
+    const nextDescription = payload ?? "";
+
+    if (nextDescription === originalDescriptionRef.current) {
+      setEditingDescription(false);
+      return;
+    }
+
+    setSavingDescription(true);
+    setDescriptionValue(nextDescription);
+    try {
+      const result = await updateTaskFieldsAction({
+        id: task.id,
+        description: payload,
+      });
+      if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+        } else {
+          toast.error("Не удалось обновить описание.");
+        }
+        setDescriptionValue(originalDescriptionRef.current);
+        setEditingDescription(false);
+        return;
+      }
+      originalDescriptionRef.current = nextDescription;
+      setEditingDescription(false);
+    } finally {
+      setSavingDescription(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -194,9 +326,49 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             ) : null}
           </div>
 
-          <h1 className="text-3xl font-semibold leading-tight">
-            {task.title}
-          </h1>
+          <div className="space-y-1">
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(event) => setTitleValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    skipTitleBlurRef.current = true;
+                    void commitTitle(titleValue);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipTitleBlurRef.current = true;
+                    cancelTitleEdit();
+                  }
+                }}
+                onBlur={() => {
+                  if (skipTitleBlurRef.current) {
+                    skipTitleBlurRef.current = false;
+                    return;
+                  }
+                  void commitTitle(titleValue);
+                }}
+                className="w-full rounded-lg border border-transparent bg-white/5 px-3 py-2 text-3xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                disabled={savingTitle}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingTitle(true)}
+                className="w-full rounded-lg px-2 py-1 text-left text-3xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+              >
+                {titleValue}
+              </button>
+            )}
+            {savingTitle ? (
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                Saving...
+              </span>
+            ) : null}
+          </div>
 
           {task.tags.length ? (
             <div className="flex flex-wrap gap-2">
@@ -219,15 +391,56 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               Description
             </h2>
 
-            {details.description?.trim() ? (
-              <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
-                {details.description}
-              </p>
+            {editingDescription ? (
+              <textarea
+                ref={descriptionRef}
+                value={descriptionValue}
+                onChange={(event) => setDescriptionValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    skipDescriptionBlurRef.current = true;
+                    void commitDescription(descriptionValue);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipDescriptionBlurRef.current = true;
+                    cancelDescriptionEdit();
+                  }
+                }}
+                onBlur={() => {
+                  if (skipDescriptionBlurRef.current) {
+                    skipDescriptionBlurRef.current = false;
+                    return;
+                  }
+                  void commitDescription(descriptionValue);
+                }}
+                className="min-h-[120px] w-full resize-y rounded-lg border border-transparent bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                rows={6}
+                disabled={savingDescription}
+              />
             ) : (
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                No description yet.
-              </p>
+              <button
+                type="button"
+                onClick={() => setEditingDescription(true)}
+                className="w-full rounded-lg px-2 py-2 text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+              >
+                {details.description?.trim() ? (
+                  <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
+                    {details.description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    Add description...
+                  </p>
+                )}
+              </button>
             )}
+            {savingDescription ? (
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                Saving...
+              </span>
+            ) : null}
           </Card>
 
           {isBug ? (
