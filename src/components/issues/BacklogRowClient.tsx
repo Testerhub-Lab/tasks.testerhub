@@ -11,6 +11,7 @@ export default function BacklogRowClient(props: {
   id: string;
   title: string;
   issueKey?: string | null;
+  type?: string | null;
   priority?: Priority | null;
   status?: Status | null;
   createdAt?: Date | null;
@@ -46,6 +47,7 @@ export default function BacklogRowClient(props: {
       <IssueRow
         title={props.title}
         issueKey={props.issueKey}
+        type={props.type}
         priority={props.priority}
         status={props.status}
         createdAt={props.createdAt}

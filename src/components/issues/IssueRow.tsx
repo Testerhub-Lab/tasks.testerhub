@@ -10,6 +10,7 @@ interface IssueRowProps {
   id?: string;
   title: string;
   issueKey?: string | null;
+  type?: string | null;
   priority?: Priority | null;
   status?: Status | null;
   description?: string | null;
@@ -26,6 +27,7 @@ const IssueRow: React.FC<IssueRowProps> = ({
   id,
   title,
   issueKey,
+  type,
   showMoveToTodo,
   priority,
   status,
@@ -50,6 +52,11 @@ const IssueRow: React.FC<IssueRowProps> = ({
       <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2 min-w-0">
+            {type ? (
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
+                {type}
+              </span>
+            ) : null}
             {issueKey ? (
               <span className="shrink-0 text-xs font-medium text-white/50 font-mono">
                 {issueKey}

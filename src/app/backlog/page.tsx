@@ -85,6 +85,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
               id={t.id}
               title={t.title}
               issueKey={t.key}
+              type={t.type}
               priority={t.priority}
               status={t.status}
               createdAt={t.createdAt}
