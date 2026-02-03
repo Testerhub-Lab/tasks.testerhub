@@ -6,6 +6,7 @@ import Badge from "../ui/Badge";
 import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
+import { getDisplayName } from "../../server/auth/displayName";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -84,11 +85,10 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const details = parseDetails(task.description);
   const isBug = details.type?.toLowerCase() === "bug";
   const issueKey = task.key ?? task.id;
-  const reporterName =
-    task.reporter?.name ??
-    task.reporter?.email ??
-    task.requesterName ??
-    "Гость";
+  const reporterName = getDisplayName({
+    user: task.reporter ?? null,
+    fallbackName: task.requesterName ?? null,
+  });
   const [copied, setCopied] = useState<"key" | "link" | null>(null);
   const timerRef = useRef<number | null>(null);
 

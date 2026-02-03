@@ -15,6 +15,8 @@ export default function BacklogRowClient(props: {
   status?: Status | null;
   createdAt?: Date | null;
   href: string;
+  reporter?: { name: string | null; email: string | null } | null;
+  requesterName?: string | null;
 }) {
   const router = useRouter();
   const [isLeaving, setIsLeaving] = useState(false);
@@ -47,6 +49,8 @@ export default function BacklogRowClient(props: {
         priority={props.priority}
         status={props.status}
         createdAt={props.createdAt}
+        reporter={props.reporter}
+        requesterName={props.requesterName}
         href={props.href}
         // можно слегка приглушить hover, когда строка уходит
         rowClassName={isLeaving ? "pointer-events-none" : ""}

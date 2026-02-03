@@ -73,6 +73,8 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
               status={task.status}         // <-- напрямую Prisma enum
               description={task.description}
               createdAt={task.createdAt}
+              reporter={task.reporter}
+              requesterName={task.requesterName}
               href={`/tasks/${task.key ?? task.id}`}
             />
           ))}

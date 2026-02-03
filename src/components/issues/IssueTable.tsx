@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Badge from "../ui/Badge";
 import { formatDate, getPriorityClasses, getStatusLabel } from "./utils";
 import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import { getDisplayName } from "../../server/auth/displayName";
 
 interface IssueTableItem {
   id: string;
@@ -13,6 +14,8 @@ interface IssueTableItem {
   status?: TaskStatus | null;
   priority?: TaskPriority | null;
   createdAt?: Date | string | null;
+  reporter?: { name: string | null; email: string | null } | null;
+  requesterName?: string | null;
 }
 
 interface IssueTableProps {
@@ -44,6 +47,12 @@ const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
                   {item.key ?? "—"}
                 </div>
                 <div className="text-white">{item.title}</div>
+                <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                  {getDisplayName({
+                    user: item.reporter ?? null,
+                    fallbackName: item.requesterName ?? null,
+                  })}
+                </div>
               </td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                 {getStatusLabel(item.status)}

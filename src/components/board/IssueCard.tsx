@@ -3,6 +3,7 @@ import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import { getPriorityClasses } from "../issues/utils";
 import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import { getDisplayName } from "../../server/auth/displayName";
 
 interface IssueCardProps {
   title: string;
@@ -10,6 +11,8 @@ interface IssueCardProps {
   priority?: TaskPriority | null;
   status?: TaskStatus | string | null; // на Board не используем, но пусть останется в пропсах
   description?: string | null;
+  reporter?: { name: string | null; email: string | null } | null;
+  requesterName?: string | null;
 }
 
 const IssueCard: React.FC<IssueCardProps> = ({
@@ -17,6 +20,8 @@ const IssueCard: React.FC<IssueCardProps> = ({
   issueKey,
   priority,
   description,
+  reporter,
+  requesterName,
 }) => {
   const typeMatch = description?.match(/Тип:\s*([A-Za-zА-Яа-я_-]+)/i);
   const type = typeMatch?.[1] ?? null;
@@ -68,6 +73,14 @@ const IssueCard: React.FC<IssueCardProps> = ({
               {cleanDescription}
             </p>
           ) : null}
+
+          <div className="mt-1 text-[11px] text-white/40">
+            •{" "}
+            {getDisplayName({
+              user: reporter ?? null,
+              fallbackName: requesterName ?? null,
+            })}
+          </div>
         </div>
 
         <div className="shrink-0">

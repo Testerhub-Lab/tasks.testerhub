@@ -88,6 +88,8 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
               priority={t.priority}
               status={t.status}
               createdAt={t.createdAt}
+              reporter={t.reporter}
+              requesterName={t.requesterName}
               href={`/tasks/${t.key ?? t.id}`}
             />
           ))}

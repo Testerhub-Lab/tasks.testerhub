@@ -8,6 +8,7 @@ import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
 import { addCommentAction } from "../../server/actions/tasks";
 import { formatDate } from "../issues/utils";
+import { getDisplayName } from "../../server/auth/displayName";
 
 type CommentItem = {
   id: string;
@@ -72,12 +73,6 @@ const isNearBottom = (el: HTMLElement, thresholdPx = 80) => {
   return distance <= thresholdPx;
 };
 
-const emailPrefix = (email?: string | null) => {
-  if (!email) return null;
-  const idx = email.indexOf("@");
-  return idx > 0 ? email.slice(0, idx) : email;
-};
-
 const makeClientId = () =>
   `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
@@ -133,11 +128,10 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
     };
 
     const serverComments: ActivityItem[] = comments.map((c) => {
-      const displayName =
-        c.user?.name ??
-        c.authorName ??
-        emailPrefix(c.user?.email) ??
-        "Anonymous";
+      const displayName = getDisplayName({
+        user: c.user,
+        fallbackName: c.authorName,
+      });
       return {
         kind: "comment",
         id: c.id,
@@ -151,7 +145,10 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       kind: "comment",
       id: `pending:${p.clientId}`,
       createdAt: p.createdAt,
-      authorName: p.authorName || "Anonymous",
+      authorName: getDisplayName({
+        user: null,
+        fallbackName: p.authorName ?? null,
+      }),
       text: p.text,
       state: p.state,
       error: p.error,

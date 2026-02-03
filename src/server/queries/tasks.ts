@@ -14,6 +14,13 @@ export type TaskWithProject = Prisma.TaskGetPayload<{
   include: { project: true };
 }>;
 
+export type TaskListItem = Prisma.TaskGetPayload<{
+  include: {
+    project: true;
+    reporter: { select: { id: true; name: true; email: true } };
+  };
+}>;
+
 export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
   include: {
     project: true;
@@ -60,25 +67,34 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
   return where;
 };
 
-export async function getTasks(filters: IssueFilters): Promise<TaskWithProject[]> {
+export async function getTasks(filters: IssueFilters): Promise<TaskListItem[]> {
   return prisma.task.findMany({
     where: buildTaskWhere(filters),
-    include: { project: true },
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getLatestTasks(limit = 10): Promise<TaskWithProject[]> {
+export async function getLatestTasks(limit = 10): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    include: { project: true },
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
 }
 
-export async function getAllTasks(): Promise<TaskWithProject[]> {
+export async function getAllTasks(): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    include: { project: true },
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }

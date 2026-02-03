@@ -16,10 +16,10 @@ import BoardColumn from "./BoardColumn";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
 import { Status } from "@prisma/client";
-import type { TaskWithProject } from "../../server/queries/tasks";
+import type { TaskListItem } from "../../server/queries/tasks";
 
 
-type BoardTask = TaskWithProject;
+type BoardTask = TaskListItem;
 
 const columns: Array<{ status: Status; title: string }> = [
   { status: Status.TODO, title: "To Do" },
@@ -29,7 +29,7 @@ const columns: Array<{ status: Status; title: string }> = [
 ];
 
 interface BoardClientProps {
-  tasks: TaskWithProject[];
+  tasks: TaskListItem[];
 }
 
 const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
@@ -132,6 +132,8 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                     description={task.description}
                     priority={task.priority}
                     status={task.status}
+                    reporter={task.reporter}
+                    requesterName={task.requesterName}
                   />
                 ))}
               </div>
@@ -172,6 +174,8 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                   description={activeTask.description}
                   priority={activeTask.priority}
                   status={activeTask.status}
+                  reporter={activeTask.reporter}
+                  requesterName={activeTask.requesterName}
                 />
               </div>
             ) : null}
@@ -226,6 +230,8 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
         description={task.description}
         priority={task.priority}
         status={task.status}
+        reporter={task.reporter}
+        requesterName={task.requesterName}
       />
     </div>
   );

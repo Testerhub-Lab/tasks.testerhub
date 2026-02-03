@@ -4,6 +4,7 @@ import Badge from "../ui/Badge";
 import { formatDate, getPriorityClasses, getPriorityLabel, getStatusLabel } from "./utils";
 import type { Priority, Status } from "@prisma/client";
 import MoveToTodoButton from "./MoveToTodoButton";
+import { getDisplayName } from "../../server/auth/displayName";
 
 interface IssueRowProps {
   id?: string;
@@ -17,6 +18,8 @@ interface IssueRowProps {
   showMoveToTodo?: boolean;
   rightActions?: React.ReactNode;
   rowClassName?: string;
+  reporter?: { name: string | null; email: string | null } | null;
+  requesterName?: string | null;
 }
 
 const IssueRow: React.FC<IssueRowProps> = ({
@@ -30,7 +33,13 @@ const IssueRow: React.FC<IssueRowProps> = ({
   rightActions,
   rowClassName,
   href,
+  reporter,
+  requesterName,
 }) => {
+  const reporterLabel = getDisplayName({
+    user: reporter ?? null,
+    fallbackName: requesterName ?? null,
+  });
   const content = (
     <div
       className={[
@@ -64,6 +73,10 @@ const IssueRow: React.FC<IssueRowProps> = ({
         <span className="whitespace-nowrap text-white/40">·</span>
 
         <span className="whitespace-nowrap">{formatDate(createdAt)}</span>
+
+        <span className="whitespace-nowrap text-white/40">·</span>
+
+        <span className="whitespace-nowrap">{reporterLabel}</span>
 
         {showMoveToTodo && id ? <MoveToTodoButton taskId={id} /> : null}
         {rightActions}

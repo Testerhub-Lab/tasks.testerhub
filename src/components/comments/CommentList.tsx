@@ -2,6 +2,7 @@ import React from "react";
 import Card from "../ui/Card";
 import type { Comment } from "@prisma/client";
 import { formatDate } from "../issues/utils";
+import { getDisplayName } from "../../server/auth/displayName";
 
 interface CommentListProps {
   comments: Comment[];
@@ -24,8 +25,10 @@ const CommentList: React.FC<CommentListProps> = ({ comments }) => {
         <Card key={comment.id} className="space-y-2">
           <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
             <span>
-              {comment.authorName ||
-                (comment.userId ? `User ${comment.userId.slice(0, 6)}` : "Anonymous")}
+              {getDisplayName({
+                user: comment.userId ? { name: null, email: null } : null,
+                fallbackName: comment.authorName ?? null,
+              })}
             </span>
             <span>{formatDate(comment.createdAt)}</span>
           </div>
