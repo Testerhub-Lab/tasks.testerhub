@@ -28,6 +28,9 @@ function getErrorCode(error: unknown): string | undefined {
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const redirectParam = url.searchParams.get("redirect");
+  const redirectTarget =
+    redirectParam && redirectParam.startsWith("/") ? redirectParam : "/board";
 
   if (!code) {
     return NextResponse.redirect(new URL("/sso/error?reason=missing_code", request.url));
@@ -80,10 +83,10 @@ export async function GET(request: NextRequest) {
     );
     console.info("[sso] session create ok");
 
-    const response = NextResponse.redirect(new URL("/board", request.url));
+    const response = NextResponse.redirect(new URL(redirectTarget, request.url));
     response.cookies.set("th_session", token, getSessionCookieOptions(expiresAt));
     console.info("[sso] cookie set ok");
-    console.info("[sso] redirecting", { to: "/board" });
+    console.info("[sso] redirecting", { to: redirectTarget });
     return response;
   } catch (error) {
     console.warn("[sso] local session/user failed", {

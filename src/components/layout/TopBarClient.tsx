@@ -26,6 +26,7 @@ type CurrentUser = { id: string; name: string | null; email: string | null };
 interface TopBarClientProps {
   projects: ProjectOption[];
   users: UserOption[];
+  mainAppBaseUrl: string | null;
 }
 
 const meResponseSchema = z.object({
@@ -37,7 +38,7 @@ const meResponseSchema = z.object({
   }),
 });
 
-const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
+const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBaseUrl }) => {
   const pathname = usePathname();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -50,6 +51,22 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
+
+  const currentPath = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, searchParams]);
+
+  const signInUrl = useMemo(() => {
+    if (!mainAppBaseUrl || typeof window === "undefined") return null;
+    const redirectToTasks = `${window.location.origin}/sso?redirect=${encodeURIComponent(
+      currentPath
+    )}`;
+    const url = new URL("/sso/start", mainAppBaseUrl);
+    url.searchParams.set("audience", "tasks");
+    url.searchParams.set("redirect", redirectToTasks);
+    return url.toString();
+  }, [currentPath, mainAppBaseUrl]);
 
   const allowedQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -84,7 +101,10 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
     let active = true;
     const loadUser = async () => {
       try {
-        const res = await fetch("/api/auth/me", { method: "GET" });
+        const res = await fetch("/api/auth/me", {
+          method: "GET",
+          credentials: "include",
+        });
         if (res.status === 401) {
           if (active) setCurrentUser(null);
           return;
@@ -254,6 +274,15 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users }) => {
               </div>
             ) : null}
           </div>
+        ) : signInUrl ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              window.location.href = signInUrl;
+            }}
+          >
+            Sign in
+          </Button>
         ) : null}
       </div>
 

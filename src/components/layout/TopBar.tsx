@@ -4,5 +4,6 @@ import { getUsersForAssignee } from "@/server/queries/users";
 
 export default async function TopBar() {
   const [projects, users] = await Promise.all([getProjects(), getUsersForAssignee()]);
-  return <TopBarClient projects={projects} users={users} />;
+  const mainAppBaseUrl = process.env.MAIN_APP_BASE_URL ?? null;
+  return <TopBarClient projects={projects} users={users} mainAppBaseUrl={mainAppBaseUrl} />;
 }
