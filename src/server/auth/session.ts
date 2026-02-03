@@ -5,6 +5,7 @@ import { type Role } from "@prisma/client";
 import { fetchMainCurrentUser } from "./mainApp";
 
 const COOKIE_NAME = "th_session";
+const AUTH_BLOCKED_COOKIE = "th_auth_blocked";
 
 export type AuthUser = {
   id: string;
@@ -52,6 +53,16 @@ export function getSessionCookieOptions(expiresAt: Date) {
     path: "/",
     expires: expiresAt,
   } as const;
+}
+
+export function getAuthBlockedCookieOptions(maxAgeSeconds = 60 * 60 * 24) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: maxAgeSeconds,
+  };
 }
 
 async function setSessionCookie(token: string, expiresAt: Date) {
@@ -118,6 +129,14 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     });
 
     if (session?.user) return session.user;
+  }
+
+  const authBlocked = jar.get(AUTH_BLOCKED_COOKIE)?.value;
+  if (authBlocked) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[auth] fallback blocked by th_auth_blocked");
+    }
+    return null;
   }
 
   try {

@@ -85,6 +85,13 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(new URL(redirectTarget, request.url));
     response.cookies.set("th_session", token, getSessionCookieOptions(expiresAt));
+    response.cookies.set("th_auth_blocked", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
     console.info("[sso] cookie set ok");
     console.info("[sso] redirecting", { to: redirectTarget });
     return response;
