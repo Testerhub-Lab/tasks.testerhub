@@ -7,6 +7,13 @@ import prisma from "../../lib/prisma";
 import { Status } from "@prisma/client";
 import { getCurrentUser } from "../auth/session";
 import {
+  canChangePriority,
+  canChangeStatus,
+  canComment,
+  canCreateTask,
+  type Role,
+} from "../auth/permissions";
+import {
   taskSchema,
   taskStatusSchema,
   taskPrioritySchema,
@@ -49,6 +56,8 @@ export async function createTaskAction(data: TaskInput) {
   try {
     const validated = taskSchema.parse(data);
     const authUser = await getCurrentUser();
+    const role: Role =
+      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
 
     const project = await prisma.project.findUnique({
       where: { id: validated.projectId },
@@ -57,6 +66,15 @@ export async function createTaskAction(data: TaskInput) {
 
     if (!project) {
       return { ok: false as const, formError: "Project not found" };
+    }
+
+    if (
+      !canCreateTask({
+        role,
+        projectAllowGuest: project.allowGuest,
+      })
+    ) {
+      return { ok: false as const, formError: "Требуется авторизация" };
     }
 
     const trimmedRequesterName = validated.requesterName?.trim() || null;
@@ -144,6 +162,23 @@ export async function updateTaskStatusAction(data: {
 }) {
   try {
     const validatedData = updateStatusSchema.parse(data);
+    const authUser = await getCurrentUser();
+    const role: Role =
+      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+
+    const taskProject = await prisma.task.findUnique({
+      where: { id: validatedData.id },
+      select: { project: { select: { allowGuest: true } } },
+    });
+
+    if (
+      !canChangeStatus({
+        role,
+        projectAllowGuest: taskProject?.project?.allowGuest,
+      })
+    ) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
 
     await prisma.task.update({
       where: { id: validatedData.id },
@@ -171,6 +206,29 @@ export async function updateTaskFieldsAction(data: {
 }) {
   try {
     const validatedData = updateFieldsSchema.parse(data);
+    const authUser = await getCurrentUser();
+    const role: Role =
+      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+
+    const taskProject = await prisma.task.findUnique({
+      where: { id: validatedData.id },
+      select: { project: { select: { allowGuest: true } } },
+    });
+
+    if (
+      (validatedData.status &&
+        !canChangeStatus({
+          role,
+          projectAllowGuest: taskProject?.project?.allowGuest,
+        })) ||
+      (validatedData.priority &&
+        !canChangePriority({
+          role,
+          projectAllowGuest: taskProject?.project?.allowGuest,
+        }))
+    ) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
 
     const updated = await prisma.task.update({
       where: { id: validatedData.id },
@@ -203,6 +261,22 @@ export async function addCommentAction(data: {
   try {
     const validatedData = addCommentSchema.parse(data);
     const authUser = await getCurrentUser();
+    const role: Role =
+      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+
+    const taskProject = await prisma.task.findUnique({
+      where: { id: validatedData.taskId },
+      select: { project: { select: { allowGuest: true } } },
+    });
+
+    if (
+      !canComment({
+        role,
+        projectAllowGuest: taskProject?.project?.allowGuest,
+      })
+    ) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
 
     await prisma.comment.create({
       data: {
