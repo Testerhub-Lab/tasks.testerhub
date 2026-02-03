@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
 import type { TaskStatus } from "../../server/validators/task";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 type Tone = "cyan" | "red";
 
@@ -37,6 +38,10 @@ export default function BacklogActionButton(props: {
           if (res?.ok) {
             onSuccess?.();
           } else {
+            if (isAuthRequiredError({ formError: res?.formError ?? null })) {
+              showAuthRequiredToast();
+              return;
+            }
             setFailed(true);
             // авто-сброс “Failed” через секунду
             setTimeout(() => setFailed(false), 1200);

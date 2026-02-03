@@ -6,6 +6,7 @@ import Select from "../ui/Select";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
 import { Priority, Status } from "@prisma/client";
 import { formatDate } from "./utils";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 const statusLabel: Record<Status, string> = {
   [Status.NEW]: "New",
@@ -79,7 +80,12 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         status: next.status ?? currentStatus,
         priority: next.priority ?? currentPriority,
       });
-      if (!result.ok) return;
+      if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+        }
+        return;
+      }
       router.refresh();
     } finally {
       setSaving(false);

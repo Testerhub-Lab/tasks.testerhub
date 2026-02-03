@@ -9,6 +9,7 @@ import Textarea from "../ui/Textarea";
 import { addCommentAction } from "../../server/actions/tasks";
 import { formatDate } from "../issues/utils";
 import { getDisplayName } from "../../server/auth/displayName";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 type CommentItem = {
   id: string;
@@ -230,6 +231,11 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
         });
 
         if (!result.ok) {
+          if (isAuthRequiredError({ formError: result.formError ?? null })) {
+            showAuthRequiredToast();
+            setPending((prev) => prev.filter((p) => p.clientId !== clientId));
+            return;
+          }
           setPending((prev) =>
             prev.map((p) =>
               p.clientId === clientId

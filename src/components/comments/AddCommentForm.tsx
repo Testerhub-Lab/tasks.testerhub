@@ -6,6 +6,7 @@ import Textarea from "../ui/Textarea";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { addCommentAction } from "../../server/actions/tasks";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 interface AddCommentFormProps {
   taskId: string;
@@ -29,6 +30,10 @@ const AddCommentForm: React.FC<AddCommentFormProps> = ({ taskId }) => {
         authorName: authorName || undefined,
       });
       if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+          return;
+        }
         setErrorMessage(result.formError ?? "Не удалось добавить комментарий.");
         return;
       }

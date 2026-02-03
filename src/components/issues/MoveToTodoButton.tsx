@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 export default function MoveToTodoButton({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -19,7 +20,15 @@ export default function MoveToTodoButton({ taskId }: { taskId: string }) {
         setError(null);
         startTransition(async () => {
           try {
-            await updateTaskStatusAction({ id: taskId, status: "TODO" });
+            const res = await updateTaskStatusAction({ id: taskId, status: "TODO" });
+            if (!res.ok) {
+              if (isAuthRequiredError({ formError: res.formError ?? null })) {
+                showAuthRequiredToast();
+                return;
+              }
+              setError("Failed");
+              return;
+            }
             router.refresh(); // backlog сам уберёт задачу (она перестанет быть New)
           } catch {
             setError("Failed");

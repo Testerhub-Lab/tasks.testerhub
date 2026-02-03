@@ -17,6 +17,7 @@ import { updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
 import { Status } from "@prisma/client";
 import type { TaskListItem } from "../../server/queries/tasks";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 
 type BoardTask = TaskListItem;
@@ -89,7 +90,11 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       });
       if (!result.ok) {
         setItems(previousItems);
-        setErrorMessage(result.formError ?? "Не удалось обновить статус.");
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+        } else {
+          setErrorMessage(result.formError ?? "Не удалось обновить статус.");
+        }
         return;
       }
       setErrorMessage(null);

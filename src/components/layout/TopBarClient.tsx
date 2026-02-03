@@ -12,6 +12,7 @@ import CreateTaskModal from "../modals/CreateTaskModal";
 import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
 import { ISSUE_FILTER_QUERY_KEYS } from "../../shared/issueFilterQueryKeys";
+import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 const tabs = [
   { label: "Board", href: "/board" },
@@ -172,6 +173,10 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
     try {
       const result = await createTaskAction(data);
       if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError ?? null })) {
+          showAuthRequiredToast();
+          return;
+        }
         setFormError(result.formError ?? "Не удалось создать тикет.");
         return;
       }

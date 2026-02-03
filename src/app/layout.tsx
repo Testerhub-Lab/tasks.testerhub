@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <html lang="ru">
+    <html lang="ru" data-main-app-base-url={process.env.MAIN_APP_BASE_URL ?? ""}>
       <body className="antialiased">
         <TopBar />
         <ToastViewport />
