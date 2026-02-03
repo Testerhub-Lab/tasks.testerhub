@@ -327,42 +327,44 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           </div>
 
           <div className="space-y-1">
-            {editingTitle ? (
-              <input
-                ref={titleInputRef}
-                value={titleValue}
-                onChange={(event) => setTitleValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    skipTitleBlurRef.current = true;
+            <h1 className="text-3xl font-semibold leading-tight">
+              {editingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  value={titleValue}
+                  onChange={(event) => setTitleValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      skipTitleBlurRef.current = true;
+                      void commitTitle(titleValue);
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      skipTitleBlurRef.current = true;
+                      cancelTitleEdit();
+                    }
+                  }}
+                  onBlur={() => {
+                    if (skipTitleBlurRef.current) {
+                      skipTitleBlurRef.current = false;
+                      return;
+                    }
                     void commitTitle(titleValue);
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    skipTitleBlurRef.current = true;
-                    cancelTitleEdit();
-                  }
-                }}
-                onBlur={() => {
-                  if (skipTitleBlurRef.current) {
-                    skipTitleBlurRef.current = false;
-                    return;
-                  }
-                  void commitTitle(titleValue);
-                }}
-                className="w-full rounded-lg border border-transparent bg-white/5 px-3 py-2 text-3xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                disabled={savingTitle}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditingTitle(true)}
-                className="w-full rounded-lg px-2 py-1 text-left text-3xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
-              >
-                {titleValue}
-              </button>
-            )}
+                  }}
+                  className="w-full rounded-lg border border-transparent bg-white/5 px-3 py-2 text-3xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  disabled={savingTitle}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingTitle(true)}
+                  className="w-full rounded-lg px-2 py-1 text-left text-3xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                >
+                  {titleValue}
+                </button>
+              )}
+            </h1>
             {savingTitle ? (
               <span className="text-xs text-[var(--color-text-secondary)]">
                 Saving...
