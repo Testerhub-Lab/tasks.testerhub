@@ -49,6 +49,7 @@ interface IssueFiltersBarProps {
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
   density?: "default" | "compact";
+  showProjectFilter?: "always" | "mobile" | "never";
 }
 
 const RemovableChip = ({
@@ -98,6 +99,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   hideFiltersButton,
   mode = "default",
   density = "default",
+  showProjectFilter = "always",
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -168,7 +170,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     });
   };
 
-  const showProjectSelect = projects.length > 1;
+  const isProjectFilterVisible = showProjectFilter !== "never";
+  const showProjectSelect = projects.length > 1 && isProjectFilterVisible;
+  const projectFilterClass =
+    showProjectFilter === "mobile" ? "lg:hidden" : "";
   const isCompact = mode === "compact";
   const isDense = density === "compact";
   const controlHeight = isDense ? "h-8" : "h-9";
@@ -229,13 +234,16 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // Compact: только Project + Clear
   // =========================
   if (isCompact) {
+    if (!showProjectSelect && !(filters.q || filters.projectId)) {
+      return null;
+    }
     return (
       <div
         className={[
           wrapperRadius,
           wrapperPad,
-          "border border-white/6",
-          "bg-[rgba(255,255,255,0.02)]",
+          "border border-white/5",
+          "bg-[rgba(255,255,255,0.015)]",
         ].join(" ")}
       >
         <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
@@ -250,7 +258,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                     projectId: event.target.value || undefined,
                   })
                 }
-                className={`${controlHeight} ${controlRadius} ${controlText} max-w-[320px]`}
+                className={`${controlHeight} ${controlRadius} ${controlText} max-w-[320px] ${projectFilterClass}`}
                 options={[
                   { value: "", label: "All projects" },
                   ...projects.map((project) => ({
@@ -259,11 +267,11 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   })),
                 ]}
               />
-            ) : (
+            ) : isProjectFilterVisible ? (
               <span className="text-sm text-white/80">
                 {projects[0] ? `${projects[0].key} — ${projects[0].name}` : "—"}
               </span>
-            )}
+            ) : null}
           </div>
 
           {(filters.q || filters.projectId) ? (
@@ -284,11 +292,18 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
       className={[
         wrapperRadius,
         wrapperPad,
-        "border border-white/6",
-        "bg-[rgba(255,255,255,0.02)]",
+        "border border-white/5",
+        "bg-[rgba(255,255,255,0.015)]",
       ].join(" ")}
     >
-      <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
+      <div
+        className={`flex flex-wrap items-center justify-between ${rowGap} cursor-pointer`}
+        onClick={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("button,a,input,select,textarea")) return;
+          setOpen((prev) => !prev);
+        }}
+      >
         <div className={`flex min-w-0 flex-1 items-center ${rowGap}`}>
           {!hideFiltersButton ? (
             <FilterChip
@@ -296,12 +311,25 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
               onClick={() => setOpen((prev) => !prev)}
               className={chipSize}
             >
-              <span className="mr-2">Filters</span>
-              {hasActive ? (
-                <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
-                  {activeCount}
-                </span>
-              ) : null}
+              <span className="inline-flex items-center gap-1.5" title="Filters">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  className="h-3.5 w-3.5 text-white/70"
+                >
+                  <path
+                    d="M2.5 3.5h11M4.5 8h7M6.5 12.5h3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                {hasActive ? (
+                  <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
+                    {activeCount}
+                  </span>
+                ) : null}
+              </span>
               <span className="ml-2 text-white/45">{isOpen ? "▴" : "▾"}</span>
             </FilterChip>
           ) : null}
@@ -338,10 +366,12 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
               </RemovableChip>
             ))}
 
-            {filters.projectId && projects.length > 0 ? (
-              <RemovableChip onRemove={clearProject} title="Remove project">
-                {projects.find((p) => p.id === filters.projectId)?.key ?? "Project"}
-              </RemovableChip>
+            {filters.projectId && projects.length > 0 && isProjectFilterVisible ? (
+              <div className={projectFilterClass}>
+                <RemovableChip onRemove={clearProject} title="Remove project">
+                  {projects.find((p) => p.id === filters.projectId)?.key ?? "Project"}
+                </RemovableChip>
+              </div>
             ) : null}
           </div>
         </div>
@@ -392,7 +422,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           </div>
 
           {/* PRIORITY */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className="col-span-12 lg:col-span-4 lg:hidden">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-[var(--color-text-secondary)]">Priority</span>
 
@@ -464,7 +494,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           </div>
 
           {/* PROJECT */}
-          <div className="col-span-12 lg:col-span-4">
+          <div className={`col-span-12 lg:col-span-4 ${projectFilterClass}`}>
             <div className="flex items-center gap-2">
               <span className="text-xs text-[var(--color-text-secondary)]">Project</span>
 

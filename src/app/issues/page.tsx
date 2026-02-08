@@ -29,6 +29,7 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
         initialFilters={filters}
         basePath="/issues"
         density="compact"
+        showProjectFilter="mobile"
       />
 
       {tasks.length === 0 ? (

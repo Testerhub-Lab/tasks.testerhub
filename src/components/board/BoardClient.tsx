@@ -52,6 +52,31 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    setItems(tasks);
+  }, [tasks]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (activeId) {
+      document.body.classList.add("is-dragging");
+      document.documentElement.classList.add("is-dragging");
+      document.body.style.cursor = "grabbing";
+      document.documentElement.style.cursor = "grabbing";
+    } else {
+      document.body.classList.remove("is-dragging");
+      document.documentElement.classList.remove("is-dragging");
+      document.body.style.cursor = "";
+      document.documentElement.style.cursor = "";
+    }
+    return () => {
+      document.body.classList.remove("is-dragging");
+      document.documentElement.classList.remove("is-dragging");
+      document.body.style.cursor = "";
+      document.documentElement.style.cursor = "";
+    };
+  }, [activeId]);
+
   const grouped = useMemo(() => {
     return columns.reduce<Record<Status, BoardTask[]>>((acc, column) => {
       acc[column.status] = items.filter(
@@ -217,7 +242,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative ${isDragging ? "opacity-60" : ""}`}
+      className={`relative cursor-grab active:cursor-grabbing ${isDragging ? "opacity-60" : ""}`}
       onClick={() => {
         if (!isDragging && !isSaving) {
           router.push(`/tasks/${task.key ?? task.id}`);

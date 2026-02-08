@@ -41,8 +41,8 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         projects={projects}
         initialFilters={filters}
         basePath="/backlog"
-        mode="compact"
         density="compact"
+        showProjectFilter="mobile"
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">

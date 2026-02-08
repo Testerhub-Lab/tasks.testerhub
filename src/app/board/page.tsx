@@ -35,6 +35,7 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
         initialFilters={filters}
         basePath="/board"
         density="compact"
+        showProjectFilter="mobile"
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">

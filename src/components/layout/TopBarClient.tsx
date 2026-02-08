@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGroup, motion } from "framer-motion";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
@@ -54,12 +53,10 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
 
   const allowedQuery = useMemo(() => {
     const params = new URLSearchParams();
-
     for (const key of ISSUE_FILTER_QUERY_KEYS) {
       const value = searchParams.get(key);
       if (value) params.set(key, value);
     }
-
     const query = params.toString();
     return query ? `?${query}` : "";
   }, [searchParams]);
@@ -159,37 +156,25 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
           </span>
         </div>
 
-        <LayoutGroup id="topbar-tabs">
-          <nav className="relative inline-flex flex-nowrap items-center gap-1 rounded-lg border border-white/10 p-1 overflow-hidden">
-            {tabs.map((tab) => {
-              const isActive = pathname === tab.href;
+        <nav className="lg:hidden inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
+          {tabs.map((tab) => {
+            const isActive = pathname === tab.href;
+            return (
+              <Link
+                key={tab.href}
+                href={`${tab.href}${allowedQuery}`}
+                aria-current={isActive ? "page" : undefined}
+                className={[
+                  "inline-flex h-7 items-center justify-center rounded-sm px-2 text-xs",
+                  isActive ? "text-white bg-white/10" : "text-white/70 hover:bg-white/5",
+                ].join(" ")}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-              return (
-                <Link
-                  key={tab.href}
-                  href={`${tab.href}${allowedQuery}`}
-                  aria-current={isActive ? "page" : undefined}
-                  className={[
-                    "relative inline-flex h-8 items-center justify-center rounded-lg px-3 text-sm",
-                    "transition-colors select-none",
-                    isActive ? "text-white" : "text-slate-200/90 hover:bg-white/5",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40",
-                  ].join(" ")}
-                >
-                  {isActive ? (
-                    <motion.div
-                      layoutId="topbar-tab-indicator"
-                      className="absolute -inset-px rounded-full border border-cyan-400/50 bg-white/5 backdrop-blur-md pointer-events-none"
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    />
-                  ) : null}
-
-                  <span className="relative z-10">{tab.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </LayoutGroup>
       </div>
 
       <div className="topbar__right">
@@ -214,7 +199,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
           />
         </div>
 
-        <Button variant="primary" onClick={openModal}>
+        <Button variant="primary" onClick={openModal} className="cursor-pointer">
           Create
         </Button>
 
@@ -225,7 +210,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
             <button
               type="button"
               onClick={() => setUserMenuOpen((v) => !v)}
-              className="ml-2 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5"
+              className="ml-2 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5 cursor-pointer"
             >
               {getDisplayName({ user, fallbackName: null })}
             </button>
@@ -234,7 +219,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full rounded-md px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5"
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5 cursor-pointer"
                 >
                   Logout
                 </button>
