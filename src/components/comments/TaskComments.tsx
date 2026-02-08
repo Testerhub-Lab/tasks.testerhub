@@ -7,9 +7,10 @@ import Button from "../ui/Button";
 import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
 import { addCommentAction } from "../../server/actions/tasks";
-import { formatDate } from "../issues/utils";
+import { formatDate, getStatusLabel } from "../issues/utils";
 import { getDisplayName } from "../../server/auth/displayName";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import type { TaskStatus } from "../../server/validators/task";
 
 type CommentItem = {
   id: string;
@@ -18,6 +19,20 @@ type CommentItem = {
   userId: string | null;
   authorName: string | null;
   createdAt: Date;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+type TaskActivityItem = {
+  id: string;
+  type: "CREATED" | "STATUS_CHANGED";
+  createdAt: Date;
+  fromStatus: TaskStatus | null;
+  toStatus: TaskStatus | null;
+  authorName: string | null;
   user: {
     id: string;
     name: string | null;
@@ -44,6 +59,7 @@ type ActivityItem =
       createdAt: Date;
       title: string;
       subtitle?: string;
+      authorName?: string | null;
     }
   | {
       kind: "comment";
@@ -54,6 +70,14 @@ type ActivityItem =
       state?: PendingState;
       error?: string;
       clientId?: string;
+    }
+  | {
+      kind: "status";
+      id: string;
+      createdAt: Date;
+      authorName: string;
+      fromStatus: TaskStatus;
+      toStatus: TaskStatus;
     }
   | {
       kind: "empty";
@@ -67,6 +91,7 @@ interface TaskCommentsProps {
   issueKey: string;
   createdAt: Date;
   comments: CommentItem[];
+  activities: TaskActivityItem[];
 }
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 80) => {
@@ -82,6 +107,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   issueKey,
   createdAt,
   comments,
+  activities,
 }) => {
   const router = useRouter();
 
@@ -120,13 +146,34 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   }, []);
 
   const activity: ActivityItem[] = useMemo(() => {
+    const createdActivity = activities.find((a) => a.type === "CREATED") ?? null;
     const created: ActivityItem = {
       kind: "created",
       id: "created",
-      createdAt,
+      createdAt: createdActivity?.createdAt ?? createdAt,
       title: `Issue created`,
       subtitle: issueKey,
+      authorName: createdActivity
+        ? getDisplayName({
+            user: createdActivity.user,
+            fallbackName: createdActivity.authorName,
+          })
+        : null,
     };
+
+    const statusEvents: ActivityItem[] = activities
+      .filter((a) => a.type === "STATUS_CHANGED" && a.fromStatus && a.toStatus)
+      .map((a) => ({
+        kind: "status",
+        id: a.id,
+        createdAt: a.createdAt,
+        authorName: getDisplayName({
+          user: a.user,
+          fallbackName: a.authorName,
+        }),
+        fromStatus: a.fromStatus!,
+        toStatus: a.toStatus!,
+      }));
 
     const serverComments: ActivityItem[] = comments.map((c) => {
       const displayName = getDisplayName({
@@ -157,7 +204,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
     }));
 
     const hasAnyComments =
-      serverComments.length > 0 || pendingComments.length > 0;
+      serverComments.length > 0 || pendingComments.length > 0 || statusEvents.length > 0;
 
     const empty: ActivityItem | null = hasAnyComments
       ? null
@@ -168,10 +215,12 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
           text: "No comments yet. Be the first to comment.",
         };
 
-    return empty
-      ? [created, empty, ...serverComments, ...pendingComments]
-      : [created, ...serverComments, ...pendingComments];
-  }, [comments, createdAt, issueKey, pending]);
+    const merged = [created, ...statusEvents, ...serverComments, ...pendingComments].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+    );
+
+    return empty ? [created, empty, ...merged.slice(1)] : merged;
+  }, [activities, comments, createdAt, issueKey, pending]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = listRef.current;
@@ -301,7 +350,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
     setFocused(false);
   };
 
-  const activityCount = 1 + comments.length; // created + server comments (MVP)
+  const activityCount = activity.filter((item) => item.kind !== "empty").length;
 
   return (
     <Card ref={rootRef} className="space-y-4 p-4">
@@ -323,7 +372,9 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
               return (
                 <div key={item.id} className="py-3">
                   <div className="text-xs text-[var(--color-text-secondary)]">
-                    <span className="text-[var(--color-text)]">System</span>
+                    <span className="text-[var(--color-text)]">
+                      {item.authorName ?? "System"}
+                    </span>
                     <span className="mx-2 text-white/20">•</span>
                     <span>{formatDate(item.createdAt)}</span>
                   </div>
@@ -344,6 +395,30 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
                 <div key={item.id} className="py-3">
                   <div className="text-sm text-[var(--color-text-secondary)]">
                     {item.text}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.kind === "status") {
+              return (
+                <div key={item.id} className="py-3">
+                  <div className="text-xs text-[var(--color-text-secondary)]">
+                    <span className="text-[var(--color-text)]">
+                      {item.authorName}
+                    </span>
+                    <span className="mx-2 text-white/20">•</span>
+                    <span>{formatDate(item.createdAt)}</span>
+                  </div>
+                  <div className="mt-2 text-sm text-[var(--color-text)]">
+                    Status changed from{" "}
+                    <span className="text-white/70">
+                      {getStatusLabel(item.fromStatus)}
+                    </span>{" "}
+                    to{" "}
+                    <span className="text-white/70">
+                      {getStatusLabel(item.toStatus)}
+                    </span>
                   </div>
                 </div>
               );

@@ -8,6 +8,7 @@ type ProjectOption = { id: string; name: string; key: string };
 
 interface SidebarClientProps {
   projects: ProjectOption[];
+  backlogUnread: number;
 }
 
 const getBasePath = (pathname: string) => {
@@ -17,11 +18,21 @@ const getBasePath = (pathname: string) => {
   return "/board";
 };
 
-const SidebarClient: React.FC<SidebarClientProps> = ({ projects }) => {
+const SidebarClient: React.FC<SidebarClientProps> = ({ projects, backlogUnread }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const basePath = getBasePath(pathname);
   const activeProjectId = searchParams.get("projectId");
+  const activeAssignee = searchParams.get("assignee");
+  const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
+
+  const buildIssuesHref = (assignee?: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (assignee) params.set("assignee", assignee);
+    else params.delete("assignee");
+    const query = params.toString();
+    return query ? `/issues?${query}` : "/issues";
+  };
 
   const buildHref = (projectId?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -40,10 +51,20 @@ const SidebarClient: React.FC<SidebarClientProps> = ({ projects }) => {
         <div className="sidebar__title">Workspace</div>
         <nav className="sidebar__list">
           <Link
-            href="/issues"
-            className={`sidebar__item ${pathname.startsWith("/issues") ? "is-active" : ""}`}
+            href={buildIssuesHref(null)}
+            className={`sidebar__item ${
+              pathname.startsWith("/issues") && !activeAssignee ? "is-active" : ""
+            }`}
           >
             All issues
+          </Link>
+          <Link
+            href={buildIssuesHref("me")}
+            className={`sidebar__item ${
+              pathname.startsWith("/issues") && activeAssignee === "me" ? "is-active" : ""
+            }`}
+          >
+            My issues
           </Link>
           <Link
             href="/board"
@@ -55,7 +76,10 @@ const SidebarClient: React.FC<SidebarClientProps> = ({ projects }) => {
             href="/backlog"
             className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
           >
-            Backlog
+            <span>Backlog</span>
+            {showBacklogBadge ? (
+              <span className="sidebar__badge">+{backlogUnread}</span>
+            ) : null}
           </Link>
         </nav>
       </div>

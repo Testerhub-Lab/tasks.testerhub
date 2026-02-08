@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
-import { Status } from "@prisma/client";
+import { ActivityType, Status } from "@prisma/client";
 import { getCurrentUser } from "../auth/session";
 import {
   canChangePriority,
@@ -149,6 +149,16 @@ export async function createTaskAction(data: TaskInput) {
         select: { id: true },
       });
 
+      await tx.taskActivity.create({
+        data: {
+          taskId: created.id,
+          type: ActivityType.CREATED,
+          userId: authUser?.id ?? null,
+          authorName: authUser ? null : effectiveRequesterName,
+        },
+        select: { id: true },
+      });
+
       return { id: created.id, key: taskKey };
     });
 
@@ -189,11 +199,30 @@ export async function updateTaskStatusAction(data: {
       return { ok: false as const, formError: "Требуется авторизация" };
     }
 
+    const existing = await prisma.task.findUnique({
+      where: { id: validatedData.id },
+      select: { status: true },
+    });
+
     await prisma.task.update({
       where: { id: validatedData.id },
       data: { status: validatedData.status },
       select: { id: true, key: true },
     });
+
+    if (existing?.status && existing.status !== validatedData.status) {
+      await prisma.taskActivity.create({
+        data: {
+          taskId: validatedData.id,
+          type: ActivityType.STATUS_CHANGED,
+          fromStatus: existing.status,
+          toStatus: validatedData.status,
+          userId: authUser?.id ?? null,
+          authorName: authUser ? null : "Гость",
+        },
+        select: { id: true },
+      });
+    }
 
     revalidatePath("/board");
     revalidatePath("/backlog");
@@ -247,6 +276,11 @@ export async function updateTaskFieldsAction(data: {
       return { ok: false as const, formError: "Требуется авторизация" };
     }
 
+    const existing = await prisma.task.findUnique({
+      where: { id: validatedData.id },
+      select: { status: true, key: true },
+    });
+
     const updated = await prisma.task.update({
       where: { id: validatedData.id },
       data: {
@@ -257,6 +291,24 @@ export async function updateTaskFieldsAction(data: {
       },
       select: { key: true },
     });
+
+    if (
+      typeof validatedData.status !== "undefined" &&
+      existing?.status &&
+      existing.status !== validatedData.status
+    ) {
+      await prisma.taskActivity.create({
+        data: {
+          taskId: validatedData.id,
+          type: ActivityType.STATUS_CHANGED,
+          fromStatus: existing.status,
+          toStatus: validatedData.status,
+          userId: authUser?.id ?? null,
+          authorName: authUser ? null : "Гость",
+        },
+        select: { id: true },
+      });
+    }
 
     revalidatePath(`/tasks/${updated.key ?? validatedData.id}`);
     revalidatePath("/board");

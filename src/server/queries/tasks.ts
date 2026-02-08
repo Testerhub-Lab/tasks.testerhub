@@ -28,7 +28,10 @@ export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
   };
 }>;
 
-export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => {
+export const buildTaskWhere = (
+  filters: IssueFilters,
+  currentUserId?: string | null
+): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {};
 
   if (filters.q) {
@@ -64,12 +67,27 @@ export const buildTaskWhere = (filters: IssueFilters): Prisma.TaskWhereInput => 
     where.projectId = filters.projectId;
   }
 
+  if (filters.assignee) {
+    if (filters.assignee === "me") {
+      if (currentUserId) {
+        where.assigneeId = currentUserId;
+      } else {
+        where.id = "__no-user__";
+      }
+    } else {
+      where.assigneeId = filters.assignee;
+    }
+  }
+
   return where;
 };
 
-export async function getTasks(filters: IssueFilters): Promise<TaskListItem[]> {
+export async function getTasks(
+  filters: IssueFilters,
+  currentUserId?: string | null
+): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    where: buildTaskWhere(filters),
+    where: buildTaskWhere(filters, currentUserId),
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
@@ -99,6 +117,16 @@ export async function getAllTasks(): Promise<TaskListItem[]> {
   });
 }
 
+export async function getBacklogUnreadCount(since?: Date | null) {
+  const sinceDate = since ?? new Date(0);
+  return prisma.task.count({
+    where: {
+      status: Status.NEW,
+      createdAt: { gt: sinceDate },
+    },
+  });
+}
+
 export async function getTaskById(id: string): Promise<TaskWithProjectAndReporter | null> {
   return prisma.task.findUnique({
     include: {
@@ -116,6 +144,16 @@ export async function getTaskByKey(key: string): Promise<TaskWithProjectAndRepor
       reporter: { select: { id: true, name: true, email: true } },
     },
     where: { key },
+  });
+}
+
+export async function getTaskActivitiesByTaskId(taskId: string) {
+  return prisma.taskActivity.findMany({
+    where: { taskId },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: "asc" },
   });
 }
 

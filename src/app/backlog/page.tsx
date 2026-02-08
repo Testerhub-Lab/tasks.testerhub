@@ -1,8 +1,10 @@
 import Link from "next/link";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
+import BacklogSeen from "../../components/backlog/BacklogSeen";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
+import { getCurrentUser } from "../../server/auth/session";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -29,7 +31,8 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
           status: ["NEW"] as const,
         };
 
-  const tasks = await getTasks(queryFilters);
+  const user = await getCurrentUser();
+  const tasks = await getTasks(queryFilters, user?.id ?? null);
 
 
   const projects = await getProjects();
@@ -37,6 +40,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
 
   return (
     <div className="mx-auto max-w-6xl space-y-3">
+      <BacklogSeen />
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}

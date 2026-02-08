@@ -4,6 +4,7 @@ import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
+import { getCurrentUser } from "../../server/auth/session";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -18,7 +19,8 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
 
-  const tasks = await getTasks(filters);
+  const user = await getCurrentUser();
+  const tasks = await getTasks(filters, user?.id ?? null);
   const projects = await getProjects();
   const isFiltered = hasActiveFilters(filters);
 

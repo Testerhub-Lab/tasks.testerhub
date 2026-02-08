@@ -4,6 +4,7 @@ import BoardClient from "../../components/board/BoardClient";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
+import { getCurrentUser } from "../../server/auth/session";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -24,7 +25,8 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
     view: "board",
   };
 
-  const tasks = await getTasks(queryFilters);
+  const user = await getCurrentUser();
+  const tasks = await getTasks(queryFilters, user?.id ?? null);
   const projects = await getProjects();
   const isFiltered = hasActiveFilters(filters);
 

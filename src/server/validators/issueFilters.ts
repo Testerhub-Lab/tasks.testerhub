@@ -27,6 +27,7 @@ const issueFiltersSchema = z.object({
   priority: z.array(prioritySchema).optional(),
   tags: z.array(z.string().max(24)).max(20).optional(),
   projectId: z.string().min(1).optional(),
+  assignee: z.string().min(1).max(64).optional(),
   view: viewSchema.optional(),
 });
 
@@ -68,6 +69,7 @@ export const parseSearchParams = (
     ),
     tags: normalizedTags,
     projectId: normalizeString(searchParams.projectId),
+    assignee: normalizeString(searchParams.assignee),
     view: normalizeString(searchParams.view),
   };
 
@@ -85,6 +87,7 @@ export const parseSearchParams = (
       priority: raw.priority.length ? raw.priority : undefined,
       tags: raw.tags.length ? raw.tags : undefined,
       projectId: raw.projectId,
+      assignee: raw.assignee,
       view: raw.view as IssueFilters["view"],
     };
   }
@@ -99,5 +102,6 @@ export const hasActiveFilters = (filters: IssueFilters) => {
       (filters.priority && filters.priority.length) ||
       (filters.tags && filters.tags.length) ||
       filters.projectId
+      || filters.assignee
   );
 };

@@ -148,6 +148,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
         if (next.projectId) params.set("projectId", next.projectId);
         else params.delete("projectId");
 
+        if (next.assignee) params.set("assignee", next.assignee);
+        else params.delete("assignee");
+
         const query = params.toString();
 
         startTransition(() => {
@@ -188,13 +191,15 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     (filters.status?.length ?? 0) > 0 ||
     (filters.priority?.length ?? 0) > 0 ||
     (filters.tags?.length ?? 0) > 0 ||
-    !!filters.projectId;
+    !!filters.projectId ||
+    !!filters.assignee;
 
   const activeCount =
     (filters.status?.length ?? 0) +
     (filters.priority?.length ?? 0) +
     (filters.tags?.length ?? 0) +
-    (filters.projectId ? 1 : 0);
+    (filters.projectId ? 1 : 0) +
+    (filters.assignee ? 1 : 0);
 
   // --- removable handlers (тут типы уже enum)
   const removeStatus = (status: Status) => {
@@ -216,6 +221,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     updateParams({ ...filters, projectId: undefined });
   };
 
+  const clearAssignee = () => {
+    updateParams({ ...filters, assignee: undefined });
+  };
+
   const addTag = () => {
     const nextTag = tagInput.trim();
     if (!nextTag) return;
@@ -234,7 +243,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // Compact: только Project + Clear
   // =========================
   if (isCompact) {
-    if (!showProjectSelect && !(filters.q || filters.projectId)) {
+    if (!showProjectSelect && !(filters.q || filters.projectId || filters.assignee)) {
       return null;
     }
     return (
@@ -365,6 +374,12 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                 #{tag}
               </RemovableChip>
             ))}
+
+            {filters.assignee ? (
+              <RemovableChip onRemove={clearAssignee} title="Remove assignee">
+                Assignee: {filters.assignee === "me" ? "Me" : filters.assignee}
+              </RemovableChip>
+            ) : null}
 
             {filters.projectId && projects.length > 0 && isProjectFilterVisible ? (
               <div className={projectFilterClass}>

@@ -4,6 +4,7 @@ import {
   getCommentsByTaskId,
   getTaskById,
   getTaskByKey,
+  getTaskActivitiesByTaskId,
 } from "../../../server/queries/tasks";
 import { permanentRedirect } from "next/navigation";
 import TaskComments from "../../../components/comments/TaskComments";
@@ -36,6 +37,7 @@ const TaskPage = async ({ params }: TaskPageProps) => {
   }
 
   const comments = await getCommentsByTaskId(task.id);
+  const activities = await getTaskActivitiesByTaskId(task.id);
 
   return (
     <div className="space-y-6">
@@ -46,6 +48,7 @@ const TaskPage = async ({ params }: TaskPageProps) => {
         issueKey={(task as { key?: string | null }).key ?? task.id}
         createdAt={task.createdAt}
         comments={comments}
+        activities={activities}
       />
       </div>
     </div>
