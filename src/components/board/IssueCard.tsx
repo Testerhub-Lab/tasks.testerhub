@@ -39,21 +39,21 @@ const IssueCard: React.FC<IssueCardProps> = ({
     <Card
       variant="plain"
       className={[
-        "rounded-lg p-2.5",
+        "rounded-sm p-2.5",
         "bg-[rgba(255,255,255,0.02)]",
-        "border border-white/5",
+        "border border-white/4",
         "transition-[background-color,border-color,transform,box-shadow] duration-150",
         "hover:bg-[rgba(255,255,255,0.06)]",
         "hover:border-white/12",
         "hover:-translate-y-[1px]",
-        "hover:shadow-[0_6px_18px_rgba(0,0,0,0.35)]",
+        "hover:shadow-[0_4px_12px_rgba(0,0,0,0.30)]",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             {resolvedType ? (
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
+              <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
                 {resolvedType}
               </span>
             ) : null}

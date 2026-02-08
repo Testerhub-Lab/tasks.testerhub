@@ -25,11 +25,11 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       ref={setNodeRef}
       variant="surface"
       className={[
-        "rounded-lg p-2.5",
-        "border border-white/5",
+        "rounded-sm p-2.5",
+        "border border-white/4",
         "bg-[rgba(255,255,255,0.02)]",
         "transition-[border-color,background-color] duration-150",
-        isOver ? "border-cyan-400/40 bg-cyan-500/5" : "",
+        isOver ? "border-cyan-400/30 bg-cyan-500/5" : "",
       ].join(" ")}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -37,7 +37,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
             {title}
           </h2>
-          <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
+          <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
             {count}
           </span>
         </div>

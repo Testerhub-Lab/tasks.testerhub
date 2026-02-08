@@ -160,7 +160,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
         </div>
 
         <LayoutGroup id="topbar-tabs">
-          <nav className="relative inline-flex flex-nowrap items-center gap-1 rounded-full border border-white/10 p-1 overflow-hidden">
+          <nav className="relative inline-flex flex-nowrap items-center gap-1 rounded-lg border border-white/10 p-1 overflow-hidden">
             {tabs.map((tab) => {
               const isActive = pathname === tab.href;
 
@@ -170,7 +170,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
                   href={`${tab.href}${allowedQuery}`}
                   aria-current={isActive ? "page" : undefined}
                   className={[
-                    "relative inline-flex h-8 items-center justify-center rounded-full px-3 text-sm",
+                    "relative inline-flex h-8 items-center justify-center rounded-lg px-3 text-sm",
                     "transition-colors select-none",
                     isActive ? "text-white" : "text-slate-200/90 hover:bg-white/5",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40",
@@ -179,7 +179,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
                   {isActive ? (
                     <motion.div
                       layoutId="topbar-tab-indicator"
-                      className="absolute -inset-px rounded-full border border-cyan-400/60 bg-white/5 shadow-[0_0_12px_rgba(34,211,238,0.35)] backdrop-blur-md pointer-events-none"
+                      className="absolute -inset-px rounded-full border border-cyan-400/50 bg-white/5 backdrop-blur-md pointer-events-none"
                       transition={{ type: "spring", stiffness: 500, damping: 35 }}
                     />
                   ) : null}
@@ -225,16 +225,16 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
             <button
               type="button"
               onClick={() => setUserMenuOpen((v) => !v)}
-              className="ml-2 inline-flex h-9 items-center rounded-full border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5"
+              className="ml-2 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5"
             >
               {getDisplayName({ user, fallbackName: null })}
             </button>
             {isUserMenuOpen ? (
-              <div className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-slate-950/90 p-1 shadow-lg backdrop-blur">
+              <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-slate-950/90 p-1 shadow-lg backdrop-blur">
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5"
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5"
                 >
                   Logout
                 </button>

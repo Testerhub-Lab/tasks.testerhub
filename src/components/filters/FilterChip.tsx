@@ -23,7 +23,7 @@ const FilterChip: React.FC<FilterChipProps> = ({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "relative inline-flex h-8 items-center justify-center rounded-full px-3 text-sm",
+        "relative inline-flex h-8 items-center justify-center rounded-md px-3 text-sm",
         "transition-colors select-none",
         // ВАЖНО: убрали border у каждого чипа, чтобы не было “тройной рамки”
         selected

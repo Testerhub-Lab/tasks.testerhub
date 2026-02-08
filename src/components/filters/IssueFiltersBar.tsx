@@ -64,8 +64,8 @@ const RemovableChip = ({
 }) => {
   const base =
     tone === "cyan"
-      ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100 hover:border-cyan-400/45 hover:bg-cyan-400/15"
-      : "border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:bg-white/10";
+      ? "border-cyan-400/25 bg-cyan-400/8 text-cyan-100 hover:border-cyan-400/35 hover:bg-cyan-400/12"
+      : "border-white/8 bg-white/4 text-white/70 hover:border-white/15 hover:bg-white/8";
 
   return (
     <button
@@ -76,7 +76,7 @@ const RemovableChip = ({
         onRemove();
       }}
       className={[
-        "group inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px]",
+        "group inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]",
         "max-w-[220px]",
         "transition-colors",
         base,
@@ -84,7 +84,7 @@ const RemovableChip = ({
       title={title ?? "Remove"}
     >
       <span className="truncate">{children}</span>
-      <span className="ml-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full text-white/40 group-hover:text-white/75">
+      <span className="ml-0.5 inline-flex h-3 w-3 items-center justify-center rounded-sm text-white/40 group-hover:text-white/75">
         ×
       </span>
     </button>
@@ -172,11 +172,11 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const isCompact = mode === "compact";
   const isDense = density === "compact";
   const controlHeight = isDense ? "h-8" : "h-9";
-  const controlRadius = isDense ? "rounded-lg" : "rounded-xl";
+  const controlRadius = isDense ? "rounded-sm" : "rounded-md";
   const controlText = isDense ? "text-xs" : "text-sm";
   const chipSize = isDense ? "h-7 px-2 text-[11px]" : "";
   const wrapperPad = isDense ? "px-3 py-2" : "px-4 py-3";
-  const wrapperRadius = isDense ? "rounded-xl" : "rounded-2xl";
+  const wrapperRadius = isDense ? "rounded-md" : "rounded-lg";
   const rowGap = isDense ? "gap-2" : "gap-3";
 
   const hasActive =
@@ -230,7 +230,14 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // =========================
   if (isCompact) {
     return (
-      <div className={`${wrapperRadius} ${wrapperPad}`}>
+      <div
+        className={[
+          wrapperRadius,
+          wrapperPad,
+          "border border-white/6",
+          "bg-[rgba(255,255,255,0.02)]",
+        ].join(" ")}
+      >
         <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
           <div className={`flex min-w-0 flex-1 items-center ${rowGap}`}>
             {showProjectSelect ? (
@@ -273,7 +280,14 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const priorityValues = (filters.priority ?? []) as unknown as string[];
 
   return (
-    <div className={`${wrapperRadius} surface bg-[var(--color-card-bg)] ${wrapperPad}`}>
+    <div
+      className={[
+        wrapperRadius,
+        wrapperPad,
+        "border border-white/6",
+        "bg-[rgba(255,255,255,0.02)]",
+      ].join(" ")}
+    >
       <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
         <div className={`flex min-w-0 flex-1 items-center ${rowGap}`}>
           {!hideFiltersButton ? (
@@ -284,7 +298,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             >
               <span className="mr-2">Filters</span>
               {hasActive ? (
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
+                <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
                   {activeCount}
                 </span>
               ) : null}
@@ -438,7 +452,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   <button
                     key={tag}
                     type="button"
-                    className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-100"
+                    className="rounded-md border border-cyan-400/25 bg-cyan-400/8 px-2 py-1 text-xs font-medium text-cyan-100"
                     onClick={() => removeTag(tag)}
                     title="Remove tag"
                   >
