@@ -48,6 +48,7 @@ interface IssueFiltersBarProps {
   basePath: string;
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
+  density?: "default" | "compact";
 }
 
 const RemovableChip = ({
@@ -96,6 +97,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   basePath,
   hideFiltersButton,
   mode = "default",
+  density = "default",
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -168,6 +170,14 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const showProjectSelect = projects.length > 1;
   const isCompact = mode === "compact";
+  const isDense = density === "compact";
+  const controlHeight = isDense ? "h-8" : "h-9";
+  const controlRadius = isDense ? "rounded-lg" : "rounded-xl";
+  const controlText = isDense ? "text-xs" : "text-sm";
+  const chipSize = isDense ? "h-7 px-2 text-[11px]" : "";
+  const wrapperPad = isDense ? "px-3 py-2" : "px-4 py-3";
+  const wrapperRadius = isDense ? "rounded-xl" : "rounded-2xl";
+  const rowGap = isDense ? "gap-2" : "gap-3";
 
   const hasActive =
     (filters.status?.length ?? 0) > 0 ||
@@ -220,9 +230,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // =========================
   if (isCompact) {
     return (
-      <div className="rounded-2xl px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className={`${wrapperRadius} ${wrapperPad}`}>
+        <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
+          <div className={`flex min-w-0 flex-1 items-center ${rowGap}`}>
             {showProjectSelect ? (
               <Select
                 name="projectId"
@@ -233,7 +243,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                     projectId: event.target.value || undefined,
                   })
                 }
-                className="h-9 max-w-[320px] rounded-xl text-sm"
+                className={`${controlHeight} ${controlRadius} ${controlText} max-w-[320px]`}
                 options={[
                   { value: "", label: "All projects" },
                   ...projects.map((project) => ({
@@ -250,7 +260,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           </div>
 
           {(filters.q || filters.projectId) ? (
-            <FilterChip onClick={clearFilters}>Clear</FilterChip>
+            <FilterChip onClick={clearFilters} className={chipSize}>
+              Clear
+            </FilterChip>
           ) : null}
         </div>
       </div>
@@ -261,14 +273,18 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const priorityValues = (filters.priority ?? []) as unknown as string[];
 
   return (
-    <div className="rounded-2xl surface bg-[var(--color-card-bg)] px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className={`${wrapperRadius} surface bg-[var(--color-card-bg)] ${wrapperPad}`}>
+      <div className={`flex flex-wrap items-center justify-between ${rowGap}`}>
+        <div className={`flex min-w-0 flex-1 items-center ${rowGap}`}>
           {!hideFiltersButton ? (
-            <FilterChip selected={isOpen} onClick={() => setOpen((prev) => !prev)}>
+            <FilterChip
+              selected={isOpen}
+              onClick={() => setOpen((prev) => !prev)}
+              className={chipSize}
+            >
               <span className="mr-2">Filters</span>
               {hasActive ? (
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[12px] text-white/70">
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
                   {activeCount}
                 </span>
               ) : null}
@@ -316,7 +332,11 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           </div>
         </div>
 
-        {hasActive ? <FilterChip onClick={clearFilters}>Clear</FilterChip> : null}
+        {hasActive ? (
+          <FilterChip onClick={clearFilters} className={chipSize}>
+            Clear
+          </FilterChip>
+        ) : null}
       </div>
 
       <div
@@ -400,7 +420,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   value={tagInput}
                   placeholder="Add tag"
                   onChange={(event) => setTagInput(event.target.value)}
-                  className="h-9 w-36 rounded-xl text-sm"
+                  className={`${controlHeight} ${controlRadius} ${controlText} w-36`}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
@@ -408,7 +428,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                     }
                   }}
                 />
-                <FilterChip onClick={addTag}>Add</FilterChip>
+                <FilterChip onClick={addTag} className={chipSize}>
+                  Add
+                </FilterChip>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -442,7 +464,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                       projectId: event.target.value || undefined,
                     })
                   }
-                  className="h-9 max-w-[220px] rounded-xl text-sm"
+                  className={`${controlHeight} ${controlRadius} ${controlText} max-w-[220px]`}
                   options={[
                     { value: "", label: "All projects" },
                     ...projects.map((project) => ({

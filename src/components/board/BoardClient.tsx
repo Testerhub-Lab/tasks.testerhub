@@ -109,22 +109,22 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {errorMessage ? (
         <div className="text-sm text-[var(--color-error)]">{errorMessage}</div>
       ) : null}
       {!isMounted ? (
-        <div className="grid gap-4 lg:grid-cols-4">
+        <div className="grid gap-3 lg:grid-cols-4">
           {columns.map((column) => (
             <section
               key={column.status}
-              className="rounded-2xl border border-[var(--divider)] bg-[var(--surface-1)] p-3"
+              className="rounded-lg border border-white/5 bg-[rgba(255,255,255,0.02)] p-2.5"
             >
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-white/60">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
                   {column.title}
                 </h2>
-                <span className="text-xs text-white/40">
+                <span className="text-[11px] text-white/40">
                   {grouped[column.status]?.length ?? 0}
                 </span>
               </div>
@@ -153,7 +153,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-4 lg:grid-cols-4">
+          <div className="grid gap-3 lg:grid-cols-4">
             {columns.map((column) => (
               <BoardColumn
                 key={column.status}

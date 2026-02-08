@@ -23,20 +23,13 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
   const isFiltered = hasActiveFilters(filters);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">List</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Табличное представление для контроля статусов.
-          </p>
-        </div>
-        <div className="text-sm text-[var(--color-text-secondary)]">
-          {tasks.length} issues
-        </div>
-      </div>
-
-      <IssueFiltersBar projects={projects} initialFilters={filters} basePath="/issues" />
+    <div className="mx-auto max-w-6xl space-y-3">
+      <IssueFiltersBar
+        projects={projects}
+        initialFilters={filters}
+        basePath="/issues"
+        density="compact"
+      />
 
       {tasks.length === 0 ? (
         <Card variant="surface" className="rounded-2xl p-8 text-center">

@@ -39,35 +39,35 @@ const IssueCard: React.FC<IssueCardProps> = ({
     <Card
       variant="plain"
       className={[
-        "rounded-xl p-3",
-        "bg-[rgba(255,255,255,0.01)]",
-        "border border-transparent",
+        "rounded-lg p-2.5",
+        "bg-[rgba(255,255,255,0.02)]",
+        "border border-white/5",
         "transition-[background-color,border-color,transform,box-shadow] duration-150",
         "hover:bg-[rgba(255,255,255,0.06)]",
-        "hover:border-[rgba(255,255,255,0.10)]",
+        "hover:border-white/12",
         "hover:-translate-y-[1px]",
-        "hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)]",
+        "hover:shadow-[0_6px_18px_rgba(0,0,0,0.35)]",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          {resolvedType ? (
-            <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
-              {resolvedType}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2 min-w-0">
+            {resolvedType ? (
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
+                {resolvedType}
+              </span>
+            ) : null}
 
-          {issueKey ? (
-            <span className="shrink-0 text-xs font-medium text-white/50 font-mono">
-              {issueKey}
-            </span>
-          ) : null}
+            {issueKey ? (
+              <span className="shrink-0 text-[11px] font-medium text-white/45 font-mono">
+                {issueKey}
+              </span>
+            ) : null}
 
-          <h3 className="min-w-0 text-sm font-medium text-white/90 truncate">
-            {title}
-          </h3>
-        </div>
+            <h3 className="min-w-0 text-[13px] font-medium text-white/90 truncate">
+              {title}
+            </h3>
+          </div>
 
           {cleanDescription ? (
             <p className="mt-1 text-[11px] text-white/35 truncate">
@@ -88,7 +88,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
           <Badge
             className={[
               getPriorityClasses(priority),
-              "px-2 py-0.5 text-[11px]",
+              "px-2 py-0.5 text-[10px]",
             ].join(" ")}
           >
             {priority ?? "—"}

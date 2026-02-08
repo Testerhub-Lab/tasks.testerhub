@@ -36,23 +36,13 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
   const isFiltered = hasActiveFilters(filters);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">Backlog</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Список входящих задач и багов.
-          </p>
-        </div>
-        <div className="text-sm text-[var(--color-text-secondary)]">
-          {tasks.length} issues
-        </div>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-3">
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}
         basePath="/backlog"
         mode="compact"
+        density="compact"
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">

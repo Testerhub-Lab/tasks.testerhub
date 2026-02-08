@@ -29,22 +29,12 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
   const isFiltered = hasActiveFilters(filters);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">Board</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Канбан-представление для ежедневной работы.
-          </p>
-        </div>
-        <div className="text-sm text-[var(--color-text-secondary)]">
-          {tasks.length} issues
-        </div>
-      </div>
+    <div className="space-y-3">
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}
         basePath="/board"
+        density="compact"
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">

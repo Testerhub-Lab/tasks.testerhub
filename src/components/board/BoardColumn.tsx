@@ -25,25 +25,25 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       ref={setNodeRef}
       variant="surface"
       className={[
-        "rounded-2xl p-3",
-        "!bg-[rgba(255,255,255,0.03)]",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-        "transition-[border-color,background-color,box-shadow] duration-150",
-        isOver ? "ring-2 ring-cyan-400/35 border-cyan-400/30" : "",
+        "rounded-lg p-2.5",
+        "border border-white/5",
+        "bg-[rgba(255,255,255,0.02)]",
+        "transition-[border-color,background-color] duration-150",
+        isOver ? "border-cyan-400/40 bg-cyan-500/5" : "",
       ].join(" ")}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/55">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
             {title}
           </h2>
-          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
+          <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
             {count}
           </span>
         </div>
 
         {isOver ? (
-          <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+          <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan-100">
             Drop
           </span>
         ) : null}
@@ -52,10 +52,10 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       <div className="space-y-2">{children}</div>
 
       {count === 0 ? (
-      <div className="mt-3 text-xs text-white/30">
-        Empty
-      </div>
-    ) : null}
+        <div className="mt-2 text-[11px] text-white/30">
+          Empty
+        </div>
+      ) : null}
     </Card>
   );
 };
