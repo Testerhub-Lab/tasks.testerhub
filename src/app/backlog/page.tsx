@@ -5,6 +5,7 @@ import BacklogSeen from "../../components/backlog/BacklogSeen";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
+import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -32,10 +33,11 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         };
 
   const user = await getCurrentUser();
-  const tasks = await getTasks(queryFilters, user?.id ?? null);
+  const workspaceId = await getCurrentWorkspaceId();
+  const tasks = await getTasks(queryFilters, user?.id ?? null, workspaceId);
 
 
-  const projects = await getProjects();
+  const projects = await getProjects(workspaceId);
   const isFiltered = hasActiveFilters(filters);
 
   return (

@@ -35,6 +35,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [isModalOpen, setModalOpen] = useState(false);
+  const [initialProjectId, setInitialProjectId] = useState<string | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
@@ -68,6 +69,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
   const closeModal = () => {
     setFormError(null);
     setModalOpen(false);
+    setInitialProjectId(null);
   };
 
   useEffect(() => {
@@ -93,6 +95,22 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
     url.searchParams.set("redirect", redirectToTasks);
     setSignInUrl(url.toString());
   }, [currentPath, mainAppBaseUrl]);
+
+  useEffect(() => {
+    const createParam = searchParams.get("create");
+    if (createParam !== "1") return;
+    const targetProjectId = searchParams.get("createProjectId");
+    if (targetProjectId) {
+      setInitialProjectId(targetProjectId);
+    }
+    setModalOpen(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("create");
+    params.delete("createProjectId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -251,6 +269,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
         errorMessage={formError}
         projects={projects}
         users={users}
+        initialProjectId={initialProjectId}
       />
     </header>
   );

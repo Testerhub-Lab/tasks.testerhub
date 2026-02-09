@@ -8,6 +8,7 @@ import {
 } from "../../../server/queries/tasks";
 import { permanentRedirect } from "next/navigation";
 import TaskComments from "../../../components/comments/TaskComments";
+import { getCurrentWorkspaceId } from "../../../server/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,10 @@ const TaskPage = async ({ params }: TaskPageProps) => {
 
   const normalizedRef = ref.toUpperCase();
   const issueKeyPattern = /^[A-Z0-9]+-\d+$/;
+  const workspaceId = await getCurrentWorkspaceId();
   const task = issueKeyPattern.test(normalizedRef)
-    ? await getTaskByKey(normalizedRef)
-    : await getTaskById(ref);
+    ? await getTaskByKey(normalizedRef, workspaceId)
+    : await getTaskById(ref, workspaceId);
 
   if (!task) {
     return notFound();

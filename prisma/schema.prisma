@@ -83,6 +83,7 @@ model User {
   reportedTasks Task[] @relation("TaskReporter")
   assignedTasks Task[] @relation("TaskAssignee")
   activities    TaskActivity[]
+  workspaceMemberships WorkspaceMember[]
 
   sessions Session[]
 }
@@ -100,6 +101,31 @@ model Project {
   allowGuest      Boolean  @default(true)
   createdAt       DateTime @default(now())
   tasks           Task[]
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  projects  Project[]
+  members   WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
 }
 
 enum Status {
@@ -122,6 +148,11 @@ enum Priority {
 enum Role {
   ADMIN
   USER
+}
+
+enum WorkspaceRole {
+  ADMIN
+  MEMBER
 }
 
 enum ActivityType {

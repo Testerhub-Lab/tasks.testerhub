@@ -1,9 +1,11 @@
 import React from "react";
 import { getProjects } from "../../../server/queries/projects";
+import { getCurrentWorkspaceId } from "../../../server/auth/workspace";
 import NewTaskForm from "./NewTaskForm";
 
 const NewTaskPage = async () => {
-  const projects = await getProjects();
+  const workspaceId = await getCurrentWorkspaceId();
+  const projects = await getProjects(workspaceId);
   return <NewTaskForm projects={projects} />;
 };
 

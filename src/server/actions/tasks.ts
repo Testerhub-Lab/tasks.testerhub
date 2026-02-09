@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { ActivityType, Status } from "@prisma/client";
 import { getCurrentUser } from "../auth/session";
+import { getCurrentWorkspaceId } from "../auth/workspace";
 import {
   canChangePriority,
   canChangeStatus,
@@ -70,8 +71,9 @@ export async function createTaskAction(data: TaskInput) {
     const role: Role =
       authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
 
-    const project = await prisma.project.findUnique({
-      where: { id: validated.projectId },
+    const workspaceId = await getCurrentWorkspaceId();
+    const project = await prisma.project.findFirst({
+      where: { id: validated.projectId, workspaceId },
       select: { id: true, key: true, nextIssueNumber: true, allowGuest: true },
     });
 
@@ -187,10 +189,14 @@ export async function updateTaskStatusAction(data: {
     const role: Role =
       authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
 
-    const taskProject = await prisma.task.findUnique({
+    const workspaceId = await getCurrentWorkspaceId();
+    const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id },
-      select: { project: { select: { allowGuest: true } } },
+      select: { project: { select: { allowGuest: true, workspaceId: true } } },
     });
+    if (taskProject?.project?.workspaceId !== workspaceId) {
+      return { ok: false as const, formError: "Недоступно" };
+    }
 
     if (
       !canChangeStatus({
@@ -253,10 +259,14 @@ export async function updateTaskFieldsAction(data: {
     const role: Role =
       authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
 
-    const taskProject = await prisma.task.findUnique({
+    const workspaceId = await getCurrentWorkspaceId();
+    const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id },
-      select: { project: { select: { allowGuest: true } } },
+      select: { project: { select: { allowGuest: true, workspaceId: true } } },
     });
+    if (taskProject?.project?.workspaceId !== workspaceId) {
+      return { ok: false as const, formError: "Недоступно" };
+    }
 
     if (
       (validatedData.status &&
@@ -343,10 +353,14 @@ export async function addCommentAction(data: {
     const role: Role =
       authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
 
-    const taskProject = await prisma.task.findUnique({
+    const workspaceId = await getCurrentWorkspaceId();
+    const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.taskId },
-      select: { project: { select: { allowGuest: true } } },
+      select: { project: { select: { allowGuest: true, workspaceId: true } } },
     });
+    if (taskProject?.project?.workspaceId !== workspaceId) {
+      return { ok: false as const, formError: "Недоступно" };
+    }
 
     if (
       !canComment({

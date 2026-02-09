@@ -5,6 +5,7 @@ import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
+import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -26,8 +27,9 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
   };
 
   const user = await getCurrentUser();
-  const tasks = await getTasks(queryFilters, user?.id ?? null);
-  const projects = await getProjects();
+  const workspaceId = await getCurrentWorkspaceId();
+  const tasks = await getTasks(queryFilters, user?.id ?? null, workspaceId);
+  const projects = await getProjects(workspaceId);
   const isFiltered = hasActiveFilters(filters);
 
   return (

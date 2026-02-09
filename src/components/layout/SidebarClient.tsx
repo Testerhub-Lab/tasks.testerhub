@@ -3,12 +3,16 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { setWorkspaceAction } from "@/server/actions/workspaces";
 
 type ProjectOption = { id: string; name: string; key: string };
+type WorkspaceOption = { id: string; name: string; slug: string };
 
 interface SidebarClientProps {
   projects: ProjectOption[];
   backlogUnread: number;
+  workspaces: WorkspaceOption[];
+  currentWorkspaceId: string;
 }
 
 const getBasePath = (pathname: string) => {
@@ -18,13 +22,26 @@ const getBasePath = (pathname: string) => {
   return "/board";
 };
 
-const SidebarClient: React.FC<SidebarClientProps> = ({ projects, backlogUnread }) => {
+const SidebarClient: React.FC<SidebarClientProps> = ({
+  projects,
+  backlogUnread,
+  workspaces,
+  currentWorkspaceId,
+}) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const basePath = getBasePath(pathname);
   const activeProjectId = searchParams.get("projectId");
   const activeAssignee = searchParams.get("assignee");
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
+
+  const handleWorkspaceChange = async (nextId: string) => {
+    if (nextId === currentWorkspaceId) return;
+    const result = await setWorkspaceAction(nextId);
+    if (result.ok) {
+      window.location.href = basePath;
+    }
+  };
 
   const buildIssuesHref = (assignee?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -47,8 +64,25 @@ const SidebarClient: React.FC<SidebarClientProps> = ({ projects, backlogUnread }
 
   return (
     <aside className="app-sidebar">
+      {workspaces.length > 1 ? (
+        <div className="sidebar__section">
+          <div className="sidebar__title">Workspace</div>
+          <select
+            className="sidebar__select"
+            value={currentWorkspaceId}
+            onChange={(e) => handleWorkspaceChange(e.target.value)}
+          >
+            {workspaces.map((ws) => (
+              <option key={ws.id} value={ws.id}>
+                {ws.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div className="sidebar__section">
-        <div className="sidebar__title">Workspace</div>
+        <div className="sidebar__title">Views</div>
         <nav className="sidebar__list">
           <Link
             href={buildIssuesHref(null)}

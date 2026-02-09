@@ -31,7 +31,8 @@ export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
 
 export const buildTaskWhere = (
   filters: IssueFilters,
-  currentUserId?: string | null
+  currentUserId?: string | null,
+  workspaceId?: string | null
 ): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {};
 
@@ -80,15 +81,20 @@ export const buildTaskWhere = (
     }
   }
 
+  if (workspaceId) {
+    where.project = { workspaceId };
+  }
+
   return where;
 };
 
 export async function getTasks(
   filters: IssueFilters,
-  currentUserId?: string | null
+  currentUserId?: string | null,
+  workspaceId?: string | null
 ): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    where: buildTaskWhere(filters, currentUserId),
+    where: buildTaskWhere(filters, currentUserId, workspaceId),
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
@@ -118,35 +124,45 @@ export async function getAllTasks(): Promise<TaskListItem[]> {
   });
 }
 
-export async function getBacklogUnreadCount(since?: Date | null) {
+export async function getBacklogUnreadCount(
+  since?: Date | null,
+  workspaceId?: string | null
+) {
   const sinceDate = since ?? new Date(0);
   return prisma.task.count({
     where: {
       status: Status.NEW,
       createdAt: { gt: sinceDate },
+      ...(workspaceId ? { project: { workspaceId } } : {}),
     },
   });
 }
 
-export async function getTaskById(id: string): Promise<TaskWithProjectAndReporter | null> {
-  return prisma.task.findUnique({
+export async function getTaskById(
+  id: string,
+  workspaceId?: string | null
+): Promise<TaskWithProjectAndReporter | null> {
+  return prisma.task.findFirst({
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
     },
-    where: { id },
+    where: { id, ...(workspaceId ? { project: { workspaceId } } : {}) },
   });
 }
 
-export async function getTaskByKey(key: string): Promise<TaskWithProjectAndReporter | null> {
-  return prisma.task.findUnique({
+export async function getTaskByKey(
+  key: string,
+  workspaceId?: string | null
+): Promise<TaskWithProjectAndReporter | null> {
+  return prisma.task.findFirst({
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
     },
-    where: { key },
+    where: { key, ...(workspaceId ? { project: { workspaceId } } : {}) },
   });
 }
 

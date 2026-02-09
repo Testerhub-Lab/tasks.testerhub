@@ -2,11 +2,17 @@ import SidebarClient from "./SidebarClient";
 import { getProjects } from "@/server/queries/projects";
 import { getBacklogUnreadCount } from "@/server/queries/tasks";
 import { getCurrentUser } from "@/server/auth/session";
+import { getCurrentWorkspaceId } from "@/server/auth/workspace";
+import { getOrCreateDefaultWorkspace, getWorkspacesForUser } from "@/server/queries/workspaces";
 import prisma from "@/lib/prisma";
 
 export default async function Sidebar() {
-  const projects = await getProjects();
   const user = await getCurrentUser();
+  const workspaceId = await getCurrentWorkspaceId();
+  const projects = await getProjects(workspaceId);
+  const workspaces = user
+    ? await getWorkspacesForUser(user.id)
+    : [{ workspace: await getOrCreateDefaultWorkspace() }];
   let backlogUnread = 0;
 
   if (user) {
@@ -14,8 +20,15 @@ export default async function Sidebar() {
       where: { id: user.id },
       select: { lastSeenBacklogAt: true },
     });
-    backlogUnread = await getBacklogUnreadCount(meta?.lastSeenBacklogAt ?? null);
+    backlogUnread = await getBacklogUnreadCount(meta?.lastSeenBacklogAt ?? null, workspaceId);
   }
 
-  return <SidebarClient projects={projects} backlogUnread={backlogUnread} />;
+  return (
+    <SidebarClient
+      projects={projects}
+      backlogUnread={backlogUnread}
+      workspaces={workspaces.map((m) => m.workspace)}
+      currentWorkspaceId={workspaceId}
+    />
+  );
 }

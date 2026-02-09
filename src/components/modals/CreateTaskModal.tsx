@@ -187,6 +187,7 @@ interface CreateTaskModalProps {
   errorMessage?: string | null;
   projects: ProjectOption[];
   users?: UserOption[];
+  initialProjectId?: string | null;
 }
 
 export default function CreateTaskModal({
@@ -197,6 +198,7 @@ export default function CreateTaskModal({
   errorMessage,
   projects,
   users = [],
+  initialProjectId,
 }: CreateTaskModalProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -223,6 +225,14 @@ export default function CreateTaskModal({
   const titleRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!isOpen || !initialProjectId) return;
+    const exists = projects.some((p) => p.id === initialProjectId);
+    if (exists) {
+      setProjectId(initialProjectId);
+    }
+  }, [initialProjectId, isOpen, projects]);
 
   const firstProjectId = projects?.[0]?.id ?? "";
   const effectiveProjectId = projectId || firstProjectId;
