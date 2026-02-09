@@ -82,7 +82,7 @@ export const buildTaskWhere = (
   }
 
   if (workspaceId) {
-    where.project = { workspaceId };
+    where.project = { workspaceId, archivedAt: null };
   }
 
   return where;
@@ -133,7 +133,7 @@ export async function getBacklogUnreadCount(
     where: {
       status: Status.NEW,
       createdAt: { gt: sinceDate },
-      ...(workspaceId ? { project: { workspaceId } } : {}),
+      ...(workspaceId ? { project: { workspaceId, archivedAt: null } } : {}),
     },
   });
 }

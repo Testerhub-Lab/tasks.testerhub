@@ -16,17 +16,31 @@ export async function getOrCreateDefaultProject(workspaceId: string) {
   });
 }
 
-export async function getProjects(workspaceId: string) {
+export async function getProjects(
+  workspaceId: string,
+  options?: { includeArchived?: boolean }
+) {
   return prisma.project.findMany({
-    where: { workspaceId },
-    select: { id: true, name: true, key: true },
+    where: {
+      workspaceId,
+      ...(options?.includeArchived ? {} : { archivedAt: null }),
+    },
+    select: { id: true, name: true, key: true, allowGuest: true, archivedAt: true },
     orderBy: { createdAt: "asc" },
   });
 }
 
-export async function getProjectById(id: string, workspaceId?: string) {
+export async function getProjectById(
+  id: string,
+  workspaceId?: string,
+  options?: { includeArchived?: boolean }
+) {
   return prisma.project.findFirst({
-    where: { id, ...(workspaceId ? { workspaceId } : {}) },
-    select: { id: true, name: true, key: true },
+    where: {
+      id,
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(options?.includeArchived ? {} : { archivedAt: null }),
+    },
+    select: { id: true, name: true, key: true, archivedAt: true },
   });
 }

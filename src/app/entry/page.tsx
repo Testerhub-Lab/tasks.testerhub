@@ -15,12 +15,19 @@ const EntryPage = async ({ searchParams }: EntryPageProps) => {
   const projectId = typeof params.projectId === "string" ? params.projectId : "";
   const exp = typeof params.exp === "string" ? params.exp : "";
   const sig = typeof params.sig === "string" ? params.sig : "";
+  const inviteId = typeof params.invite === "string" ? params.invite : "";
 
-  if (!wsSlug || !projectId) {
+  if (!wsSlug) {
     return redirect("/board");
   }
 
-  const inviteOk = verifyWorkspaceInvite({ wsSlug, projectId, exp, sig });
+  const inviteOk = verifyWorkspaceInvite({
+    wsSlug,
+    projectId,
+    exp,
+    sig,
+    inviteId: inviteId || null,
+  });
   if (!inviteOk) {
     return redirect("/board");
   }
@@ -35,12 +42,50 @@ const EntryPage = async ({ searchParams }: EntryPageProps) => {
     return redirect("/board");
   }
 
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, workspaceId: workspace.id },
-    select: { id: true },
-  });
-  if (!project) {
-    return redirect("/board");
+  if (inviteId) {
+    const invite = await prisma.workspaceInvite.findUnique({
+      where: { id: inviteId },
+      select: { workspaceId: true, projectId: true, expiresAt: true, revokedAt: true },
+    });
+
+    if (!invite) {
+      return redirect("/board");
+    }
+
+    if (invite.workspaceId !== workspace.id) {
+      return redirect("/board");
+    }
+
+    if (invite.projectId && invite.projectId !== projectId) {
+      return redirect("/board");
+    }
+
+    if (!invite.projectId && projectId) {
+      return redirect("/board");
+    }
+
+    if (invite.revokedAt) {
+      return redirect("/board");
+    }
+
+    const expMs = Number(exp);
+    if (!Number.isFinite(expMs) || expMs <= 0 || expMs !== invite.expiresAt.getTime()) {
+      return redirect("/board");
+    }
+
+    if (invite.expiresAt.getTime() < Date.now()) {
+      return redirect("/board");
+    }
+  }
+
+  if (projectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, workspaceId: workspace.id },
+      select: { id: true },
+    });
+    if (!project) {
+      return redirect("/board");
+    }
   }
 
   await prisma.workspaceMember.upsert({
@@ -51,7 +96,11 @@ const EntryPage = async ({ searchParams }: EntryPageProps) => {
 
   await setCurrentWorkspaceId(workspace.id);
 
-  return redirect(`/board?create=1&createProjectId=${projectId}`);
+  if (projectId) {
+    return redirect(`/board?create=1&createProjectId=${projectId}`);
+  }
+
+  return redirect("/board");
 };
 
 export default EntryPage;

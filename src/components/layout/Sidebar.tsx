@@ -14,6 +14,7 @@ export default async function Sidebar() {
     ? await getWorkspacesForUser(user.id)
     : [{ workspace: await getOrCreateDefaultWorkspace() }];
   let backlogUnread = 0;
+  let canManageWorkspace = false;
 
   if (user) {
     const meta = await prisma.user.findUnique({
@@ -21,6 +22,12 @@ export default async function Sidebar() {
       select: { lastSeenBacklogAt: true },
     });
     backlogUnread = await getBacklogUnreadCount(meta?.lastSeenBacklogAt ?? null, workspaceId);
+
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: user.id } },
+      select: { role: true },
+    });
+    canManageWorkspace = membership?.role === "ADMIN";
   }
 
   return (
@@ -29,6 +36,7 @@ export default async function Sidebar() {
       backlogUnread={backlogUnread}
       workspaces={workspaces.map((m) => m.workspace)}
       currentWorkspaceId={workspaceId}
+      canManageWorkspace={canManageWorkspace}
     />
   );
 }

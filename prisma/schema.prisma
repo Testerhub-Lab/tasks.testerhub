@@ -84,6 +84,7 @@ model User {
   assignedTasks Task[] @relation("TaskAssignee")
   activities    TaskActivity[]
   workspaceMemberships WorkspaceMember[]
+  workspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteCreator")
 
   sessions Session[]
 }
@@ -100,9 +101,13 @@ model Project {
   nextIssueNumber Int      @default(1)
   allowGuest      Boolean  @default(true)
   createdAt       DateTime @default(now())
+  archivedAt      DateTime?
   tasks           Task[]
   workspaceId     String
   workspace       Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceInvites WorkspaceInvite[]
+
+  @@index([archivedAt])
 }
 
 model Workspace {
@@ -112,6 +117,7 @@ model Workspace {
   createdAt DateTime @default(now())
   projects  Project[]
   members   WorkspaceMember[]
+  invites   WorkspaceInvite[]
 }
 
 model WorkspaceMember {
@@ -126,6 +132,24 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+}
+
+model WorkspaceInvite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  createdById String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("WorkspaceInviteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([revokedAt])
 }
 
 enum Status {

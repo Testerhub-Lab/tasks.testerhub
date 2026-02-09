@@ -74,11 +74,20 @@ export async function createTaskAction(data: TaskInput) {
     const workspaceId = await getCurrentWorkspaceId();
     const project = await prisma.project.findFirst({
       where: { id: validated.projectId, workspaceId },
-      select: { id: true, key: true, nextIssueNumber: true, allowGuest: true },
+      select: {
+        id: true,
+        key: true,
+        nextIssueNumber: true,
+        allowGuest: true,
+        archivedAt: true,
+      },
     });
 
     if (!project) {
       return { ok: false as const, formError: "Project not found" };
+    }
+    if (project.archivedAt) {
+      return { ok: false as const, formError: "Проект архивирован" };
     }
 
     if (

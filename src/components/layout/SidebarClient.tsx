@@ -13,6 +13,7 @@ interface SidebarClientProps {
   backlogUnread: number;
   workspaces: WorkspaceOption[];
   currentWorkspaceId: string;
+  canManageWorkspace: boolean;
 }
 
 const getBasePath = (pathname: string) => {
@@ -27,6 +28,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   backlogUnread,
   workspaces,
   currentWorkspaceId,
+  canManageWorkspace,
 }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -64,9 +66,9 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
 
   return (
     <aside className="app-sidebar">
-      {workspaces.length > 1 ? (
-        <div className="sidebar__section">
-          <div className="sidebar__title">Workspace</div>
+      <div className="sidebar__section">
+        <div className="sidebar__title">Workspace</div>
+        {workspaces.length > 1 ? (
           <select
             className="sidebar__select"
             value={currentWorkspaceId}
@@ -78,8 +80,22 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               </option>
             ))}
           </select>
-        </div>
-      ) : null}
+        ) : (
+          <div className="sidebar__select is-static">
+            {workspaces[0]?.name ?? "Workspace"}
+          </div>
+        )}
+        {canManageWorkspace ? (
+          <Link
+            href="/settings/workspace"
+            className={`sidebar__item ${
+              pathname.startsWith("/settings/workspace") ? "is-active" : ""
+            }`}
+          >
+            Settings
+          </Link>
+        ) : null}
+      </div>
 
       <div className="sidebar__section">
         <div className="sidebar__title">Views</div>

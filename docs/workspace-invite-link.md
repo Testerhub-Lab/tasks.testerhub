@@ -5,14 +5,15 @@ Use `/entry` to send a user into a specific workspace + project and open the Cre
 ## URL format
 
 ```
-/entry?ws=<workspaceSlug>&projectId=<projectId>&exp=<unixMs>&sig=<hmac>
+/entry?ws=<workspaceSlug>&projectId=<projectId>&exp=<unixMs>&invite=<inviteId>&sig=<hmac>
 ```
 
 Parameters:
 - `ws`: workspace slug (e.g., `testerhub`)
 - `projectId`: target project id (UUID/cuid)
 - `exp`: Unix time in **milliseconds** when the link expires
-- `sig`: HMAC-SHA256 of `${ws}.${projectId}.${exp}` using `WORKSPACE_INVITE_SECRET`
+- `invite`: invite id from `WorkspaceInvite`
+- `sig`: HMAC-SHA256 of `${ws}.${projectId}.${exp}.${invite}` using `WORKSPACE_INVITE_SECRET`
 
 ## Signature
 
@@ -21,7 +22,7 @@ It recomputes the HMAC with the same secret and compares it to `sig`.
 
 Payload:
 ```
-${ws}.${projectId}.${exp}
+${ws}.${projectId}.${exp}.${invite}
 ```
 
 HMAC:
@@ -34,11 +35,17 @@ HMAC_SHA256(payload, WORKSPACE_INVITE_SECRET)
 ```js
 import crypto from "crypto";
 
-function makeEntryLink({ baseUrl, ws, projectId, ttlMs, secret }) {
+function makeEntryLink({ baseUrl, ws, projectId, ttlMs, invite, secret }) {
   const exp = Date.now() + ttlMs;
-  const payload = `${ws}.${projectId}.${exp}`;
+  const payload = `${ws}.${projectId}.${exp}.${invite}`;
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  const params = new URLSearchParams({ ws, projectId, exp: String(exp), sig });
+  const params = new URLSearchParams({
+    ws,
+    projectId,
+    exp: String(exp),
+    invite,
+    sig,
+  });
   return `${baseUrl}/entry?${params.toString()}`;
 }
 ```

@@ -13,7 +13,11 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
   const workspaceId = await getCurrentWorkspaceId();
   const project =
     (task as { projectId?: string | null }).projectId
-      ? await getProjectById((task as { projectId?: string | null }).projectId!, workspaceId)
+      ? await getProjectById(
+          (task as { projectId?: string | null }).projectId!,
+          workspaceId,
+          { includeArchived: true }
+        )
       : null;
   const users = await getUsersForAssignee(workspaceId);
 
