@@ -33,13 +33,15 @@ const updateFieldsSchema = z
     priority: taskPrioritySchema.optional(),
     title: z.string().min(1).max(120).optional(),
     description: z.string().max(2000).optional().nullable(),
+    assigneeId: z.string().optional().nullable(),
   })
   .refine(
     (data) =>
       data.status ||
       data.priority ||
       typeof data.title !== "undefined" ||
-      typeof data.description !== "undefined",
+      typeof data.description !== "undefined" ||
+      typeof data.assigneeId !== "undefined",
     {
       message: "At least one field must be provided.",
     }
@@ -243,6 +245,7 @@ export async function updateTaskFieldsAction(data: {
   priority?: TaskPriority;
   title?: string;
   description?: string | null;
+  assigneeId?: string | null;
 }) {
   try {
     const validatedData = updateFieldsSchema.parse(data);
@@ -267,7 +270,8 @@ export async function updateTaskFieldsAction(data: {
           projectAllowGuest: taskProject?.project?.allowGuest,
         })) ||
       ((typeof validatedData.title !== "undefined" ||
-        typeof validatedData.description !== "undefined") &&
+        typeof validatedData.description !== "undefined" ||
+        typeof validatedData.assigneeId !== "undefined") &&
         !canChangeStatus({
           role,
           projectAllowGuest: taskProject?.project?.allowGuest,
@@ -288,6 +292,10 @@ export async function updateTaskFieldsAction(data: {
         priority: validatedData.priority,
         title: validatedData.title,
         description: validatedData.description,
+        assigneeId:
+          typeof validatedData.assigneeId !== "undefined"
+            ? validatedData.assigneeId
+            : undefined,
       },
       select: { key: true },
     });

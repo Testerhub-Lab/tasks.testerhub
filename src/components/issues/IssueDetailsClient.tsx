@@ -79,11 +79,13 @@ const parseDetails = (raw?: string | null) => {
 interface IssueDetailsClientProps {
   task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
+  users: Array<{ id: string; name: string | null; email: string }>;
 }
 
 const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   task,
   projectLabel,
+  users,
 }) => {
   const issueKey = task.key ?? task.id;
   const reporterName = getDisplayName({
@@ -104,7 +106,6 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const skipDescriptionBlurRef = useRef(false);
 
   const details = parseDetails(descriptionValue);
-  const isBug = details.type?.toLowerCase() === "bug";
   const [copied, setCopied] = useState<"key" | "link" | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -162,6 +163,27 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
       }
     };
   }, []);
+
+  const isEmptyValue = (value?: string | null) => {
+    if (!value) return true;
+    const trimmed = value.trim();
+    return trimmed.length === 0;
+  };
+
+  const cleanSummary = (value?: string | null) => {
+    if (!value) return "";
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(summary|суммари)[:\s-]*\n?/i);
+    if (!match) return trimmed;
+    return trimmed.slice(match[0].length).trim();
+  };
+
+  const stepsList = details.steps
+    ? details.steps
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
 
   useEffect(() => {
     if (!editingTitle) {
@@ -287,7 +309,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             <button
               type="button"
               onClick={handleCopyKey}
-              className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] transition-colors hover:text-white"
+              className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] transition-colors hover:text-white"
             >
               {issueKey}
             </button>
@@ -311,23 +333,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
               </svg>
             </button>
-            {copied === "key" ? (
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Copied
-              </span>
-            ) : null}
-            {copied === "link" ? (
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Copied
-              </span>
-            ) : null}
-            {details.type ? (
-              <Badge className="text-xs">{details.type}</Badge>
-            ) : null}
-          </div>
-
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold leading-tight">
+            <span className="text-white/30">·</span>
+            <div className="min-w-0 flex-1">
               {editingTitle ? (
                 <input
                   ref={titleInputRef}
@@ -352,25 +359,34 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                     }
                     void commitTitle(titleValue);
                   }}
-                  className="w-full rounded-lg border border-transparent bg-white/5 px-3 py-2 text-3xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
                   disabled={savingTitle}
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setEditingTitle(true)}
-                  className="w-full rounded-lg px-2 py-1 text-left text-3xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  className="w-full rounded-md px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
                 >
                   {titleValue}
                 </button>
               )}
-            </h1>
-            {savingTitle ? (
+            </div>
+            {copied === "key" || copied === "link" ? (
               <span className="text-xs text-[var(--color-text-secondary)]">
-                Saving...
+                Copied
               </span>
             ) : null}
+            {details.type ? (
+              <Badge className="text-xs">{details.type}</Badge>
+            ) : null}
           </div>
+
+          {savingTitle ? (
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              Saving...
+            </span>
+          ) : null}
 
           {task.tags.length ? (
             <div className="flex flex-wrap gap-2">
@@ -386,7 +402,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
         <BackButton />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)]">
         <div className="space-y-6">
           <Card className="flex flex-col gap-3">
             <h2 className="text-sm font-medium text-white/70">
@@ -394,48 +410,115 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             </h2>
 
             {editingDescription ? (
-              <textarea
-                ref={descriptionRef}
-                value={descriptionValue}
-                onChange={(event) => setDescriptionValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                    event.preventDefault();
-                    skipDescriptionBlurRef.current = true;
-                    void commitDescription(descriptionValue);
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    skipDescriptionBlurRef.current = true;
-                    cancelDescriptionEdit();
-                  }
-                }}
-                onBlur={() => {
-                  if (skipDescriptionBlurRef.current) {
-                    skipDescriptionBlurRef.current = false;
-                    return;
-                  }
-                  void commitDescription(descriptionValue);
-                }}
-                className="min-h-[120px] w-full resize-y rounded-lg border border-transparent bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                rows={6}
-                disabled={savingDescription}
-              />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                  <span>Editing</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => cancelDescriptionEdit()}
+                      className="rounded-md px-2 py-1 text-white/70 hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => commitDescription(descriptionValue)}
+                      className="rounded-md px-2 py-1 text-white hover:bg-white/10"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  ref={descriptionRef}
+                  value={descriptionValue}
+                  onChange={(event) => setDescriptionValue(event.target.value)}
+                  spellCheck={false}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      skipDescriptionBlurRef.current = true;
+                      void commitDescription(descriptionValue);
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      skipDescriptionBlurRef.current = true;
+                      cancelDescriptionEdit();
+                    }
+                  }}
+                  className="min-h-[260px] w-full resize-y rounded-md border border-transparent bg-transparent px-3 py-2 text-sm text-white outline-none shadow-none transition focus:border-transparent focus:ring-0 focus:outline-none focus:shadow-none"
+                  rows={12}
+                  disabled={savingDescription}
+                />
+                <div className="text-xs text-[var(--color-text-secondary)]">
+                  Ctrl/Cmd + Enter to save • Esc to cancel
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setEditingDescription(true)}
-                className="w-full rounded-lg px-2 py-2 text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                className="w-full rounded-md px-2 py-2 text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
               >
-                {details.description?.trim() ? (
-                  <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
-                    {details.description}
-                  </p>
-                ) : (
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    Add description...
-                  </p>
-                )}
+                <div className="space-y-4 prose prose-invert max-w-none">
+                  {!isEmptyValue(details.description) ? (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/70">Summary</div>
+                      <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
+                        {cleanSummary(details.description)}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {!isEmptyValue(details.environment) ? (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/70">Environment</div>
+                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
+                        {details.environment}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {stepsList.length ? (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/70">Steps</div>
+                      <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--color-text-secondary)]">
+                        {stepsList.map((step, idx) => (
+                          <li key={`${step}-${idx}`}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+
+                  {!isEmptyValue(details.expected) ? (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/70">Expected</div>
+                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
+                        {details.expected}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {!isEmptyValue(details.actual) ? (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/70">Actual</div>
+                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
+                        {details.actual}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {isEmptyValue(details.description) &&
+                  isEmptyValue(details.environment) &&
+                  stepsList.length === 0 &&
+                  isEmptyValue(details.expected) &&
+                  isEmptyValue(details.actual) ? (
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Add description...
+                    </p>
+                  ) : null}
+                </div>
               </button>
             )}
             {savingDescription ? (
@@ -445,48 +528,11 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             ) : null}
           </Card>
 
-          {isBug ? (
+          {task.attachments.length ? (
             <Card className="flex flex-col gap-3">
               <h2 className="text-sm font-medium text-white/70">
-                Bug details
+                Attachments
               </h2>
-
-              {details.steps ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white">Steps</div>
-                  <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                    {details.steps}
-                  </p>
-                </div>
-              ) : null}
-
-              {details.expected ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white">
-                    Expected
-                  </div>
-                  <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                    {details.expected}
-                  </p>
-                </div>
-              ) : null}
-
-              {details.actual ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white">Actual</div>
-                  <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                    {details.actual}
-                  </p>
-                </div>
-              ) : null}
-            </Card>
-          ) : null}
-
-          <Card className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-white/70">
-              Attachments
-            </h2>
-            {task.attachments.length ? (
               <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
                 {task.attachments.map((file) => (
                   <li key={file}>
@@ -501,12 +547,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                No attachments.
-              </p>
-            )}
-          </Card>
+            </Card>
+          ) : null}
         </div>
 
         <IssueMetaPanel
@@ -516,6 +558,13 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           priority={task.priority}
           environment={details.environment}
           reporterName={reporterName}
+          assigneeId={task.assignee?.id ?? null}
+          assigneeName={
+            task.assignee
+              ? getDisplayName({ user: task.assignee, fallbackName: null })
+              : null
+          }
+          users={users}
           createdAt={task.createdAt}
           updatedAt={task.createdAt}
         />

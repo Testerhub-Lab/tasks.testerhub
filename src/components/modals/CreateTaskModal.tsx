@@ -104,19 +104,19 @@ function cn(...parts: Array<string | false | null | undefined>) {
 
 function buildBugTemplatePlain() {
   return [
-    "Summary:",
+    "Описание:",
     "",
-    "Environment:",
-    "-",
+    "Окружение:",
     "",
-    "Steps:",
-    "1)",
     "",
-    "Expected:",
-    "-",
+    "Шаги:",
+    "1) ",
     "",
-    "Actual:",
-    "-",
+    "Ожидаемое:",
+    "",
+    "",
+    "Фактическое:",
+    "",
     "",
   ].join("\n");
 }
@@ -620,7 +620,7 @@ export default function CreateTaskModal({
                 <span className="pointer-events-none text-slate-300/80">▾</span>
               </div>
 
-              <div className={chipBase} title="Assignee (может пока не сохраняться в БД)">
+              <div className={chipBase} title="Assignee">
                 <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={selectBase}>
                   <option value="">Unassigned</option>
                   {users.map((u) => (

@@ -4,6 +4,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .prose {
+    color: var(--text);
+  }
+  .prose-invert {
+    color: var(--text);
+  }
+}
+
 :root {
   /* Brand */
   --primary: #00a9c7;

@@ -25,6 +25,7 @@ export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
   include: {
     project: true;
     reporter: { select: { id: true; name: true; email: true } };
+    assignee: { select: { id: true; name: true; email: true } };
   };
 }>;
 
@@ -132,6 +133,7 @@ export async function getTaskById(id: string): Promise<TaskWithProjectAndReporte
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
     },
     where: { id },
   });
@@ -142,6 +144,7 @@ export async function getTaskByKey(key: string): Promise<TaskWithProjectAndRepor
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
     },
     where: { key },
   });

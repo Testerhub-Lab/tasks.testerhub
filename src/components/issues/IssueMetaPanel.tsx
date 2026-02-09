@@ -32,6 +32,9 @@ interface IssueMetaPanelProps {
   priority?: Priority | null;
   environment?: string | null;
   reporterName?: string | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  users: Array<{ id: string; name: string | null; email: string }>;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
 }
@@ -43,6 +46,9 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   priority,
   environment,
   reporterName,
+  assigneeId,
+  assigneeName,
+  users,
   createdAt,
   updatedAt,
 }) => {
@@ -70,15 +76,30 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   const [currentPriority, setCurrentPriority] = useState<Priority>(
     priority ?? Priority.MEDIUM
   );
+  const [currentAssignee, setCurrentAssignee] = useState<string>(
+    assigneeId ?? ""
+  );
   const [isSaving, setSaving] = useState(false);
 
-  const handleUpdate = async (next: { status?: Status; priority?: Priority }) => {
+  React.useEffect(() => {
+    setCurrentAssignee(assigneeId ?? "");
+  }, [assigneeId]);
+
+  const handleUpdate = async (next: {
+    status?: Status;
+    priority?: Priority;
+    assigneeId?: string | null;
+  }) => {
     setSaving(true);
     try {
       const result = await updateTaskFieldsAction({
         id,
         status: next.status ?? currentStatus,
         priority: next.priority ?? currentPriority,
+        assigneeId:
+          typeof next.assigneeId !== "undefined"
+            ? next.assigneeId
+            : currentAssignee || null,
       });
       if (!result.ok) {
         if (isAuthRequiredError({ formError: result.formError ?? null })) {
@@ -93,78 +114,99 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   };
 
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--divider)] bg-[var(--color-card-bg)] p-4">
+    <div className="space-y-3 rounded-2xl border border-[var(--divider)] bg-[var(--color-card-bg)] p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-white/70">
-          Details
-        </h3>
+        <h3 className="text-sm font-medium text-white/70">Details</h3>
         {isSaving ? (
           <span className="text-xs text-[var(--color-text-secondary)]">Saving...</span>
         ) : null}
       </div>
 
-      {projectLabel ? (
-        <div className="space-y-1">
-          <div className="text-xs text-[var(--color-text-secondary)]">Project</div>
-          <div className="text-sm text-[var(--color-text)]">{projectLabel}</div>
-        </div>
-      ) : null}
-
-      <label className="space-y-2 text-xs text-[var(--color-text-secondary)]">
-        <span className="font-medium text-white">Status</span>
-        <Select
-          name="status"
-          value={currentStatus}
-          onChange={(event) => {
-            const nextStatus = event.target.value as Status;
-            setCurrentStatus(nextStatus);
-            handleUpdate({ status: nextStatus });
-          }}
-          options={statusOptions}
-        />
-      </label>
-
-      <label className="space-y-2 text-xs text-[var(--color-text-secondary)]">
-        <span className="font-medium text-white">Priority</span>
-        <Select
-          name="priority"
-          value={currentPriority}
-          onChange={(event) => {
-            const nextPriority = event.target.value as Priority;
-            setCurrentPriority(nextPriority);
-            handleUpdate({ priority: nextPriority });
-          }}
-          options={priorityOptions}
-        />
-      </label>
-
-      {environment ? (
-        <div className="space-y-1">
-          <div className="text-xs text-[var(--color-text-secondary)]">Environment</div>
-          <div className="text-sm text-[var(--color-text)]">{environment}</div>
-        </div>
-      ) : null}
-
-      {reporterName ? (
-        <div className="space-y-1">
-          <div className="text-xs text-[var(--color-text-secondary)]">Reporter</div>
-          <div className="text-sm text-[var(--color-text)]">{reporterName}</div>
-        </div>
-      ) : null}
-
-      <div className="my-2 border-t border-white/10" />
-
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <div className="text-xs text-[var(--color-text-secondary)]">Created</div>
-          <div className="text-sm text-[var(--color-text)]">{formatDate(createdAt)}</div>
-        </div>
-
-        <div className="space-y-1">
-          <div className="text-xs text-[var(--color-text-secondary)]">Updated</div>
-          <div className="text-sm text-[var(--color-text)]">
-            {formatDate(updatedAt ?? createdAt)}
+      <div className="space-y-2 text-xs text-[var(--color-text-secondary)]">
+        {projectLabel ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="w-24 text-white/60">Project</span>
+            <span className="text-sm text-[var(--color-text)]">{projectLabel}</span>
           </div>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="w-24 text-white/60">Assignee</span>
+          <Select
+            name="assignee"
+            value={currentAssignee}
+            onChange={(event) => {
+              const nextAssignee = event.target.value;
+              setCurrentAssignee(nextAssignee);
+              handleUpdate({ assigneeId: nextAssignee || null });
+            }}
+            className="h-8 text-xs"
+            options={[
+              { value: "", label: "Unassigned" },
+              ...users.map((u) => ({
+                value: u.id,
+                label: u.name ? u.name : u.email,
+              })),
+            ]}
+          />
+        </div>
+
+        {reporterName ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="w-24 text-white/60">Reporter</span>
+            <span className="text-sm text-[var(--color-text)]">{reporterName}</span>
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="w-24 text-white/60">Status</span>
+          <Select
+            name="status"
+            value={currentStatus}
+            onChange={(event) => {
+              const nextStatus = event.target.value as Status;
+              setCurrentStatus(nextStatus);
+              handleUpdate({ status: nextStatus });
+            }}
+            className="h-8 text-xs"
+            options={statusOptions}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="w-24 text-white/60">Priority</span>
+          <Select
+            name="priority"
+            value={currentPriority}
+            onChange={(event) => {
+              const nextPriority = event.target.value as Priority;
+              setCurrentPriority(nextPriority);
+              handleUpdate({ priority: nextPriority });
+            }}
+            className="h-8 text-xs"
+            options={priorityOptions}
+          />
+        </div>
+
+        {environment ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="w-24 text-white/60">Environment</span>
+            <span className="text-sm text-[var(--color-text)]">{environment}</span>
+          </div>
+        ) : null}
+
+        <div className="mt-2 border-t border-white/10" />
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="w-24 text-white/60">Created</span>
+          <span className="text-sm text-[var(--color-text)]">{formatDate(createdAt)}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="w-24 text-white/60">Updated</span>
+          <span className="text-sm text-[var(--color-text)]">
+            {formatDate(updatedAt ?? createdAt)}
+          </span>
         </div>
       </div>
     </div>

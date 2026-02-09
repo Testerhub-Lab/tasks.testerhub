@@ -11,6 +11,7 @@ const BackButton: React.FC = () => {
     <Button
       type="button"
       variant="ghost"
+      className="h-7 px-2 text-xs text-white/70 hover:text-white"
       onClick={() => {
         if (window.history.length > 1) {
           router.back();
@@ -19,7 +20,7 @@ const BackButton: React.FC = () => {
         }
       }}
     >
-      Back
+      ← Back
     </Button>
   );
 };

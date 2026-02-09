@@ -117,6 +117,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
 
   const [pending, setPending] = useState<PendingComment[]>([]);
   const [isSubmitting, setSubmitting] = useState(false);
+  const [view, setView] = useState<"all" | "comments">("all");
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -351,13 +352,37 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   };
 
   const activityCount = activity.filter((item) => item.kind !== "empty").length;
+  const commentCount = activity.filter((item) => item.kind === "comment").length;
+  const visibleActivity =
+    view === "comments"
+      ? activity.filter((item) => item.kind === "comment")
+      : activity;
 
   return (
-    <Card ref={rootRef} className="space-y-4 p-4">
+    <Card ref={rootRef} className="space-y-3 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-white/70">
-          Activity <span className="text-white/40">· {activityCount}</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+          <button
+            type="button"
+            onClick={() => setView("all")}
+            className={[
+              "rounded-md px-2 py-1 text-xs transition-colors",
+              view === "all" ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
+            ].join(" ")}
+          >
+            Activity · {activityCount}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("comments")}
+            className={[
+              "rounded-md px-2 py-1 text-xs transition-colors",
+              view === "comments" ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
+            ].join(" ")}
+          >
+            Comments · {commentCount}
+          </button>
         </div>
         {pending.length ? (
           <div className="text-xs text-white/40">+{pending.length} local</div>
@@ -365,12 +390,19 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       </div>
 
       {/* Feed */}
-      <div ref={listRef} className="max-h-[420px] overflow-auto pr-2">
+      <div ref={listRef} className="max-h-[360px] overflow-auto pr-2">
         <div className="divide-y divide-white/10">
-          {activity.map((item) => {
+          {visibleActivity.length === 0 ? (
+            <div className="py-2">
+              <div className="text-sm text-[var(--color-text-secondary)]">
+                No comments yet.
+              </div>
+            </div>
+          ) : null}
+          {visibleActivity.map((item) => {
             if (item.kind === "created") {
               return (
-                <div key={item.id} className="py-3">
+                <div key={item.id} className="py-2">
                   <div className="text-xs text-[var(--color-text-secondary)]">
                     <span className="text-[var(--color-text)]">
                       {item.authorName ?? "System"}
@@ -378,7 +410,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
                     <span className="mx-2 text-white/20">•</span>
                     <span>{formatDate(item.createdAt)}</span>
                   </div>
-                  <div className="mt-2 text-sm text-[var(--color-text)]">
+                  <div className="mt-1.5 text-sm text-[var(--color-text)]">
                     {item.title}
                     {item.subtitle ? (
                       <span className="ml-2 text-[var(--color-text-secondary)]">
@@ -392,7 +424,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
 
             if (item.kind === "empty") {
               return (
-                <div key={item.id} className="py-3">
+                <div key={item.id} className="py-2">
                   <div className="text-sm text-[var(--color-text-secondary)]">
                     {item.text}
                   </div>
@@ -402,7 +434,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
 
             if (item.kind === "status") {
               return (
-                <div key={item.id} className="py-3">
+                <div key={item.id} className="py-2">
                   <div className="text-xs text-[var(--color-text-secondary)]">
                     <span className="text-[var(--color-text)]">
                       {item.authorName}
@@ -410,7 +442,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
                     <span className="mx-2 text-white/20">•</span>
                     <span>{formatDate(item.createdAt)}</span>
                   </div>
-                  <div className="mt-2 text-sm text-[var(--color-text)]">
+                  <div className="mt-1.5 text-sm text-[var(--color-text)]">
                     Status changed from{" "}
                     <span className="text-white/70">
                       {getStatusLabel(item.fromStatus)}
@@ -431,7 +463,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
               <div
                 key={rowId}
                 className={[
-                  "py-3 transition-colors",
+                  "py-2 transition-colors",
                   item.state === "pending" ? "opacity-70" : "",
                   item.state === "failed" ? "bg-white/[0.02]" : "",
                   isHighlighted ? "bg-white/[0.04]" : "",
@@ -478,7 +510,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
                   ) : null}
                 </div>
 
-                <div className="mt-2 whitespace-pre-wrap text-sm text-[var(--color-text)]">
+                <div className="mt-1.5 whitespace-pre-wrap text-sm text-[var(--color-text)]">
                   {item.text}
                 </div>
 
@@ -497,7 +529,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       <div className="h-px bg-white/10" />
 
       {/* Composer */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <Textarea
           name="text"
           placeholder="Add a comment…"
