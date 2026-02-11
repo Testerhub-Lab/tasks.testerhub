@@ -35,6 +35,8 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const basePath = getBasePath(pathname);
   const activeProjectId = searchParams.get("projectId");
   const activeAssignee = searchParams.get("assignee");
+  const isSettingsWorkspace = pathname.startsWith("/settings/workspace");
+  const settingsTab = searchParams.get("tab");
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
 
   const handleWorkspaceChange = async (nextId: string) => {
@@ -67,46 +69,60 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   return (
     <aside className="app-sidebar">
       <div className="sidebar__section">
-        <div className="sidebar__title">Workspace</div>
-        {workspaces.length > 1 ? (
-          <select
-            className="sidebar__select"
-            value={currentWorkspaceId}
-            onChange={(e) => handleWorkspaceChange(e.target.value)}
-          >
-            {workspaces.map((ws) => (
-              <option key={ws.id} value={ws.id}>
-                {ws.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="sidebar__select is-static">
-            {workspaces[0]?.name ?? "Workspace"}
+        <details className="sidebar__workspace" open>
+          <summary className="sidebar__workspace-trigger">
+            <span className="sidebar__workspace-avatar">
+              {(workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "WS")
+                .slice(0, 2)
+                .toUpperCase()}
+            </span>
+            <span className="sidebar__workspace-name">
+              {workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "Workspace"}
+            </span>
+            <span className="sidebar__workspace-caret">▾</span>
+          </summary>
+          <div className="sidebar__workspace-menu">
+            {canManageWorkspace ? (
+              <Link href="/settings/workspace" className="sidebar__menu-item">
+                Workspace settings
+              </Link>
+            ) : null}
+            {canManageWorkspace ? (
+              <Link href="/settings/workspace#members" className="sidebar__menu-item">
+                Invite and manage members
+              </Link>
+            ) : null}
+            {workspaces.length > 1 ? (
+              <div className="sidebar__menu-group">
+                <div className="sidebar__menu-title">Switch workspace</div>
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    type="button"
+                    className={`sidebar__menu-item ${
+                      ws.id === currentWorkspaceId ? "is-active" : ""
+                    }`}
+                    onClick={() => handleWorkspaceChange(ws.id)}
+                  >
+                    {ws.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
-        )}
-        {canManageWorkspace ? (
-          <Link
-            href="/settings/workspace"
-            className={`sidebar__item ${
-              pathname.startsWith("/settings/workspace") ? "is-active" : ""
-            }`}
-          >
-            Settings
-          </Link>
-        ) : null}
+        </details>
       </div>
 
       <div className="sidebar__section">
-        <div className="sidebar__title">Views</div>
         <nav className="sidebar__list">
           <Link
-            href={buildIssuesHref(null)}
-            className={`sidebar__item ${
-              pathname.startsWith("/issues") && !activeAssignee ? "is-active" : ""
-            }`}
+            href="/backlog"
+            className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
           >
-            All issues
+            <span>Inbox</span>
+            {showBacklogBadge ? (
+              <span className="sidebar__badge">+{backlogUnread}</span>
+            ) : null}
           </Link>
           <Link
             href={buildIssuesHref("me")}
@@ -116,46 +132,72 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
           >
             My issues
           </Link>
-          <Link
-            href="/board"
-            className={`sidebar__item ${pathname.startsWith("/board") ? "is-active" : ""}`}
-          >
-            Board
-          </Link>
-          <Link
-            href="/backlog"
-            className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
-          >
-            <span>Backlog</span>
-            {showBacklogBadge ? (
-              <span className="sidebar__badge">+{backlogUnread}</span>
-            ) : null}
-          </Link>
         </nav>
       </div>
 
       <div className="sidebar__section">
-        <div className="sidebar__title">Projects</div>
-        <nav className="sidebar__list">
-          <Link
-            href={buildHref(null)}
-            className={`sidebar__item ${!activeProjectId ? "is-active" : ""}`}
-          >
-            All projects
-          </Link>
-          {projects.map((project) => (
+        <details className="sidebar__disclosure" open>
+          <summary className="sidebar__title sidebar__disclosure-toggle sidebar__section-toggle">
+            <span>Workspace</span>
+            <span className="sidebar__caret">▾</span>
+          </summary>
+          <nav className="sidebar__list">
             <Link
-              key={project.id}
-              href={buildHref(project.id)}
-              className={`sidebar__item ${activeProjectId === project.id ? "is-active" : ""}`}
-              title={`${project.key} — ${project.name}`}
+              href="/settings/workspace?tab=projects#projects"
+              className={`sidebar__item ${
+                isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
+              }`}
             >
-              <span className="sidebar__project-key">{project.key}</span>
-              <span className="sidebar__project-name">{project.name}</span>
+              Projects
             </Link>
-          ))}
-        </nav>
+            <Link
+              href="/issues"
+              className={`sidebar__item ${
+                pathname.startsWith("/issues") || pathname.startsWith("/board") ? "is-active" : ""
+              }`}
+            >
+              Issues
+            </Link>
+            <Link
+              href="/settings/workspace?tab=members#members"
+              className={`sidebar__item ${
+                isSettingsWorkspace && settingsTab === "members" ? "is-active" : ""
+              }`}
+            >
+              Members
+            </Link>
+          </nav>
+        </details>
       </div>
+
+      <div className="sidebar__section">
+        <details className="sidebar__disclosure" open>
+          <summary className="sidebar__title sidebar__disclosure-toggle sidebar__section-toggle">
+            <span>Projects</span>
+            <span className="sidebar__caret">▾</span>
+          </summary>
+          <nav className="sidebar__list">
+            <Link
+              href={buildHref(null)}
+              className={`sidebar__item ${!activeProjectId ? "is-active" : ""}`}
+            >
+              All projects
+            </Link>
+            {projects.map((project) => (
+              <Link
+                key={project.id}
+                href={buildHref(project.id)}
+                className={`sidebar__item ${activeProjectId === project.id ? "is-active" : ""}`}
+                title={`${project.key} — ${project.name}`}
+              >
+                <span className="sidebar__project-key">{project.key}</span>
+                <span className="sidebar__project-name">{project.name}</span>
+              </Link>
+            ))}
+          </nav>
+        </details>
+      </div>
+
     </aside>
   );
 };

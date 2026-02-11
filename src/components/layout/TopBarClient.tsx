@@ -14,9 +14,8 @@ import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
 
-const tabs = [
+const viewTabs = [
   { label: "Board", href: "/board" },
-  { label: "Backlog", href: "/backlog" },
   { label: "List", href: "/issues" },
 ];
 
@@ -174,8 +173,8 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
           </span>
         </div>
 
-        <nav className="lg:hidden inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
-          {tabs.map((tab) => {
+        <nav className="inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
+          {viewTabs.map((tab) => {
             const isActive = pathname === tab.href;
             return (
               <Link

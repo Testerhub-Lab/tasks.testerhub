@@ -198,6 +198,124 @@ body.is-dragging * {
   padding: 0 2px;
 }
 
+.sidebar__disclosure {
+  display: block;
+}
+
+.sidebar__disclosure-toggle {
+  list-style: none;
+}
+
+.sidebar__disclosure-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar__section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  padding-right: 4px;
+}
+
+.sidebar__caret {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.sidebar__workspace {
+  display: block;
+}
+
+.sidebar__workspace-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.sidebar__workspace-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar__workspace-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #bb2a7a, #6522b3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sidebar__workspace-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__workspace-caret {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.sidebar__workspace-menu {
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: rgba(10, 12, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar__menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__menu-item:hover,
+.sidebar__menu-item.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar__menu-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar__menu-title {
+  padding: 0 8px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
 @media (max-width: 1024px) {
   .app-sidebar {
     display: none;

@@ -6,7 +6,9 @@ import { toast } from "@/components/ui/toast";
 import {
   removeWorkspaceMemberAction,
   updateWorkspaceMemberRoleAction,
+  createWorkspaceInviteAction,
 } from "@/server/actions/workspaces";
+import { useRouter } from "next/navigation";
 
 interface WorkspaceMemberRow {
   id: string;
@@ -30,8 +32,10 @@ const WorkspaceMembersClient: React.FC<WorkspaceMembersClientProps> = ({
   members,
 }) => {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [creatingInvite, setCreatingInvite] = useState(false);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | "ADMIN" | "MEMBER">("ALL");
+  const router = useRouter();
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -82,6 +86,27 @@ const WorkspaceMembersClient: React.FC<WorkspaceMembersClientProps> = ({
     toast.success("Member removed");
   };
 
+  const handleInvite = async () => {
+    if (creatingInvite) return;
+    setCreatingInvite(true);
+    const res = await createWorkspaceInviteAction({ workspaceId });
+    setCreatingInvite(false);
+
+    if (!res.ok || !res.link) {
+      toast.error("Не удалось создать ссылку", res.formError ?? "Попробуйте позже.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(res.link);
+      toast.success("Invite link copied");
+    } catch {
+      toast.info("Invite link created", "Скопируйте вручную");
+    }
+
+    router.refresh();
+  };
+
   return (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -89,6 +114,14 @@ const WorkspaceMembersClient: React.FC<WorkspaceMembersClientProps> = ({
             <h2 className="text-base font-semibold text-white">Members</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              className="h-7 px-3 text-[11px]"
+              onClick={handleInvite}
+              disabled={creatingInvite}
+            >
+              {creatingInvite ? "Creating..." : "+ Invite"}
+            </Button>
             <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1">
               <input
                 value={query}
