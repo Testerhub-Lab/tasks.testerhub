@@ -39,21 +39,18 @@ const IssueCard: React.FC<IssueCardProps> = ({
     <Card
       variant="plain"
       className={[
-        "rounded-sm p-2.5",
-        "bg-[rgba(255,255,255,0.02)]",
-        "border border-white/4",
-        "transition-[background-color,border-color,transform,box-shadow] duration-150",
-        "hover:bg-[rgba(255,255,255,0.06)]",
-        "hover:border-white/12",
-        "hover:-translate-y-[1px]",
-        "hover:shadow-[0_4px_12px_rgba(0,0,0,0.30)]",
+        // плоско, без рамок, без "прыжка", мягкий hover как у Linear
+        "rounded-[6px] p-2.5",
+        "bg-white/[0.03]",
+        "transition-colors duration-150",
+        "hover:bg-white/[0.06]",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             {resolvedType ? (
-              <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/45">
+              <span className="shrink-0 rounded-[6px] bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-white/50">
                 {resolvedType}
               </span>
             ) : null}
@@ -70,12 +67,12 @@ const IssueCard: React.FC<IssueCardProps> = ({
           </div>
 
           {cleanDescription ? (
-            <p className="mt-1 text-[11px] text-white/35 truncate">
+            <p className="mt-1 text-[11px] text-white/40 truncate">
               {cleanDescription}
             </p>
           ) : null}
 
-          <div className="mt-1 text-[11px] text-white/40">
+          <div className="mt-1 text-[11px] text-white/45">
             •{" "}
             {getDisplayName({
               user: reporter ?? null,

@@ -15,22 +15,32 @@ import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
 import { updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
-import { Status } from "@prisma/client";
-import type { TaskListItem } from "../../server/queries/tasks";
-import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import type { TaskStatus } from "../../server/validators/task";
+import { Priority } from "@prisma/client";
 
+type Status = TaskStatus;
 
-type BoardTask = TaskListItem;
+type BoardTask = {
+  id: string;
+  key: string | null;
+  title: string;
+  type: string | null;
+  description: string | null;
+  priority: Priority;
+  status: Status;
+  reporter: { name: string | null; email: string | null } | null;
+  requesterName: string | null;
+};
 
-const columns: Array<{ status: Status; title: string }> = [
-  { status: Status.TODO, title: "To Do" },
-  { status: Status.IN_PROGRESS, title: "In Progress" },
-  { status: Status.TESTING, title: "Testing" },
-  { status: Status.DONE, title: "Done" },
+const columns: { status: Status; title: string }[] = [
+  { status: "TODO", title: "Todo" },
+  { status: "IN_PROGRESS", title: "In progress" },
+  { status: "TESTING", title: "Testing" },
+  { status: "DONE", title: "Done" },
 ];
 
 interface BoardClientProps {
-  tasks: TaskListItem[];
+  tasks: BoardTask[];
 }
 
 const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
@@ -48,9 +58,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setItems(tasks);
@@ -78,81 +86,84 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
   }, [activeId]);
 
   const grouped = useMemo(() => {
-    return columns.reduce<Record<Status, BoardTask[]>>((acc, column) => {
-      acc[column.status] = items.filter(
-        (task) => task.status === column.status
-      );
-      return acc;
-    }, {} as Record<Status, BoardTask[]>);
+    const map: Record<Status, BoardTask[]> = {
+      TODO: [],
+      IN_PROGRESS: [],
+      TESTING: [],
+      DONE: [],
+      NEW: [],
+      HOLD: [],
+      REJECT: []
+    };
+    for (const t of items) map[t.status]?.push(t);
+    return map;
   }, [items]);
 
-  const activeTask = items.find((task) => task.id === activeId);
+  const activeTask = useMemo(() => {
+    if (!activeId) return null;
+    return items.find((t) => t.id === activeId) ?? null;
+  }, [activeId, items]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    setErrorMessage(null);
+
     const { active, over } = event;
     setActiveId(null);
-    if (!over) {
-      return;
-    }
-    const taskId = String(active.id);
-    const targetStatus = over.id as Status;
-    const currentTask = items.find((task) => task.id === taskId);
-    if (!currentTask || currentTask.status === targetStatus) {
-      return;
-    }
+    if (!over) return;
 
-    const previousItems = structuredClone(items);
-    const nextItems = items.map((task) =>
-      task.id === taskId ? { ...task, status: targetStatus } : task
+    const taskId = String(active.id);
+    const to = String(over.id) as Status;
+
+    const task = items.find((t) => t.id === taskId);
+    if (!task) return;
+    if (task.status === to) return;
+
+    // optimistic UI
+    setItems((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: to } : t))
     );
-    setItems(nextItems);
-    setSavingMove({ id: taskId, to: targetStatus });
-    setErrorMessage(null);
+
+    setSavingMove({ id: taskId, to });
+
     try {
-      const result = await updateTaskStatusAction({
-        id: taskId,
-        status: targetStatus,
-      });
-      if (!result.ok) {
-        setItems(previousItems);
-        if (isAuthRequiredError({ formError: result.formError ?? null })) {
-          showAuthRequiredToast();
-        } else {
-          setErrorMessage(result.formError ?? "Не удалось обновить статус.");
-        }
-        return;
-      }
-      setErrorMessage(null);
+      await updateTaskStatusAction({ id: taskId, status: to });
       router.refresh();
-    } catch (error) {
-      console.error(error);
-      setItems(previousItems);
-      setErrorMessage("Ошибка при сохранении статуса.");
+    } catch (e) {
+      // rollback
+      setItems((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t))
+      );
+      setErrorMessage("Не удалось переместить задачу. Проверь соединение или попробуй ещё раз.");
     } finally {
       setSavingMove(null);
     }
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {errorMessage ? (
-        <div className="text-sm text-[var(--color-error)]">{errorMessage}</div>
+        <div className="text-[12px] text-[var(--color-error)]">{errorMessage}</div>
       ) : null}
+
+      {/* SSR/первый рендер: рисуем плоские колонки без рамок (как BoardColumn) */}
       {!isMounted ? (
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid gap-2 lg:grid-cols-4">
           {columns.map((column) => (
             <section
               key={column.status}
-              className="rounded-lg border border-white/5 bg-[rgba(255,255,255,0.02)] p-2.5"
+              className="rounded-[8px] bg-white/[0.02] p-2.5"
             >
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
                   {column.title}
                 </h2>
-                <span className="text-[11px] text-white/40">
+                <span className="rounded-[6px] bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-white/55">
                   {grouped[column.status]?.length ?? 0}
                 </span>
               </div>
+
+              <div className="mb-2 h-px bg-white/5" />
+
               <div className="space-y-2">
                 {grouped[column.status]?.map((task) => (
                   <IssueCard
@@ -168,6 +179,10 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                   />
                 ))}
               </div>
+
+              {(grouped[column.status]?.length ?? 0) === 0 ? (
+                <div className="mt-2 text-[11px] text-white/30">Empty</div>
+              ) : null}
             </section>
           ))}
         </div>
@@ -178,7 +193,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-3 lg:grid-cols-4">
+          <div className="grid gap-2 lg:grid-cols-4">
             {columns.map((column) => (
               <BoardColumn
                 key={column.status}
@@ -196,6 +211,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
               </BoardColumn>
             ))}
           </div>
+
           <DragOverlay dropAnimation={defaultDropAnimation}>
             {activeTask ? (
               <div className="pointer-events-none">
@@ -212,7 +228,6 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
               </div>
             ) : null}
           </DragOverlay>
-
         </DndContext>
       )}
     </div>
@@ -229,10 +244,11 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   isSaving,
 }) => {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    disabled: isSaving,
-  });
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: task.id,
+      disabled: isSaving,
+    });
 
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -242,7 +258,9 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative cursor-grab active:cursor-grabbing ${isDragging ? "opacity-60" : ""}`}
+      className={`relative cursor-grab active:cursor-grabbing ${
+        isDragging ? "opacity-60" : ""
+      }`}
       onClick={() => {
         if (!isDragging && !isSaving) {
           router.push(`/tasks/${task.key ?? task.id}`);
@@ -256,6 +274,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
           Saving…
         </span>
       ) : null}
+
       <IssueCard
         issueKey={task.key ?? undefined}
         title={task.title}

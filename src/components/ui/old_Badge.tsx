@@ -8,13 +8,9 @@ interface BadgeProps {
 const Badge: React.FC<BadgeProps> = ({ children, className = "" }) => {
   return (
     <span
-      className={[
-        "inline-flex items-center rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-medium",
-        "bg-[var(--surface-2)] text-[var(--text)]/80",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+    className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium 
+      bg-[rgba(255,255,255,0.04)] text-white/80 border-[rgba(255,255,255,0.12)] 
+      ${className}`}    
     >
       {children}
     </span>
