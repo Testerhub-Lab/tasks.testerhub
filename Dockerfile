@@ -13,7 +13,8 @@ RUN npm install
 # Copy the rest of the application code
 COPY . .
 
-# Build the application
+# Generate Prisma client and build the application
+RUN npx prisma generate
 RUN npm run build
 
 # Expose the port the app runs on
