@@ -14,6 +14,8 @@ RUN npm install
 COPY . .
 
 # Generate Prisma client and build the application
+# Prisma needs DATABASE_URL at build time to load config
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/tasks_tracker"
 RUN npx prisma generate
 RUN npm run build
 
