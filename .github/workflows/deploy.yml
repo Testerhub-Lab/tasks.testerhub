@@ -40,6 +40,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           port: ${{ secrets.SSH_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 300s
+          command_timeout: 30m
           script: |
             set -e
             cd /srv/tasks
