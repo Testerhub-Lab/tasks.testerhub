@@ -124,10 +124,10 @@ body.is-dragging * {
 .app-sidebar {
   width: 240px;
   flex: 0 0 240px;
-  padding: 16px 12px;
+  padding: 14px 10px;
   border-right: 1px solid var(--sep);
-  background: rgba(14, 20, 38, 0.85);
-  backdrop-filter: blur(16px);
+  background: var(--glass-1);
+  backdrop-filter: blur(18px);
   position: sticky;
   top: 0;
   align-self: flex-start;
@@ -136,7 +136,7 @@ body.is-dragging * {
 }
 
 .sidebar__section + .sidebar__section {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .sidebar__title {
@@ -144,44 +144,56 @@ body.is-dragging * {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 8px;
-  padding: 0 8px;
+  margin-bottom: 6px;
+  padding: 0 6px;
 }
 
 .sidebar__list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .sidebar__item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 6px 6px;
   border-radius: var(--radius-sm);
   color: rgba(255, 255, 255, 0.75);
   font-size: 13px;
   text-decoration: none;
-  transition: color 120ms ease, box-shadow 120ms ease;
+  transition: color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
 .sidebar__item:hover {
   color: #fff;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25);
-  background: transparent !important;
+  background: var(--hover);
 }
 
 .sidebar__item.is-active {
   color: #fff;
-  box-shadow: inset 0 -2px 0 rgba(0, 184, 217, 0.65);
-  background: transparent !important;
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.sidebar__icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar__item.is-active .sidebar__icon {
+  color: #fff;
 }
 
 .sidebar__badge {
   margin-left: auto;
   border-radius: 999px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   font-size: 10px;
   color: rgba(255, 255, 255, 0.9);
   background: rgba(0, 184, 217, 0.18);
@@ -382,7 +394,7 @@ body.is-dragging * {
 /* ===== Topbar (оставил как было, только без лишних конфликтов) ===== */
 .topbar {
   @apply flex items-center justify-between px-6 py-3;
-  background: rgba(14, 20, 38, 0.85);
+  background: var(--glass-1);
   border-bottom: 1px solid var(--sep);
   backdrop-filter: blur(18px);
   position: sticky;
@@ -421,7 +433,7 @@ body.is-dragging * {
 }
 
 .topbar__search {
-  width: min(280px, 40vw);
+  width: min(320px, 40vw);
 }
 
 /* ===== Buttons / Inputs base ===== */

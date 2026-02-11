@@ -55,6 +55,14 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     return query ? `/issues?${query}` : "/issues";
   };
 
+  const buildStatusHref = (statuses: string[]) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    statuses.forEach((status) => params.append("status", status));
+    const query = params.toString();
+    return query ? `/issues?${query}` : "/issues";
+  };
+
   const buildHref = (projectId?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (projectId) {
@@ -114,11 +122,19 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
       </div>
 
       <div className="sidebar__section">
+        <div className="sidebar__title">Views</div>
         <nav className="sidebar__list">
           <Link
             href="/backlog"
             className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
           >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M4 6h16" />
+                <path d="M4 12h10" />
+                <path d="M4 18h8" />
+              </svg>
+            </span>
             <span>Inbox</span>
             {showBacklogBadge ? (
               <span className="sidebar__badge">+{backlogUnread}</span>
@@ -130,7 +146,86 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               pathname.startsWith("/issues") && activeAssignee === "me" ? "is-active" : ""
             }`}
           >
-            My issues
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M6 20c1.6-3.2 9.4-3.2 12 0" />
+              </svg>
+            </span>
+            <span>My issues</span>
+          </Link>
+          <Link
+            href="/issues"
+            className={`sidebar__item ${
+              pathname.startsWith("/issues") || pathname.startsWith("/board") ? "is-active" : ""
+            }`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <rect x="4" y="5" width="16" height="14" rx="2" />
+                <path d="M8 9h8M8 13h5" />
+              </svg>
+            </span>
+            <span>Issues</span>
+          </Link>
+          <Link
+            href="/settings/workspace?tab=projects#projects"
+            className={`sidebar__item ${
+              isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
+            }`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M4 7h16v10H4z" />
+                <path d="M9 7v10" />
+              </svg>
+            </span>
+            <span>Projects</span>
+          </Link>
+          <Link
+            href="/settings/workspace?tab=members#members"
+            className={`sidebar__item ${
+              isSettingsWorkspace && settingsTab === "members" ? "is-active" : ""
+            }`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="8" cy="9" r="3" />
+                <circle cx="16" cy="9" r="3" />
+                <path d="M3 20c1.4-3 8.6-3 10 0" />
+                <path d="M11 20c1.2-2.6 7.8-2.6 10 0" />
+              </svg>
+            </span>
+            <span>Members</span>
+          </Link>
+        </nav>
+      </div>
+
+      <div className="sidebar__section">
+        <div className="sidebar__title">Filters</div>
+        <nav className="sidebar__list">
+          <Link
+            href={buildIssuesHref("me")}
+            className="sidebar__item"
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M4 5h16l-6 7v5l-4 2v-7z" />
+              </svg>
+            </span>
+            <span>Assigned to me</span>
+          </Link>
+          <Link
+            href={buildStatusHref(["TODO", "IN_PROGRESS", "TESTING", "HOLD"])}
+            className="sidebar__item"
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M5 12h14" />
+                <path d="M12 5v14" />
+              </svg>
+            </span>
+            <span>Open only</span>
           </Link>
         </nav>
       </div>

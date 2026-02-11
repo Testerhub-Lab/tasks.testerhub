@@ -199,7 +199,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
           <Input
             ref={searchRef}
             type="text"
-            placeholder="Search issues ( / )"
+            placeholder="Search issues  ⌘/"
             value={q.value}
             onChange={(event) => q.setValue(event.target.value)}
             onKeyDown={(event) => {
