@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   web:
-    build: .
+    image: ghcr.io/testerhub-lab/tasks.testerhub:latest
     ports:
       - "${APP_PORT:-3000}:3000"
     env_file:
