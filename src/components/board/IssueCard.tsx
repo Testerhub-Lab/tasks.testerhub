@@ -41,9 +41,9 @@ const IssueCard: React.FC<IssueCardProps> = ({
       className={[
         // плоско, без рамок, без "прыжка", мягкий hover как у Linear
         "rounded-[6px] p-2.5",
-        "bg-white/[0.04] border border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.25)]",
-        "transition-colors duration-150",
-        "hover:bg-white/[0.06]",
+        "bg-white/[0.05] border border-white/12 shadow-[0_10px_26px_rgba(0,0,0,0.28)]",
+        "transition-[background,border-color,box-shadow,transform] duration-150",
+        "hover:bg-white/[0.06] hover:border-white/18 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)] hover:-translate-y-[1px]",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-3">
@@ -56,23 +56,23 @@ const IssueCard: React.FC<IssueCardProps> = ({
             ) : null}
 
             {issueKey ? (
-              <span className="shrink-0 text-[11px] font-medium text-white/45 font-mono">
+              <span className="shrink-0 text-[11px] font-medium text-white/50 font-mono">
                 {issueKey}
               </span>
             ) : null}
 
-            <h3 className="min-w-0 text-[13px] font-medium text-white/90 truncate">
+            <h3 className="min-w-0 text-[13px] font-medium text-white/92 truncate">
               {title}
             </h3>
           </div>
 
           {cleanDescription ? (
-            <p className="mt-1 text-[11px] text-white/40 truncate">
+            <p className="mt-1 text-[11px] text-white/55 truncate">
               {cleanDescription}
             </p>
           ) : null}
 
-          <div className="mt-1 text-[11px] text-white/45">
+          <div className="mt-1 text-[11px] text-white/60">
             •{" "}
             {getDisplayName({
               user: reporter ?? null,

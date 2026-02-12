@@ -108,8 +108,10 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     setErrorMessage(null);
 
     const { active, over } = event;
-    setActiveId(null);
-    if (!over) return;
+    if (!over) {
+      setActiveId(null);
+      return;
+    }
 
     const taskId = String(active.id);
     const to = String(over.id) as Status;
@@ -136,6 +138,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       setErrorMessage("Не удалось переместить задачу. Проверь соединение или попробуй ещё раз.");
     } finally {
       setSavingMove(null);
+      setActiveId(null);
     }
   };
 
@@ -194,7 +197,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
 
           <DragOverlay dropAnimation={defaultDropAnimation}>
             {activeTask ? (
-              <div className="pointer-events-none">
+              <div className="pointer-events-none scale-[1.02] border border-white/16 bg-white/[0.07] shadow-[0_18px_50px_rgba(0,0,0,0.55)] rounded-[6px]">
                 <IssueCard
                   issueKey={activeTask.key ?? undefined}
                   title={activeTask.title}

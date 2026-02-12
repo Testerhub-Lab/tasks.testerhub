@@ -110,6 +110,18 @@ html::before {
   z-index: -1;
 }
 
+html::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 600px at 20% 10%, rgba(2,6,23,0.18), transparent 55%),
+    radial-gradient(900px 600px at 85% 25%, rgba(2,6,23,0.14), transparent 60%),
+    rgba(2,6,23,0.28);
+}
+
 
 html.is-dragging,
 html.is-dragging *,
