@@ -27,7 +27,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       className={[
         // плоско, без рамок, ближе к Linear
         "rounded-[8px] p-2.5",
-        "bg-white/[0.02]",
+        "border border-white/5 bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
         "transition-colors duration-150",
         isOver ? "bg-cyan-500/[0.06]" : "hover:bg-white/[0.03]",
       ].join(" ")}
@@ -50,7 +50,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       </div>
 
       {/* разделитель вместо рамки */}
-      <div className="mb-2 h-px bg-white/5" />
+      <div className="mb-2 h-px bg-white/7" />
 
       <div className="space-y-2">{children}</div>
 

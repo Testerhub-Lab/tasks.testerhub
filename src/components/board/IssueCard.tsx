@@ -41,7 +41,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
       className={[
         // плоско, без рамок, без "прыжка", мягкий hover как у Linear
         "rounded-[6px] p-2.5",
-        "bg-white/[0.03]",
+        "bg-white/[0.04] border border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.25)]",
         "transition-colors duration-150",
         "hover:bg-white/[0.06]",
       ].join(" ")}
