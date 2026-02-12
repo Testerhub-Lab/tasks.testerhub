@@ -139,53 +139,50 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     }
   };
 
+  const columnsMarkup = (
+    <div className="grid gap-2 lg:grid-cols-4">
+      {columns.map((column) => (
+        <BoardColumn
+          key={column.status}
+          status={column.status}
+          title={column.title}
+          count={grouped[column.status]?.length ?? 0}
+          disabled={!isMounted}
+        >
+          {grouped[column.status]?.map((task) =>
+            isMounted ? (
+              <DraggableIssueCard
+                key={task.id}
+                task={task}
+                isSaving={savingMove?.id === task.id}
+              />
+            ) : (
+              <IssueCard
+                key={task.id}
+                issueKey={task.key ?? undefined}
+                title={task.title}
+                type={task.type ?? null}
+                description={task.description}
+                priority={task.priority}
+                status={task.status}
+                reporter={task.reporter}
+                requesterName={task.requesterName}
+              />
+            )
+          )}
+        </BoardColumn>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-2">
       {errorMessage ? (
         <div className="text-[12px] text-[var(--color-error)]">{errorMessage}</div>
       ) : null}
 
-      {/* SSR/первый рендер: рисуем плоские колонки без рамок (как BoardColumn) */}
       {!isMounted ? (
-        <div className="grid gap-2 lg:grid-cols-4">
-          {columns.map((column) => (
-            <section
-              key={column.status}
-              className="rounded-[8px] bg-white/[0.02] p-2.5"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
-                  {column.title}
-                </h2>
-                <span className="rounded-[6px] bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-white/55">
-                  {grouped[column.status]?.length ?? 0}
-                </span>
-              </div>
-
-              <div className="mb-2 h-px bg-white/5" />
-
-              <div className="space-y-2">
-                {grouped[column.status]?.map((task) => (
-                  <IssueCard
-                    key={task.id}
-                    issueKey={task.key ?? undefined}
-                    title={task.title}
-                    type={task.type ?? null}
-                    description={task.description}
-                    priority={task.priority}
-                    status={task.status}
-                    reporter={task.reporter}
-                    requesterName={task.requesterName}
-                  />
-                ))}
-              </div>
-
-              {(grouped[column.status]?.length ?? 0) === 0 ? (
-                <div className="mt-2 text-[11px] text-white/30">Empty</div>
-              ) : null}
-            </section>
-          ))}
-        </div>
+        columnsMarkup
       ) : (
         <DndContext
           sensors={sensors}
@@ -193,24 +190,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveId(null)}
         >
-          <div className="grid gap-2 lg:grid-cols-4">
-            {columns.map((column) => (
-              <BoardColumn
-                key={column.status}
-                status={column.status}
-                title={column.title}
-                count={grouped[column.status]?.length ?? 0}
-              >
-                {grouped[column.status]?.map((task) => (
-                  <DraggableIssueCard
-                    key={task.id}
-                    task={task}
-                    isSaving={savingMove?.id === task.id}
-                  />
-                ))}
-              </BoardColumn>
-            ))}
-          </div>
+          {columnsMarkup}
 
           <DragOverlay dropAnimation={defaultDropAnimation}>
             {activeTask ? (

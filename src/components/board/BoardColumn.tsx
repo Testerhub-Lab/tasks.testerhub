@@ -3,13 +3,13 @@
 import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import type { TaskStatus } from "../../server/validators/task";
-import Card from "../ui/Card";
 
 interface BoardColumnProps {
   status: TaskStatus;
   title: string;
   count: number;
   children: React.ReactNode;
+  disabled?: boolean;
 }
 
 const BoardColumn: React.FC<BoardColumnProps> = ({
@@ -17,13 +17,13 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
   title,
   count,
   children,
+  disabled = false,
 }) => {
-  const { isOver, setNodeRef } = useDroppable({ id: status });
+  const { isOver, setNodeRef } = useDroppable({ id: status, disabled });
 
   return (
-    <Card
+    <section
       ref={setNodeRef}
-      variant="plain"
       className={[
         // плоско, без рамок, ближе к Linear
         "rounded-[8px] p-2.5",
@@ -57,7 +57,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
       {count === 0 ? (
         <div className="mt-2 text-[11px] text-white/30">Empty</div>
       ) : null}
-    </Card>
+    </section>
   );
 };
 
