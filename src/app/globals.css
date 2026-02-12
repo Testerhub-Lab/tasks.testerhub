@@ -4,6 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 @layer components {
   .prose {
     color: var(--text);
@@ -83,9 +89,13 @@ html[data-theme="light"] {
 }
 
 
+html {
+  background: var(--surface-0);
+}
+
 body {
   @apply antialiased;
-  background: var(--bg-gradient);
+  background: transparent;
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans", "Liberation Sans", sans-serif;
@@ -94,6 +104,7 @@ body {
 
 html,
 body {
+  height: 100%;
   overflow-x: hidden;
   width: 100%;
 }
@@ -102,9 +113,9 @@ body::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+  background: var(--bg-gradient);
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
 
@@ -142,6 +153,7 @@ body.is-dragging * {
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  overscroll-behavior: contain;
 }
 
 .sidebar__section + .sidebar__section {
