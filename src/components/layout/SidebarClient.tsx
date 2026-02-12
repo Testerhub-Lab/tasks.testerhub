@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { setWorkspaceAction } from "@/server/actions/workspaces";
@@ -38,11 +38,14 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const isSettingsWorkspace = pathname.startsWith("/settings/workspace");
   const settingsTab = searchParams.get("tab");
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const handleWorkspaceChange = async (nextId: string) => {
     if (nextId === currentWorkspaceId) return;
     const result = await setWorkspaceAction(nextId);
     if (result.ok) {
+      setWorkspaceOpen(false);
       window.location.href = basePath;
     }
   };
@@ -74,11 +77,33 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     return query ? `${basePath}?${query}` : basePath;
   };
 
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!workspaceRef.current) return;
+      if (!workspaceRef.current.contains(event.target as Node)) {
+        setWorkspaceOpen(false);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setWorkspaceOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, []);
+
   return (
     <aside className="app-sidebar">
-      <div className="sidebar__section">
-        <details className="sidebar__workspace" open>
-          <summary className="sidebar__workspace-trigger">
+      <div className="sidebar__section" ref={workspaceRef}>
+        <button
+          type="button"
+          className="sidebar__workspace-trigger"
+          onClick={() => setWorkspaceOpen((v) => !v)}
+          aria-expanded={workspaceOpen}
+        >
             <span className="sidebar__workspace-avatar">
               {(workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "WS")
                 .slice(0, 2)
@@ -88,15 +113,24 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               {workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "Workspace"}
             </span>
             <span className="sidebar__workspace-caret">▾</span>
-          </summary>
+        </button>
+        {workspaceOpen ? (
           <div className="sidebar__workspace-menu">
             {canManageWorkspace ? (
-              <Link href="/settings/workspace" className="sidebar__menu-item">
+              <Link
+                href="/settings/workspace"
+                className="sidebar__menu-item"
+                onClick={() => setWorkspaceOpen(false)}
+              >
                 Workspace settings
               </Link>
             ) : null}
             {canManageWorkspace ? (
-              <Link href="/settings/workspace#members" className="sidebar__menu-item">
+              <Link
+                href="/settings/workspace#members"
+                className="sidebar__menu-item"
+                onClick={() => setWorkspaceOpen(false)}
+              >
                 Invite and manage members
               </Link>
             ) : null}
@@ -118,7 +152,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               </div>
             ) : null}
           </div>
-        </details>
+        ) : null}
       </div>
 
       <div className="sidebar__section">
@@ -231,47 +265,15 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
       </div>
 
       <div className="sidebar__section">
-        <details className="sidebar__disclosure" open>
+        <details className="sidebar__disclosure">
           <summary className="sidebar__title sidebar__disclosure-toggle sidebar__section-toggle">
-            <span>Workspace</span>
-            <span className="sidebar__caret">▾</span>
-          </summary>
-          <nav className="sidebar__list">
-            <Link
-              href="/settings/workspace?tab=projects#projects"
-              className={`sidebar__item ${
-                isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
-              }`}
-            >
+            <span>
               Projects
-            </Link>
-            <Link
-              href="/issues"
-              className={`sidebar__item ${
-                pathname.startsWith("/issues") || pathname.startsWith("/board") ? "is-active" : ""
-              }`}
-            >
-              Issues
-            </Link>
-            <Link
-              href="/settings/workspace?tab=members#members"
-              className={`sidebar__item ${
-                isSettingsWorkspace && settingsTab === "members" ? "is-active" : ""
-              }`}
-            >
-              Members
-            </Link>
-          </nav>
-        </details>
-      </div>
-
-      <div className="sidebar__section">
-        <details className="sidebar__disclosure" open>
-          <summary className="sidebar__title sidebar__disclosure-toggle sidebar__section-toggle">
-            <span>Projects</span>
+              <span className="sidebar__count">{projects.length}</span>
+            </span>
             <span className="sidebar__caret">▾</span>
           </summary>
-          <nav className="sidebar__list">
+          <nav className="sidebar__list sidebar__projects-list">
             <Link
               href={buildHref(null)}
               className={`sidebar__item ${!activeProjectId ? "is-active" : ""}`}

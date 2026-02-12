@@ -90,7 +90,12 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans", "Liberation Sans", sans-serif;
   position: relative;
+}
+
+html,
+body {
   overflow-x: hidden;
+  width: 100%;
 }
 
 body::before {
@@ -114,6 +119,8 @@ body.is-dragging * {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .app-main {
@@ -125,7 +132,7 @@ body.is-dragging * {
   width: 240px;
   flex: 0 0 240px;
   padding: 14px 10px;
-  border-right: 1px solid var(--sep);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
   background: var(--glass-1);
   backdrop-filter: blur(18px);
   position: sticky;
@@ -133,6 +140,8 @@ body.is-dragging * {
   align-self: flex-start;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .sidebar__section + .sidebar__section {
@@ -152,6 +161,8 @@ body.is-dragging * {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .sidebar__item {
@@ -164,6 +175,8 @@ body.is-dragging * {
   font-size: 13px;
   text-decoration: none;
   transition: color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .sidebar__item:hover {
