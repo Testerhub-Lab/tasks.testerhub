@@ -10,6 +10,7 @@ interface IssueCardProps {
   priority?: TaskPriority | null;
   status?: TaskStatus | string | null; // на Board не используем, но пусть останется в пропсах
   description?: string | null;
+  createdAt?: string | Date | null;
   reporter?: { name: string | null; email: string | null } | null;
   requesterName?: string | null;
 }
@@ -20,6 +21,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
   type,
   priority,
   description,
+  createdAt,
   reporter,
   requesterName,
 }) => {
@@ -68,12 +70,41 @@ const IssueCard: React.FC<IssueCardProps> = ({
     return 0;
   })();
 
+  const createdAtDate = (() => {
+    if (!createdAt) return null;
+    const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+    return Number.isNaN(date.getTime()) ? null : date;
+  })();
+
+  const formatRelativeTime = (date: Date, now = new Date()) => {
+    const diffMs = Math.max(0, now.getTime() - date.getTime());
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return "1m ago";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    return `${weeks}w ago`;
+  };
+
+  const formatAbsoluteDate = (date: Date) =>
+    date.toLocaleString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
   return (
     <Card
       variant="plain"
       className={[
         // плоско, без рамок, без "прыжка", мягкий hover как у Linear
-        "rounded-[6px] p-3",
+        "issue-card rounded-[6px] p-3",
         "bg-white/[0.05] border border-white/12 shadow-[0_10px_26px_rgba(0,0,0,0.28)]",
         "transition-[background,border-color,box-shadow,transform] duration-150",
         "hover:bg-white/[0.06] hover:border-white/18 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)] hover:-translate-y-[1px]",
@@ -141,6 +172,15 @@ const IssueCard: React.FC<IssueCardProps> = ({
               <span className="text-white/30">·</span>
             ) : null}
             {assigneeName ? <span className="truncate">{assigneeName}</span> : null}
+          </div>
+        ) : null}
+
+        {createdAtDate ? (
+          <div
+            className="text-[11px] text-white/45"
+            title={`Created ${formatAbsoluteDate(createdAtDate)}`}
+          >
+            Created • {formatRelativeTime(createdAtDate)}
           </div>
         ) : null}
       </div>

@@ -130,6 +130,14 @@ body.is-dragging * {
   cursor: grabbing !important;
 }
 
+.issue-card {
+  cursor: grab;
+}
+
+.issue-card:active {
+  cursor: grabbing;
+}
+
 /* ===== App Shell / Sidebar ===== */
 .app-shell {
   display: flex;

@@ -28,6 +28,7 @@ type BoardTask = {
   description: string | null;
   priority: Priority;
   status: Status;
+  createdAt?: string | Date | null;
   reporter: { name: string | null; email: string | null } | null;
   requesterName: string | null;
 };
@@ -48,6 +49,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
   const [isMounted, setMounted] = useState(false);
   const [items, setItems] = useState<BoardTask[]>(tasks);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [savingMove, setSavingMove] = useState<{
     id: string;
     to: Status;
@@ -64,9 +66,19 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     setItems(tasks);
   }, [tasks]);
 
+  const cleanupDragState = React.useCallback(() => {
+    setIsDragging(false);
+    setActiveId(null);
+    if (typeof document === "undefined") return;
+    document.body.classList.remove("is-dragging");
+    document.documentElement.classList.remove("is-dragging");
+    document.body.style.cursor = "";
+    document.documentElement.style.cursor = "";
+  }, []);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (activeId) {
+    if (isDragging) {
       document.body.classList.add("is-dragging");
       document.documentElement.classList.add("is-dragging");
       document.body.style.cursor = "grabbing";
@@ -77,13 +89,18 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       document.body.style.cursor = "";
       document.documentElement.style.cursor = "";
     }
+  }, [isDragging]);
+
+  useEffect(() => {
+    const handleMouseUp = () => cleanupDragState();
+    const handleBlur = () => cleanupDragState();
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("blur", handleBlur);
     return () => {
-      document.body.classList.remove("is-dragging");
-      document.documentElement.classList.remove("is-dragging");
-      document.body.style.cursor = "";
-      document.documentElement.style.cursor = "";
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("blur", handleBlur);
     };
-  }, [activeId]);
+  }, [cleanupDragState]);
 
   const grouped = useMemo(() => {
     const map: Record<Status, BoardTask[]> = {
@@ -109,7 +126,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
 
     const { active, over } = event;
     if (!over) {
-      setActiveId(null);
+      cleanupDragState();
       return;
     }
 
@@ -138,7 +155,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       setErrorMessage("Не удалось переместить задачу. Проверь соединение или попробуй ещё раз.");
     } finally {
       setSavingMove(null);
-      setActiveId(null);
+      cleanupDragState();
     }
   };
 
@@ -168,6 +185,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                 description={task.description}
                 priority={task.priority}
                 status={task.status}
+                createdAt={task.createdAt ?? null}
                 reporter={task.reporter}
                 requesterName={task.requesterName}
               />
@@ -189,9 +207,12 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
       ) : (
         <DndContext
           sensors={sensors}
-          onDragStart={(event) => setActiveId(String(event.active.id))}
+          onDragStart={(event) => {
+            setActiveId(String(event.active.id));
+            setIsDragging(true);
+          }}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => setActiveId(null)}
+          onDragCancel={() => cleanupDragState()}
         >
           {columnsMarkup}
 
@@ -205,6 +226,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                   description={activeTask.description}
                   priority={activeTask.priority}
                   status={activeTask.status}
+                  createdAt={activeTask.createdAt ?? null}
                   reporter={activeTask.reporter}
                   requesterName={activeTask.requesterName}
                 />
@@ -265,6 +287,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
         description={task.description}
         priority={task.priority}
         status={task.status}
+        createdAt={task.createdAt ?? null}
         reporter={task.reporter}
         requesterName={task.requesterName}
       />
