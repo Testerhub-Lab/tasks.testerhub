@@ -1,6 +1,4 @@
 import prisma from "../../lib/prisma";
-import { getOrCreateDefaultWorkspace } from "./workspaces";
-
 const DEFAULT_PROJECT = {
   key: "TH",
   name: "TesterHub",

@@ -151,7 +151,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
     try {
       await updateTaskStatusAction({ id: taskId, status: to });
       router.refresh();
-    } catch (e) {
+    } catch {
       // rollback
       setItems((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t))
@@ -185,7 +185,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
         return;
       }
       router.refresh();
-    } catch (e) {
+    } catch {
       setItems(previous);
       setErrorMessage("Не удалось обновить исполнителя.");
     } finally {

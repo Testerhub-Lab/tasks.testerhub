@@ -33,7 +33,6 @@ interface IssueMetaPanelProps {
   environment?: string | null;
   reporterName?: string | null;
   assigneeId?: string | null;
-  assigneeName?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
@@ -47,7 +46,6 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   environment,
   reporterName,
   assigneeId,
-  assigneeName,
   users,
   createdAt,
   updatedAt,

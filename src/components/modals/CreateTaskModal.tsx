@@ -45,8 +45,6 @@ type UploadResultItem = UploadMetaItem & {
 type UploadApiOk = { ok: true; files: UploadResultItem[] };
 type UploadApiErr = { ok: false; error: string };
 
-type UploadApiResponse = UploadApiOk | UploadApiErr;
-
 function isUploadOk(x: unknown): x is UploadApiOk {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
@@ -125,58 +123,6 @@ function makeClientId(): string {
   const c: Crypto | undefined = typeof crypto !== "undefined" ? crypto : undefined;
   if (c && typeof c.randomUUID === "function") return c.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function uploadOne(file: File, clientId: string): Promise<{ url: string }> {
-  const fd = new FormData();
-
-  // ✅ максимально совместимо: разные бекенды ждут разные ключи
-  fd.append("files", file, file.name);
-  fd.append("files[]", file, file.name);
-  fd.append("file", file, file.name);
-
-  // если твой API использует clientId — ок, если нет — лишнее поле просто игнорится
-  fd.append("clientId", clientId);
-
-  const res = await fetch("/api/uploads", { method: "POST", body: fd });
-  const json: unknown = await res.json().catch(() => null);
-
-  if (!res.ok || !json || typeof json !== "object") {
-    throw new Error("Upload failed");
-  }
-
-  // поддержка разных форматов
-  const obj = json as Record<string, unknown>;
-
-  // common: { ok:false, error:"..." }
-  if (obj.ok === false) {
-    const msg = typeof obj.error === "string" ? obj.error : "Upload failed";
-    throw new Error(msg);
-  }
-
-  // common: { ok:true, url:"/uploads/..." }
-  if (obj.ok === true && typeof obj.url === "string" && obj.url) {
-    return { url: obj.url };
-  }
-
-  // common: { ok:true, files:[{url|path|href}] } / { ok:true, items:[...] }
-  const list =
-    (Array.isArray(obj.files) ? obj.files : null) ??
-    (Array.isArray(obj.items) ? obj.items : null) ??
-    null;
-
-  if (obj.ok === true && list && list.length > 0) {
-    const first = list[0] as Record<string, unknown>;
-    const url =
-      (typeof first.url === "string" && first.url) ||
-      (typeof first.path === "string" && first.path) ||
-      (typeof first.href === "string" && first.href) ||
-      "";
-
-    if (url) return { url };
-  }
-
-  throw new Error("Upload failed: unexpected response");
 }
 
 interface CreateTaskModalProps {
