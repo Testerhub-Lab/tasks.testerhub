@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Select from "../ui/Select";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
 import { Priority, Status } from "@prisma/client";
 import { formatDate } from "./utils";
@@ -61,6 +60,10 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         .map((part) => part[0]?.toUpperCase())
         .join("")
     : "";
+  const [openMenu, setOpenMenu] = useState<"assignee" | "status" | "priority" | null>(null);
+  const assigneeRef = useRef<HTMLDivElement | null>(null);
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const priorityRef = useRef<HTMLDivElement | null>(null);
 
   const statusOptions = useMemo(
     () =>
@@ -92,6 +95,33 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   React.useEffect(() => {
     setCurrentAssignee(assigneeId ?? "");
   }, [assigneeId]);
+
+  React.useEffect(() => {
+    if (!openMenu) return;
+    const handleClick = (event: MouseEvent) => {
+      const activeRef =
+        openMenu === "assignee"
+          ? assigneeRef
+          : openMenu === "status"
+          ? statusRef
+          : openMenu === "priority"
+          ? priorityRef
+          : null;
+      if (!activeRef?.current) return;
+      if (!activeRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenMenu(null);
+    };
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [openMenu]);
 
   const handleUpdate = async (next: {
     status?: Status;
@@ -169,34 +199,70 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             </svg>
             <span>Assignee</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
-                currentAssigneeMeta
-                  ? "bg-white/6 border-white/10 text-white/80"
-                  : "bg-white/4 border-white/8 text-white/35"
-              }`}
-              title={assigneeLabel}
+          <div className="relative" ref={assigneeRef}>
+            <button
+              type="button"
+              onClick={() => setOpenMenu(openMenu === "assignee" ? null : "assignee")}
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
             >
-              {assigneeInitials || "—"}
-            </span>
-            <Select
-              name="assignee"
-              value={currentAssignee}
-              onChange={(event) => {
-                const nextAssignee = event.target.value;
-                setCurrentAssignee(nextAssignee);
-                handleUpdate({ assigneeId: nextAssignee || null });
-              }}
-              className="h-8 min-w-[160px] border-none bg-transparent text-sm text-white/85 shadow-none focus:ring-0"
-              options={[
-                { value: "", label: "Unassigned" },
-                ...users.map((u) => ({
-                  value: u.id,
-                  label: u.name ? u.name : u.email,
-                })),
-              ]}
-            />
+              <span
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                  currentAssigneeMeta
+                    ? "bg-white/6 border-white/10 text-white/80"
+                    : "bg-white/4 border-white/8 text-white/35"
+                }`}
+                title={assigneeLabel}
+              >
+                {assigneeInitials || "—"}
+              </span>
+              <span className="min-w-[120px] text-right">{assigneeLabel}</span>
+            </button>
+            {openMenu === "assignee" ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                  onClick={() => {
+                    setOpenMenu(null);
+                    setCurrentAssignee("");
+                    handleUpdate({ assigneeId: null });
+                  }}
+                >
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] text-white/60">
+                    —
+                  </span>
+                  <span>Unassigned</span>
+                </button>
+                {users.map((u) => {
+                  const label = u.name ?? u.email;
+                  const initials = label
+                    ? label
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase())
+                        .join("")
+                    : "";
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        setOpenMenu(null);
+                        setCurrentAssignee(u.id);
+                        handleUpdate({ assigneeId: u.id });
+                      }}
+                    >
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] text-white/70">
+                        {initials || "—"}
+                      </span>
+                      <span className="truncate">{label ?? "Unknown"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -224,17 +290,33 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             </svg>
             <span>Status</span>
           </div>
-          <Select
-            name="status"
-            value={currentStatus}
-            onChange={(event) => {
-              const nextStatus = event.target.value as Status;
-              setCurrentStatus(nextStatus);
-              handleUpdate({ status: nextStatus });
-            }}
-            className="h-8 min-w-[160px] border-none bg-transparent text-sm text-white/85 shadow-none focus:ring-0"
-            options={statusOptions}
-          />
+          <div className="relative" ref={statusRef}>
+            <button
+              type="button"
+              onClick={() => setOpenMenu(openMenu === "status" ? null : "status")}
+              className="flex min-w-[160px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+            >
+              <span>{statusLabel[currentStatus] ?? currentStatus}</span>
+            </button>
+            {openMenu === "status" ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+                {statusOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setCurrentStatus(opt.value);
+                      handleUpdate({ status: opt.value });
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
@@ -246,32 +328,46 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             </svg>
             <span>Priority</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-end gap-1 text-white/70">
-              {Array.from({ length: 4 }).map((_, index) => {
-                const level = index + 1;
-                return (
-                  <span
-                    key={level}
-                    className={`block w-[3px] rounded-[2px] bg-white ${
-                      level <= priorityLevel ? "opacity-90" : "opacity-20"
-                    }`}
-                    style={{ height: 6 + level * 2 }}
-                  />
-                );
-              })}
-            </span>
-            <Select
-              name="priority"
-              value={currentPriority}
-              onChange={(event) => {
-                const nextPriority = event.target.value as Priority;
-                setCurrentPriority(nextPriority);
-                handleUpdate({ priority: nextPriority });
-              }}
-              className="h-8 min-w-[140px] border-none bg-transparent text-sm text-white/85 shadow-none focus:ring-0"
-              options={priorityOptions}
-            />
+          <div className="relative" ref={priorityRef}>
+            <button
+              type="button"
+              onClick={() => setOpenMenu(openMenu === "priority" ? null : "priority")}
+              className="flex min-w-[160px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+            >
+              <span className="inline-flex items-end gap-1 text-white/70">
+                {Array.from({ length: 4 }).map((_, index) => {
+                  const level = index + 1;
+                  return (
+                    <span
+                      key={level}
+                      className={`block w-[3px] rounded-[2px] bg-white ${
+                        level <= priorityLevel ? "opacity-90" : "opacity-20"
+                      }`}
+                      style={{ height: 6 + level * 2 }}
+                    />
+                  );
+                })}
+              </span>
+              <span>{priorityLabel[currentPriority] ?? currentPriority}</span>
+            </button>
+            {openMenu === "priority" ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+                {priorityOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setCurrentPriority(opt.value);
+                      handleUpdate({ priority: opt.value });
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 

@@ -302,9 +302,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-3">
+    <div className="mx-auto max-w-6xl space-y-5">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
             <button
               type="button"
@@ -316,7 +316,6 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             <button
               type="button"
               onClick={handleCopyLink}
-              aria-label="Copy issue link"
               className="inline-flex items-center gap-2 text-white/55 transition-colors hover:text-white"
             >
               <svg
@@ -332,80 +331,80 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
                 <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
               </svg>
-              <span className="hidden sm:inline">Copy link</span>
+              <span>Copy link</span>
             </button>
             {copied === "key" || copied === "link" ? (
               <span className="text-[11px] text-white/55">Copied</span>
             ) : null}
           </div>
-
-          <div className="flex items-start gap-4">
-            <div className="min-w-0 flex-1">
-              {editingTitle ? (
-                <input
-                  ref={titleInputRef}
-                  value={titleValue}
-                  onChange={(event) => setTitleValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      skipTitleBlurRef.current = true;
-                      void commitTitle(titleValue);
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      skipTitleBlurRef.current = true;
-                      cancelTitleEdit();
-                    }
-                  }}
-                  onBlur={() => {
-                    if (skipTitleBlurRef.current) {
-                      skipTitleBlurRef.current = false;
-                      return;
-                    }
-                    void commitTitle(titleValue);
-                  }}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                  disabled={savingTitle}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditingTitle(true)}
-                  className="w-full rounded-lg px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                >
-                  {titleValue}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {savingTitle ? (
-            <span className="text-xs text-white/50">Saving...</span>
-          ) : null}
-
-          {details.type || task.tags.length ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {details.type ? (
-                <Badge className="text-xs">{details.type}</Badge>
-              ) : null}
-              {task.tags.map((tag) => (
-                <Badge key={tag} className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-2">
           <BackButton />
         </div>
+
+        <div className="min-w-0">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleValue}
+              onChange={(event) => setTitleValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  skipTitleBlurRef.current = true;
+                  void commitTitle(titleValue);
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  skipTitleBlurRef.current = true;
+                  cancelTitleEdit();
+                }
+              }}
+              onBlur={() => {
+                if (skipTitleBlurRef.current) {
+                  skipTitleBlurRef.current = false;
+                  return;
+                }
+                void commitTitle(titleValue);
+              }}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+              disabled={savingTitle}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditingTitle(true)}
+              className="w-full rounded-lg px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+            >
+              {titleValue}
+            </button>
+          )}
+        </div>
+
+        {savingTitle ? (
+          <span className="text-xs text-white/50">Saving...</span>
+        ) : null}
+
+        {details.type || task.tags.length ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {details.type ? (
+              <Badge className="text-[11px] px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-white/70">
+                {details.type}
+              </Badge>
+            ) : null}
+            {task.tags.map((tag) => (
+              <Badge
+                key={tag}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-white/70"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)]">
         <div className="space-y-6">
-          <Card className="flex flex-col gap-3 border border-white/6 bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <Card className="flex flex-col gap-6 border border-white/6 bg-white/[0.02] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between text-xs text-white/60">
               <h2 className="text-sm font-medium text-white/70">Description</h2>
             </div>
@@ -523,33 +522,29 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               </button>
             )}
             {savingDescription ? (
-              <span className="text-xs text-white/50">
-                Saving...
-              </span>
+              <span className="text-xs text-white/50">Saving...</span>
+            ) : null}
+
+            {task.attachments.length ? (
+              <div className="space-y-3 border-t border-white/8 pt-4">
+                <h2 className="text-sm font-medium text-white/70">Attachments</h2>
+                <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                  {task.attachments.map((file) => (
+                    <li key={file}>
+                      <a
+                        href={file}
+                        className="text-[var(--color-primary)] hover:underline"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {file.split("/").pop()}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </Card>
-
-          {task.attachments.length ? (
-            <Card className="flex flex-col gap-3 border border-white/6 bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <h2 className="text-sm font-medium text-white/70">
-                Attachments
-              </h2>
-              <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                {task.attachments.map((file) => (
-                  <li key={file}>
-                    <a
-                      href={file}
-                      className="text-[var(--color-primary)] hover:underline"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {file.split("/").pop()}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ) : null}
         </div>
 
         <div className="lg:sticky lg:top-24 h-fit">
