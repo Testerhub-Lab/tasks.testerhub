@@ -304,12 +304,12 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
             <button
               type="button"
               onClick={handleCopyKey}
-              className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] transition-colors hover:text-white"
+              className="font-semibold uppercase tracking-wide text-white/70 transition-colors hover:text-white"
             >
               {issueKey}
             </button>
@@ -317,7 +317,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               type="button"
               onClick={handleCopyLink}
               aria-label="Copy issue link"
-              className="flex items-center text-[var(--color-text-secondary)] transition-colors hover:text-white"
+              className="inline-flex items-center gap-2 text-white/55 transition-colors hover:text-white"
             >
               <svg
                 width="14"
@@ -332,8 +332,14 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
                 <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
               </svg>
+              <span className="hidden sm:inline">Copy link</span>
             </button>
-            <span className="text-white/30">·</span>
+            {copied === "key" || copied === "link" ? (
+              <span className="text-[11px] text-white/55">Copied</span>
+            ) : null}
+          </div>
+
+          <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
               {editingTitle ? (
                 <input
@@ -359,37 +365,30 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                     }
                     void commitTitle(titleValue);
                   }}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
                   disabled={savingTitle}
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setEditingTitle(true)}
-                  className="w-full rounded-md px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  className="w-full rounded-lg px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
                 >
                   {titleValue}
                 </button>
               )}
             </div>
-            {copied === "key" || copied === "link" ? (
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                Copied
-              </span>
-            ) : null}
-            {details.type ? (
-              <Badge className="text-xs">{details.type}</Badge>
-            ) : null}
           </div>
 
           {savingTitle ? (
-            <span className="text-xs text-[var(--color-text-secondary)]">
-              Saving...
-            </span>
+            <span className="text-xs text-white/50">Saving...</span>
           ) : null}
 
-          {task.tags.length ? (
-            <div className="flex flex-wrap gap-2">
+          {details.type || task.tags.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {details.type ? (
+                <Badge className="text-xs">{details.type}</Badge>
+              ) : null}
               {task.tags.map((tag) => (
                 <Badge key={tag} className="text-xs">
                   {tag}
@@ -399,15 +398,17 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           ) : null}
         </div>
 
-        <BackButton />
+        <div className="flex items-center gap-2">
+          <BackButton />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)]">
         <div className="space-y-6">
-          <Card className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-white/70">
-              Description
-            </h2>
+          <Card className="flex flex-col gap-3 border border-white/6 bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="flex items-center justify-between text-xs text-white/60">
+              <h2 className="text-sm font-medium text-white/70">Description</h2>
+            </div>
 
             {editingDescription ? (
               <div className="space-y-3">
@@ -451,7 +452,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                   rows={12}
                   disabled={savingDescription}
                 />
-                <div className="text-xs text-[var(--color-text-secondary)]">
+                <div className="text-xs text-white/50">
                   Ctrl/Cmd + Enter to save • Esc to cancel
                 </div>
               </div>
@@ -514,7 +515,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                   stepsList.length === 0 &&
                   isEmptyValue(details.expected) &&
                   isEmptyValue(details.actual) ? (
-                    <p className="text-sm text-[var(--color-text-secondary)]">
+                    <p className="text-sm text-white/50">
                       Add description...
                     </p>
                   ) : null}
@@ -522,14 +523,14 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               </button>
             )}
             {savingDescription ? (
-              <span className="text-xs text-[var(--color-text-secondary)]">
+              <span className="text-xs text-white/50">
                 Saving...
               </span>
             ) : null}
           </Card>
 
           {task.attachments.length ? (
-            <Card className="flex flex-col gap-3">
+            <Card className="flex flex-col gap-3 border border-white/6 bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <h2 className="text-sm font-medium text-white/70">
                 Attachments
               </h2>
@@ -551,23 +552,20 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           ) : null}
         </div>
 
-        <IssueMetaPanel
-          id={task.id}
-          projectLabel={projectLabel ?? null}
-          status={task.status}
-          priority={task.priority}
-          environment={details.environment}
-          reporterName={reporterName}
-          assigneeId={task.assignee?.id ?? null}
-          assigneeName={
-            task.assignee
-              ? getDisplayName({ user: task.assignee, fallbackName: null })
-              : null
-          }
-          users={users}
-          createdAt={task.createdAt}
-          updatedAt={task.createdAt}
-        />
+        <div className="lg:sticky lg:top-24 h-fit">
+          <IssueMetaPanel
+            id={task.id}
+            projectLabel={projectLabel ?? null}
+            status={task.status}
+            priority={task.priority}
+            environment={details.environment}
+            reporterName={reporterName}
+            assigneeId={task.assignee?.id ?? null}
+            users={users}
+            createdAt={task.createdAt}
+            updatedAt={task.createdAt}
+          />
+        </div>
       </div>
     </div>
   );
