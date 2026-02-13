@@ -168,8 +168,9 @@ const IssueCard: React.FC<IssueCardProps> = ({
           <div className="flex-none flex items-center gap-2">
             {priorityLevel ? (
               <span
-                className="inline-flex items-end gap-1 text-white/70"
-                title={`Priority: ${String(priority)}`}
+                className="ui-tooltip inline-flex items-end gap-1 text-white/70"
+                data-tooltip={`Priority: ${String(priority)}`}
+                aria-label={`Priority: ${String(priority)}`}
               >
                 {Array.from({ length: 4 }).map((_, index) => {
                   const level = index + 1;
@@ -263,8 +264,12 @@ const IssueCard: React.FC<IssueCardProps> = ({
         {typeLabel || metaName ? (
           <div className="flex items-center gap-2 text-xs text-white/60">
             {typeLabel ? (
-              <span className="inline-flex items-center gap-2" title={`Type: ${typeLabel}`}>
-                <span className={`inline-flex h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
+              <span className="inline-flex items-center gap-2">
+                <span
+                  className={`ui-tooltip inline-flex h-1.5 w-1.5 rounded-full ${typeDotClass}`}
+                  data-tooltip={`Type: ${typeLabel}`}
+                  aria-label={`Type: ${typeLabel}`}
+                />
                 <span>{typeLabel}</span>
               </span>
             ) : null}

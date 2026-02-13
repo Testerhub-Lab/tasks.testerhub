@@ -122,6 +122,51 @@ html::after {
     rgba(2,6,23,0.28);
 }
 
+/* Tooltip (simple, no JS) */
+.ui-tooltip {
+  position: relative;
+}
+
+.ui-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  background: rgba(6, 10, 20, 0.92);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 30;
+}
+
+.ui-tooltip::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, 2px);
+  border: 6px solid transparent;
+  border-top-color: rgba(6, 10, 20, 0.92);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+  z-index: 29;
+}
+
+.ui-tooltip:hover::after,
+.ui-tooltip:hover::before {
+  opacity: 1;
+}
+
 
 html.is-dragging,
 html.is-dragging *,
