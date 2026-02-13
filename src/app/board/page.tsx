@@ -4,6 +4,7 @@ import BoardClient from "../../components/board/BoardClient";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
+import { getUsersForAssignee } from "../../server/queries/users";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import {
@@ -28,7 +29,10 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
 
   const user = await getCurrentUser();
   const workspaceId = await getCurrentWorkspaceId();
-  const tasks = await getTasks(queryFilters, user?.id ?? null, workspaceId);
+  const [tasks, users] = await Promise.all([
+    getTasks(queryFilters, user?.id ?? null, workspaceId),
+    getUsersForAssignee(workspaceId),
+  ]);
   const projects = await getProjects(workspaceId);
   const isFiltered = hasActiveFilters(filters);
 
@@ -65,7 +69,7 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
           </div>
         </div>
       ) : (
-        <BoardClient tasks={tasks} />
+        <BoardClient tasks={tasks} users={users} />
       )}
     </div>
   );

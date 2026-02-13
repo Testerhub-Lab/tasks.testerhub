@@ -18,6 +18,7 @@ export type TaskListItem = Prisma.TaskGetPayload<{
   include: {
     project: true;
     reporter: { select: { id: true; name: true; email: true } };
+    assignee: { select: { id: true; name: true; email: true } };
   };
 }>;
 
@@ -98,6 +99,7 @@ export async function getTasks(
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -108,6 +110,7 @@ export async function getLatestTasks(limit = 10): Promise<TaskListItem[]> {
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -119,6 +122,7 @@ export async function getAllTasks(): Promise<TaskListItem[]> {
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
   });

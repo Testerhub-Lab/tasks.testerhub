@@ -13,10 +13,11 @@ import {
 } from "@dnd-kit/core";
 import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
-import { updateTaskStatusAction } from "../../server/actions/tasks";
+import { updateTaskFieldsAction, updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
 import type { TaskStatus } from "../../server/validators/task";
 import { Priority } from "@prisma/client";
+import type { UserOption } from "../../server/queries/users";
 
 type Status = TaskStatus;
 
@@ -29,6 +30,7 @@ type BoardTask = {
   priority: Priority;
   status: Status;
   createdAt?: string | Date | null;
+  assignee: { id: string; name: string | null; email: string | null } | null;
   reporter: { name: string | null; email: string | null } | null;
   requesterName: string | null;
 };
@@ -42,9 +44,10 @@ const columns: { status: Status; title: string }[] = [
 
 interface BoardClientProps {
   tasks: BoardTask[];
+  users: UserOption[];
 }
 
-const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
+const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
   const router = useRouter();
   const [isMounted, setMounted] = useState(false);
   const [items, setItems] = useState<BoardTask[]>(tasks);
@@ -55,6 +58,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     to: Status;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [savingAssignee, setSavingAssignee] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -159,6 +163,36 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
     }
   };
 
+  const handleAssigneeChange = async (taskId: string, assigneeId: string | null) => {
+    setErrorMessage(null);
+    const previous = items;
+    const nextAssignee =
+      assigneeId === null
+        ? null
+        : users.find((u) => u.id === assigneeId) ?? null;
+
+    setItems((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, assignee: nextAssignee } : t
+      )
+    );
+    setSavingAssignee(taskId);
+    try {
+      const result = await updateTaskFieldsAction({ id: taskId, assigneeId });
+      if (!result.ok) {
+        setItems(previous);
+        setErrorMessage(result.formError ?? "Не удалось обновить исполнителя.");
+        return;
+      }
+      router.refresh();
+    } catch (e) {
+      setItems(previous);
+      setErrorMessage("Не удалось обновить исполнителя.");
+    } finally {
+      setSavingAssignee(null);
+    }
+  };
+
   const columnsMarkup = (
     <div className="grid gap-2 lg:grid-cols-4">
       {columns.map((column) => (
@@ -175,6 +209,9 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                 key={task.id}
                 task={task}
                 isSaving={savingMove?.id === task.id}
+                users={users}
+                onAssigneeChange={handleAssigneeChange}
+                isSavingAssignee={savingAssignee === task.id}
               />
             ) : (
               <IssueCard
@@ -186,8 +223,14 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                 priority={task.priority}
                 status={task.status}
                 createdAt={task.createdAt ?? null}
+                assignee={task.assignee}
                 reporter={task.reporter}
                 requesterName={task.requesterName}
+                users={users}
+                onAssigneeChange={(assigneeId) =>
+                  handleAssigneeChange(task.id, assigneeId)
+                }
+                isSavingAssignee={savingAssignee === task.id}
               />
             )
           )}
@@ -227,8 +270,14 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
                   priority={activeTask.priority}
                   status={activeTask.status}
                   createdAt={activeTask.createdAt ?? null}
+                  assignee={activeTask.assignee}
                   reporter={activeTask.reporter}
                   requesterName={activeTask.requesterName}
+                  users={users}
+                  onAssigneeChange={(assigneeId) =>
+                    handleAssigneeChange(activeTask.id, assigneeId)
+                  }
+                  isSavingAssignee={savingAssignee === activeTask.id}
                 />
               </div>
             ) : null}
@@ -242,11 +291,17 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks }) => {
 interface DraggableIssueCardProps {
   task: BoardTask;
   isSaving: boolean;
+  users: UserOption[];
+  onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
+  isSavingAssignee: boolean;
 }
 
 const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   task,
   isSaving,
+  users,
+  onAssigneeChange,
+  isSavingAssignee,
 }) => {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -288,8 +343,12 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
         priority={task.priority}
         status={task.status}
         createdAt={task.createdAt ?? null}
+        assignee={task.assignee}
         reporter={task.reporter}
         requesterName={task.requesterName}
+        users={users}
+        onAssigneeChange={(assigneeId) => onAssigneeChange(task.id, assigneeId)}
+        isSavingAssignee={isSavingAssignee}
       />
     </div>
   );

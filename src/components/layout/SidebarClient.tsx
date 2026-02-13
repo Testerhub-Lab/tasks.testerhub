@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { setWorkspaceAction } from "@/server/actions/workspaces";
 
 type ProjectOption = { id: string; name: string; key: string };
@@ -31,6 +31,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   canManageWorkspace,
 }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const basePath = getBasePath(pathname);
   const activeProjectId = searchParams.get("projectId");
@@ -46,7 +47,8 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     const result = await setWorkspaceAction(nextId);
     if (result.ok) {
       setWorkspaceOpen(false);
-      window.location.href = basePath;
+      router.push(basePath);
+      router.refresh();
     }
   };
 
