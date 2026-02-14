@@ -106,17 +106,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const skipDescriptionBlurRef = useRef(false);
 
   const details = parseDetails(descriptionValue);
-  const [copied, setCopied] = useState<"key" | "link" | null>(null);
-  const timerRef = useRef<number | null>(null);
-
   const showCopied = (value: "key" | "link") => {
-    setCopied(value);
-    if (timerRef.current) {
-      window.clearTimeout(timerRef.current);
-    }
-    timerRef.current = window.setTimeout(() => {
-      setCopied(null);
-    }, 1200);
+    toast.success(value === "key" ? "Issue key copied" : "Link copied");
   };
 
   const copyToClipboard = async (text: string) => {
@@ -155,14 +146,6 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
       showCopied("link");
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
 
   const isEmptyValue = (value?: string | null) => {
     if (!value) return true;
@@ -302,111 +285,98 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleCopyKey}
-              className="font-semibold uppercase tracking-wide text-white/70 transition-colors hover:text-white"
+              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55 transition-colors hover:text-white/80"
             >
               {issueKey}
             </button>
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="inline-flex items-center gap-2 text-white/55 transition-colors hover:text-white"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
-                <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
-              </svg>
-              <span>Copy link</span>
-            </button>
-            {copied === "key" || copied === "link" ? (
-              <span className="text-[11px] text-white/55">Copied</span>
-            ) : null}
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {editingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  value={titleValue}
+                  onChange={(event) => setTitleValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      skipTitleBlurRef.current = true;
+                      void commitTitle(titleValue);
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      skipTitleBlurRef.current = true;
+                      cancelTitleEdit();
+                    }
+                  }}
+                  onBlur={() => {
+                    if (skipTitleBlurRef.current) {
+                      skipTitleBlurRef.current = false;
+                      return;
+                    }
+                    void commitTitle(titleValue);
+                  }}
+                  className="w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-lg font-medium leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  disabled={savingTitle}
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTitle(true)}
+                    className="max-w-[70%] min-w-0 truncate rounded-lg px-2 py-1 text-left text-lg font-medium leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                  >
+                    {titleValue}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleCopyLink();
+                    }}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/55 transition hover:bg-white/6 hover:text-white"
+                    title="Copy link"
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
+                      <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-          <BackButton />
-        </div>
-
-        <div className="min-w-0">
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={(event) => setTitleValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  skipTitleBlurRef.current = true;
-                  void commitTitle(titleValue);
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  skipTitleBlurRef.current = true;
-                  cancelTitleEdit();
-                }
-              }}
-              onBlur={() => {
-                if (skipTitleBlurRef.current) {
-                  skipTitleBlurRef.current = false;
-                  return;
-                }
-                void commitTitle(titleValue);
-              }}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-2xl font-semibold leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
-              disabled={savingTitle}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditingTitle(true)}
-              className="w-full rounded-lg px-2 py-1 text-left text-2xl font-semibold leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
-            >
-              {titleValue}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <BackButton />
+          </div>
         </div>
 
         {savingTitle ? (
           <span className="text-xs text-white/50">Saving...</span>
         ) : null}
-
-        {details.type || task.tags.length ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {details.type ? (
-              <Badge className="text-[11px] px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-white/70">
-                {details.type}
-              </Badge>
-            ) : null}
-            {task.tags.map((tag) => (
-              <Badge
-                key={tag}
-                className="text-[11px] px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-white/70"
-              >
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)]">
         <div className="space-y-6">
-          <Card className="flex flex-col gap-6 border border-white/6 bg-white/[0.02] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <Card className="flex flex-col gap-6 border border-white/4 bg-white/[0.012] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between text-xs text-white/60">
-              <h2 className="text-sm font-medium text-white/70">Description</h2>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
+                Description
+              </h2>
             </div>
 
             {editingDescription ? (
@@ -461,10 +431,12 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 onClick={() => setEditingDescription(true)}
                 className="w-full rounded-md px-2 py-2 text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
               >
-                <div className="space-y-4 prose prose-invert max-w-none">
+                <div className="space-y-5 prose prose-invert max-w-none">
                   {!isEmptyValue(details.description) ? (
                     <div className="space-y-1">
-                      <div className="text-xs font-semibold text-white/70">Summary</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+                        Summary
+                      </div>
                       <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
                         {cleanSummary(details.description)}
                       </p>
@@ -473,7 +445,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
                   {!isEmptyValue(details.environment) ? (
                     <div className="space-y-1">
-                      <div className="text-xs font-semibold text-white/70">Environment</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+                        Environment
+                      </div>
                       <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
                         {details.environment}
                       </p>
@@ -482,7 +456,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
                   {stepsList.length ? (
                     <div className="space-y-1">
-                      <div className="text-xs font-semibold text-white/70">Steps</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+                        Steps
+                      </div>
                       <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--color-text-secondary)]">
                         {stepsList.map((step, idx) => (
                           <li key={`${step}-${idx}`}>{step}</li>
@@ -493,7 +469,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
                   {!isEmptyValue(details.expected) ? (
                     <div className="space-y-1">
-                      <div className="text-xs font-semibold text-white/70">Expected</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+                        Expected
+                      </div>
                       <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
                         {details.expected}
                       </p>
@@ -502,7 +480,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
                   {!isEmptyValue(details.actual) ? (
                     <div className="space-y-1">
-                      <div className="text-xs font-semibold text-white/70">Actual</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+                        Actual
+                      </div>
                       <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
                         {details.actual}
                       </p>
@@ -527,7 +507,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
             {task.attachments.length ? (
               <div className="space-y-3 border-t border-white/8 pt-4">
-                <h2 className="text-sm font-medium text-white/70">Attachments</h2>
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
+                  Attachments
+                </h2>
                 <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
                   {task.attachments.map((file) => (
                     <li key={file}>
@@ -556,6 +538,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             environment={details.environment}
             reporterName={reporterName}
             assigneeId={task.assignee?.id ?? null}
+            tags={task.tags}
+            typeLabel={details.type ?? null}
             users={users}
             createdAt={task.createdAt}
             updatedAt={task.createdAt}

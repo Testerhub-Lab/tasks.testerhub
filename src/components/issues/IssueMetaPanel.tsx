@@ -32,6 +32,8 @@ interface IssueMetaPanelProps {
   environment?: string | null;
   reporterName?: string | null;
   assigneeId?: string | null;
+  tags?: string[];
+  typeLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
@@ -45,6 +47,8 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   environment,
   reporterName,
   assigneeId,
+  tags,
+  typeLabel,
   users,
   createdAt,
   updatedAt,
@@ -168,17 +172,41 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   })();
 
   return (
-    <div className="space-y-3 rounded-2xl border border-white/6 bg-white/[0.02] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-white/70">Properties</h3>
-        {isSaving ? (
-          <span className="text-xs text-white/50">Saving...</span>
-        ) : null}
-      </div>
+    <div className="space-y-3 rounded-xl border border-white/4 bg-white/[0.012] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      {isSaving ? (
+        <div className="text-[11px] text-white/50">Saving...</div>
+      ) : null}
 
       <div className="space-y-1 text-xs text-white/60">
+        {typeLabel || (tags && tags.length) ? (
+          <div className="flex items-start justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+            <div className="flex items-center gap-2 text-white/60">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M20 12V4H4v8" />
+                <path d="M4 12l8 8 8-8" />
+              </svg>
+              <span>Tags</span>
+            </div>
+            <div className="flex flex-wrap justify-end gap-1.5 text-[11px] text-white/65">
+              {typeLabel ? (
+                <span className="rounded-md border border-white/8 bg-white/3 px-2 py-0.5">
+                  {typeLabel}
+                </span>
+              ) : null}
+              {(tags ?? []).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-md border border-white/8 bg-white/3 px-2 py-0.5"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {projectLabel ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 7h18" />
@@ -187,11 +215,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               </svg>
               <span>Project</span>
             </div>
-            <span className="text-sm text-white/80">{projectLabel}</span>
+            <span className="min-w-0 text-right text-sm text-white/80 truncate">
+              {projectLabel}
+            </span>
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M20 21a8 8 0 1 0-16 0" />
@@ -215,7 +245,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               >
                 {assigneeInitials || "—"}
               </span>
-              <span className="min-w-[120px] text-right">{assigneeLabel}</span>
+              <span className="max-w-[160px] min-w-0 text-right truncate">{assigneeLabel}</span>
             </button>
             {openMenu === "assignee" ? (
               <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
@@ -267,7 +297,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         </div>
 
         {reporterName ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M12 20v-6" />
@@ -277,11 +307,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               </svg>
               <span>Reporter</span>
             </div>
-            <span className="text-sm text-white/80">{reporterName}</span>
+            <span className="min-w-0 text-right text-sm text-white/80 truncate">
+              {reporterName}
+            </span>
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M4 7h16" />
@@ -294,9 +326,9 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             <button
               type="button"
               onClick={() => setOpenMenu(openMenu === "status" ? null : "status")}
-              className="flex min-w-[160px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
             >
-              <span>{statusLabel[currentStatus] ?? currentStatus}</span>
+              <span className="truncate">{statusLabel[currentStatus] ?? currentStatus}</span>
             </button>
             {openMenu === "status" ? (
               <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
@@ -319,7 +351,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M3 12h4" />
@@ -332,7 +364,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             <button
               type="button"
               onClick={() => setOpenMenu(openMenu === "priority" ? null : "priority")}
-              className="flex min-w-[160px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
             >
               <span className="inline-flex items-end gap-1 text-white/70">
                 {Array.from({ length: 4 }).map((_, index) => {
@@ -348,7 +380,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
                   );
                 })}
               </span>
-              <span>{priorityLabel[currentPriority] ?? currentPriority}</span>
+              <span className="truncate">{priorityLabel[currentPriority] ?? currentPriority}</span>
             </button>
             {openMenu === "priority" ? (
               <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
@@ -372,7 +404,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         </div>
 
         {environment ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/4">
+          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M12 2v4" />
@@ -386,7 +418,9 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               </svg>
               <span>Environment</span>
             </div>
-            <span className="text-sm text-white/80">{environment}</span>
+            <span className="min-w-0 text-right text-sm text-white/80 truncate">
+              {environment}
+            </span>
           </div>
         ) : null}
 
