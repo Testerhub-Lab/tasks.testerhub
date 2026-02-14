@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
@@ -11,6 +10,7 @@ import { formatDate, getStatusLabel } from "../issues/utils";
 import { getDisplayName } from "../../server/auth/displayName";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import type { TaskStatus } from "../../server/validators/task";
+import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 
 type CommentItem = {
   id: string;
@@ -87,6 +87,7 @@ type ActivityItem =
     };
 
 interface TaskCommentsProps {
+  boardId: string;
   taskId: string;
   issueKey: string;
   createdAt: Date;
@@ -103,19 +104,20 @@ const makeClientId = () =>
   `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
 const TaskComments: React.FC<TaskCommentsProps> = ({
+  boardId,
   taskId,
   issueKey,
   createdAt,
   comments,
   activities,
 }) => {
-  const router = useRouter();
-
   const [text, setText] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [isFocused, setFocused] = useState(false);
 
   const [pending, setPending] = useState<PendingComment[]>([]);
+  const [serverComments, setServerComments] = useState<CommentItem[]>(comments);
+  const [serverActivities, setServerActivities] = useState<TaskActivityItem[]>(activities);
   const [isSubmitting, setSubmitting] = useState(false);
   const [view, setView] = useState<"all" | "comments">("all");
 
@@ -137,6 +139,65 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    setServerComments(comments);
+  }, [comments]);
+
+  useEffect(() => {
+    setServerActivities(activities);
+  }, [activities]);
+
+  useBoardRealtime({
+    boardId,
+    enabled: Boolean(boardId),
+    onEvent: (event) => {
+      if (event.type === "comment_added" && event.payload.comment.taskId === taskId) {
+        const comment = event.payload.comment;
+        setServerComments((prev) => {
+          if (prev.some((item) => item.id === comment.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: comment.id,
+              taskId: comment.taskId,
+              text: comment.text,
+              userId: comment.userId,
+              authorName: comment.authorName,
+              createdAt: new Date(comment.createdAt),
+              user: null,
+            },
+          ];
+        });
+      }
+
+      if (event.type === "task_updated" && event.payload.task.id === taskId) {
+        const nextStatus = event.payload.task.status;
+        if (!nextStatus) return;
+        setServerActivities((prev) => {
+          const lastStatus = [...prev]
+            .reverse()
+            .find((item) => item.type === "STATUS_CHANGED" && item.toStatus)
+            ?.toStatus;
+
+          if (!lastStatus || lastStatus === nextStatus) return prev;
+
+          return [
+            ...prev,
+            {
+              id: `sse:${taskId}:${Date.now()}`,
+              type: "STATUS_CHANGED",
+              createdAt: new Date(),
+              fromStatus: lastStatus,
+              toStatus: nextStatus,
+              authorName: null,
+              user: null,
+            },
+          ];
+        });
+      }
+    },
+  });
+
   // 1) Hash #activity — мягко скроллим к Activity (если браузер сам не успел/не смог)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -147,7 +208,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   }, []);
 
   const activity: ActivityItem[] = useMemo(() => {
-    const createdActivity = activities.find((a) => a.type === "CREATED") ?? null;
+    const createdActivity = serverActivities.find((a) => a.type === "CREATED") ?? null;
     const created: ActivityItem = {
       kind: "created",
       id: "created",
@@ -162,7 +223,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
         : null,
     };
 
-    const statusEvents: ActivityItem[] = activities
+    const statusEvents: ActivityItem[] = serverActivities
       .filter((a) => a.type === "STATUS_CHANGED" && a.fromStatus && a.toStatus)
       .map((a) => ({
         kind: "status",
@@ -176,7 +237,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
         toStatus: a.toStatus!,
       }));
 
-    const serverComments: ActivityItem[] = comments.map((c) => {
+    const renderedServerComments: ActivityItem[] = serverComments.map((c) => {
       const displayName = getDisplayName({
         user: c.user,
         fallbackName: c.authorName,
@@ -205,7 +266,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
     }));
 
     const hasAnyComments =
-      serverComments.length > 0 || pendingComments.length > 0 || statusEvents.length > 0;
+      renderedServerComments.length > 0 || pendingComments.length > 0 || statusEvents.length > 0;
 
     const empty: ActivityItem | null = hasAnyComments
       ? null
@@ -216,12 +277,12 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
           text: "No comments yet. Be the first to comment.",
         };
 
-    const merged = [created, ...statusEvents, ...serverComments, ...pendingComments].sort(
+    const merged = [created, ...statusEvents, ...renderedServerComments, ...pendingComments].sort(
       (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
     );
 
     return empty ? [created, empty, ...merged.slice(1)] : merged;
-  }, [activities, comments, createdAt, issueKey, pending]);
+  }, [createdAt, issueKey, pending, serverActivities, serverComments]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = listRef.current;
@@ -306,8 +367,6 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
           )
         );
 
-        router.refresh();
-
         setTimeout(() => {
           setPending((prev) => prev.filter((p) => p.clientId !== clientId));
         }, 500);
@@ -324,7 +383,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
         setSubmitting(false);
       }
     },
-    [authorName, router, scrollToBottom, setHighlight, taskId, text]
+    [authorName, scrollToBottom, setHighlight, taskId, text]
   );
 
   const retry = useCallback(

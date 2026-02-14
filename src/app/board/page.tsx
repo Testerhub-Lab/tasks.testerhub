@@ -69,7 +69,11 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
           </div>
         </div>
       ) : (
-        <BoardClient tasks={tasks} users={users} />
+        <BoardClient
+          tasks={tasks}
+          users={users}
+          boardId={filters.projectId ?? `workspace:${workspaceId}`}
+        />
       )}
     </div>
   );

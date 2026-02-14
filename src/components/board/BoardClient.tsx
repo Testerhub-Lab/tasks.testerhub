@@ -18,11 +18,14 @@ import { useRouter } from "next/navigation";
 import type { TaskStatus } from "../../server/validators/task";
 import { Priority } from "@prisma/client";
 import type { UserOption } from "../../server/queries/users";
+import { useBoardRealtime } from "@/hooks/useBoardRealtime";
+import type { RealtimeEvent } from "@/types/realtime";
 
 type Status = TaskStatus;
 
 type BoardTask = {
   id: string;
+  projectId: string;
   key: string | null;
   title: string;
   type: string | null;
@@ -45,9 +48,10 @@ const columns: { status: Status; title: string }[] = [
 interface BoardClientProps {
   tasks: BoardTask[];
   users: UserOption[];
+  boardId?: string | null;
 }
 
-const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
+const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null }) => {
   const router = useRouter();
   const [isMounted, setMounted] = useState(false);
   const [items, setItems] = useState<BoardTask[]>(tasks);
@@ -59,6 +63,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savingAssignee, setSavingAssignee] = useState<string | null>(null);
+  const [dndSyncKey, setDndSyncKey] = useState(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -69,6 +74,102 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
   useEffect(() => {
     setItems(tasks);
   }, [tasks]);
+
+  useEffect(() => {
+    setDndSyncKey((prev) => prev + 1);
+  }, [tasks]);
+
+  const effectiveBoardId = useMemo(() => boardId ?? null, [boardId]);
+
+  const applyRealtimeEvent = React.useCallback(
+    (event: RealtimeEvent) => {
+      setItems((prev) => {
+        if (event.type === "task_deleted") {
+          return prev.filter((task) => task.id !== event.payload.taskId);
+        }
+
+        if (event.type === "task_created") {
+          const nextTask = event.payload.task;
+          const assignee =
+            nextTask.assigneeId !== null
+              ? users.find((user) => user.id === nextTask.assigneeId) ?? null
+              : null;
+          const mappedTask: BoardTask = {
+            id: nextTask.id,
+            projectId: nextTask.projectId,
+            key: nextTask.key,
+            title: nextTask.title,
+            type: nextTask.type,
+            description: nextTask.description,
+            priority: nextTask.priority,
+            status: nextTask.status,
+            createdAt: nextTask.createdAt,
+            assignee,
+            reporter: null,
+            requesterName: nextTask.requesterName,
+          };
+
+          const exists = prev.some((task) => task.id === mappedTask.id);
+          if (exists) {
+            return prev.map((task) => (task.id === mappedTask.id ? { ...task, ...mappedTask } : task));
+          }
+          return [mappedTask, ...prev];
+        }
+
+        if (event.type === "task_updated") {
+          const nextTask = event.payload.task;
+          return prev.map((task) => {
+            if (task.id !== nextTask.id) return task;
+            const nextAssignee =
+              typeof nextTask.assigneeId !== "undefined"
+                ? nextTask.assigneeId !== null
+                  ? users.find((user) => user.id === nextTask.assigneeId) ?? null
+                  : null
+                : task.assignee;
+
+            return {
+              ...task,
+              key: typeof nextTask.key !== "undefined" ? nextTask.key : task.key,
+              title: typeof nextTask.title !== "undefined" ? nextTask.title : task.title,
+              type: typeof nextTask.type !== "undefined" ? nextTask.type : task.type,
+              description:
+                typeof nextTask.description !== "undefined"
+                  ? nextTask.description
+                  : task.description,
+              priority:
+                typeof nextTask.priority !== "undefined"
+                  ? nextTask.priority
+                  : task.priority,
+              status:
+                typeof nextTask.status !== "undefined"
+                  ? (nextTask.status as Status)
+                  : task.status,
+              createdAt:
+                typeof nextTask.createdAt !== "undefined"
+                  ? nextTask.createdAt
+                  : task.createdAt,
+              requesterName:
+                typeof nextTask.requesterName !== "undefined"
+                  ? nextTask.requesterName
+                  : task.requesterName,
+              assignee: nextAssignee,
+            };
+          });
+        }
+
+        return prev;
+      });
+    },
+    [users]
+  );
+
+  useBoardRealtime({
+    boardId: effectiveBoardId,
+    enabled: Boolean(effectiveBoardId),
+    onEvent: (event) => {
+      applyRealtimeEvent(event);
+    },
+  });
 
   const cleanupDragState = React.useCallback(() => {
     setIsDragging(false);
@@ -119,6 +220,19 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
     for (const t of items) map[t.status]?.push(t);
     return map;
   }, [items]);
+
+  const dndSignature = useMemo(
+    () =>
+      items
+        .map((task) => `${task.id}:${task.status}:${task.assignee?.id ?? ""}`)
+        .join("|"),
+    [items]
+  );
+
+  useEffect(() => {
+    if (!isMounted) return;
+    setDndSyncKey((prev) => prev + 1);
+  }, [dndSignature, isMounted]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;
@@ -249,6 +363,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users }) => {
         columnsMarkup
       ) : (
         <DndContext
+          key={dndSyncKey}
           sensors={sensors}
           onDragStart={(event) => {
             setActiveId(String(event.active.id));

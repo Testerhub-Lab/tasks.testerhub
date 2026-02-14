@@ -46,6 +46,7 @@ const TaskPage = async ({ params }: TaskPageProps) => {
       <IssueDetails task={task} />
       <div id="activity" className="mx-auto max-w-6xl space-y-4 scroll-mt-24">
       <TaskComments
+        boardId={task.projectId}
         taskId={task.id}
         issueKey={(task as { key?: string | null }).key ?? task.id}
         createdAt={task.createdAt}
