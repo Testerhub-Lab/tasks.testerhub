@@ -101,6 +101,14 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   }, [assigneeId]);
 
   React.useEffect(() => {
+    setCurrentStatus(status ?? Status.NEW);
+  }, [status]);
+
+  React.useEffect(() => {
+    setCurrentPriority(priority ?? Priority.MEDIUM);
+  }, [priority]);
+
+  React.useEffect(() => {
     if (!openMenu) return;
     const handleClick = (event: MouseEvent) => {
       const activeRef =

@@ -4,6 +4,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { sseManager } from "../../lib/sse";
+import type { RealtimeEvent } from "../../types/realtime";
 import { ActivityType, Status } from "@prisma/client";
 import { getCurrentUser } from "../auth/session";
 import { getCurrentWorkspaceId } from "../auth/workspace";
@@ -64,6 +66,17 @@ function buildDescription(base: string | null | undefined, extra: string[]) {
   return `${cleanBase}\n\n${cleanExtra.join("\n\n")}`;
 }
 
+async function broadcastTaskEvent(
+  projectId: string,
+  workspaceId: string,
+  event: RealtimeEvent
+) {
+  await Promise.all([
+    sseManager.broadcast(projectId, event),
+    sseManager.broadcast(`workspace:${workspaceId}`, event),
+  ]);
+}
+
 export async function createTaskAction(data: TaskInput) {
   try {
     const validated = taskSchema.parse(data);
@@ -76,6 +89,7 @@ export async function createTaskAction(data: TaskInput) {
       where: { id: validated.projectId, workspaceId },
       select: {
         id: true,
+        workspaceId: true,
         key: true,
         nextIssueNumber: true,
         allowGuest: true,
@@ -159,7 +173,19 @@ export async function createTaskAction(data: TaskInput) {
           number: nextNumber,
           key: taskKey,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          projectId: true,
+          key: true,
+          title: true,
+          description: true,
+          type: true,
+          priority: true,
+          status: true,
+          assigneeId: true,
+          requesterName: true,
+          createdAt: true,
+        },
       });
 
       await tx.taskActivity.create({
@@ -172,7 +198,38 @@ export async function createTaskAction(data: TaskInput) {
         select: { id: true },
       });
 
-      return { id: created.id, key: taskKey };
+      return {
+        id: created.id,
+        key: taskKey,
+        projectId: created.projectId,
+        title: created.title,
+        description: created.description,
+        type: created.type,
+        priority: created.priority,
+        status: created.status,
+        assigneeId: created.assigneeId,
+        requesterName: created.requesterName,
+        createdAt: created.createdAt,
+      };
+    });
+
+    await broadcastTaskEvent(txResult.projectId, project.workspaceId, {
+      type: "task_created",
+      payload: {
+        task: {
+          id: txResult.id,
+          projectId: txResult.projectId,
+          key: txResult.key,
+          title: txResult.title,
+          description: txResult.description,
+          type: txResult.type,
+          priority: txResult.priority,
+          status: txResult.status,
+          assigneeId: txResult.assigneeId,
+          requesterName: txResult.requesterName,
+          createdAt: txResult.createdAt.toISOString(),
+        },
+      },
     });
 
     revalidatePath("/board");
@@ -201,7 +258,10 @@ export async function updateTaskStatusAction(data: {
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id },
-      select: { project: { select: { allowGuest: true, workspaceId: true } } },
+      select: {
+        projectId: true,
+        project: { select: { allowGuest: true, workspaceId: true } },
+      },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
@@ -221,10 +281,22 @@ export async function updateTaskStatusAction(data: {
       select: { status: true },
     });
 
-    await prisma.task.update({
+    const updatedTask = await prisma.task.update({
       where: { id: validatedData.id },
       data: { status: validatedData.status },
-      select: { id: true, key: true },
+      select: {
+        id: true,
+        projectId: true,
+        key: true,
+        title: true,
+        description: true,
+        type: true,
+        priority: true,
+        status: true,
+        assigneeId: true,
+        requesterName: true,
+        createdAt: true,
+      },
     });
 
     if (existing?.status && existing.status !== validatedData.status) {
@@ -240,6 +312,25 @@ export async function updateTaskStatusAction(data: {
         select: { id: true },
       });
     }
+
+    await broadcastTaskEvent(updatedTask.projectId, taskProject.project.workspaceId, {
+      type: "task_updated",
+      payload: {
+        task: {
+          id: updatedTask.id,
+          projectId: updatedTask.projectId,
+          key: updatedTask.key,
+          title: updatedTask.title,
+          description: updatedTask.description,
+          type: updatedTask.type,
+          priority: updatedTask.priority,
+          status: updatedTask.status,
+          assigneeId: updatedTask.assigneeId,
+          requesterName: updatedTask.requesterName,
+          createdAt: updatedTask.createdAt.toISOString(),
+        },
+      },
+    });
 
     revalidatePath("/board");
     revalidatePath("/backlog");
@@ -271,7 +362,10 @@ export async function updateTaskFieldsAction(data: {
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id },
-      select: { project: { select: { allowGuest: true, workspaceId: true } } },
+      select: {
+        projectId: true,
+        project: { select: { allowGuest: true, workspaceId: true } },
+      },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
@@ -316,7 +410,19 @@ export async function updateTaskFieldsAction(data: {
             ? validatedData.assigneeId
             : undefined,
       },
-      select: { key: true },
+      select: {
+        id: true,
+        projectId: true,
+        key: true,
+        title: true,
+        description: true,
+        type: true,
+        priority: true,
+        status: true,
+        assigneeId: true,
+        requesterName: true,
+        createdAt: true,
+      },
     });
 
     if (
@@ -336,6 +442,25 @@ export async function updateTaskFieldsAction(data: {
         select: { id: true },
       });
     }
+
+    await broadcastTaskEvent(taskProject.projectId, taskProject.project.workspaceId, {
+      type: "task_updated",
+      payload: {
+        task: {
+          id: updated.id,
+          projectId: updated.projectId,
+          key: updated.key,
+          title: updated.title,
+          description: updated.description,
+          type: updated.type,
+          priority: updated.priority,
+          status: updated.status,
+          assigneeId: updated.assigneeId,
+          requesterName: updated.requesterName,
+          createdAt: updated.createdAt.toISOString(),
+        },
+      },
+    });
 
     revalidatePath(`/tasks/${updated.key ?? validatedData.id}`);
     revalidatePath("/board");
@@ -365,7 +490,10 @@ export async function addCommentAction(data: {
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.taskId },
-      select: { project: { select: { allowGuest: true, workspaceId: true } } },
+      select: {
+        projectId: true,
+        project: { select: { allowGuest: true, workspaceId: true } },
+      },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
@@ -380,7 +508,7 @@ export async function addCommentAction(data: {
       return { ok: false as const, formError: "Требуется авторизация" };
     }
 
-    await prisma.comment.create({
+    const createdComment = await prisma.comment.create({
       data: {
         taskId: validatedData.taskId,
         text: validatedData.text,
@@ -389,8 +517,32 @@ export async function addCommentAction(data: {
           ? null
           : (validatedData.authorName?.trim() ?? "Гость"),
       },
-      select: { id: true },
+      select: {
+        id: true,
+        taskId: true,
+        text: true,
+        userId: true,
+        authorName: true,
+        createdAt: true,
+      },
     });
+
+    if (taskProject?.projectId) {
+      await broadcastTaskEvent(taskProject.projectId, taskProject.project.workspaceId, {
+        type: "comment_added",
+        payload: {
+          projectId: taskProject.projectId,
+          comment: {
+            id: createdComment.id,
+            taskId: createdComment.taskId,
+            text: createdComment.text,
+            userId: createdComment.userId,
+            authorName: createdComment.authorName,
+            createdAt: createdComment.createdAt.toISOString(),
+          },
+        },
+      });
+    }
 
     const task = await prisma.task.findUnique({
       where: { id: validatedData.taskId },

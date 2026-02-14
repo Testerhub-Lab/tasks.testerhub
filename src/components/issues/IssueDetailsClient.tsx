@@ -10,6 +10,8 @@ import { getDisplayName } from "../../server/auth/displayName";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
 import { toast } from "../ui/toast";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import { useBoardRealtime } from "@/hooks/useBoardRealtime";
+import { useRouter } from "next/navigation";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -87,13 +89,15 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   projectLabel,
   users,
 }) => {
-  const issueKey = task.key ?? task.id;
+  const router = useRouter();
+  const [liveTask, setLiveTask] = useState<TaskWithProjectAndReporter>(task);
+  const issueKey = liveTask.key ?? liveTask.id;
   const reporterName = getDisplayName({
-    user: task.reporter ?? null,
-    fallbackName: task.requesterName ?? null,
+    user: liveTask.reporter ?? null,
+    fallbackName: liveTask.requesterName ?? null,
   });
-  const [titleValue, setTitleValue] = useState(task.title ?? "");
-  const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
+  const [titleValue, setTitleValue] = useState(liveTask.title ?? "");
+  const [descriptionValue, setDescriptionValue] = useState(liveTask.description ?? "");
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
@@ -169,20 +173,68 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     : [];
 
   useEffect(() => {
+    setLiveTask(task);
+  }, [task]);
+
+  useBoardRealtime({
+    boardId: liveTask.projectId,
+    enabled: Boolean(liveTask.projectId),
+    onEvent: (event) => {
+      if (event.type === "task_updated" && event.payload.task.id === liveTask.id) {
+        const payload = event.payload.task;
+        setLiveTask((prev) => {
+          const assignee =
+            typeof payload.assigneeId !== "undefined"
+              ? payload.assigneeId
+                ? users.find((u) => u.id === payload.assigneeId) ?? null
+                : null
+              : prev.assignee;
+
+          return {
+            ...prev,
+            key: typeof payload.key !== "undefined" ? payload.key : prev.key,
+            title: typeof payload.title !== "undefined" ? payload.title : prev.title,
+            description:
+              typeof payload.description !== "undefined"
+                ? payload.description
+                : prev.description,
+            type: typeof payload.type !== "undefined" ? payload.type : prev.type,
+            priority:
+              typeof payload.priority !== "undefined"
+                ? payload.priority
+                : prev.priority,
+            status:
+              typeof payload.status !== "undefined" ? payload.status : prev.status,
+            requesterName:
+              typeof payload.requesterName !== "undefined"
+                ? payload.requesterName
+                : prev.requesterName,
+            assignee,
+          };
+        });
+      }
+
+      if (event.type === "task_deleted" && event.payload.taskId === liveTask.id) {
+        router.refresh();
+      }
+    },
+  });
+
+  useEffect(() => {
     if (!editingTitle) {
-      const nextTitle = task.title ?? "";
+      const nextTitle = liveTask.title ?? "";
       setTitleValue(nextTitle);
       originalTitleRef.current = nextTitle;
     }
-  }, [task.title, editingTitle]);
+  }, [liveTask.title, editingTitle]);
 
   useEffect(() => {
     if (!editingDescription) {
-      const nextDescription = task.description ?? "";
+      const nextDescription = liveTask.description ?? "";
       setDescriptionValue(nextDescription);
       originalDescriptionRef.current = nextDescription;
     }
-  }, [task.description, editingDescription]);
+  }, [liveTask.description, editingDescription]);
 
   useEffect(() => {
     if (editingTitle && titleInputRef.current) {
@@ -230,7 +282,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     setTitleValue(trimmed);
     try {
       const result = await updateTaskFieldsAction({
-        id: task.id,
+        id: liveTask.id,
         title: trimmed,
       });
       if (!result.ok) {
@@ -264,7 +316,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     setDescriptionValue(nextDescription);
     try {
       const result = await updateTaskFieldsAction({
-        id: task.id,
+        id: liveTask.id,
         description: payload,
       });
       if (!result.ok) {
@@ -505,13 +557,13 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               <span className="text-xs text-white/50">Saving...</span>
             ) : null}
 
-            {task.attachments.length ? (
+            {liveTask.attachments.length ? (
               <div className="space-y-3 border-t border-white/8 pt-4">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
                   Attachments
                 </h2>
                 <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                  {task.attachments.map((file) => (
+                  {liveTask.attachments.map((file) => (
                     <li key={file}>
                       <a
                         href={file}
@@ -531,18 +583,18 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
         <div className="lg:sticky lg:top-24 h-fit">
           <IssueMetaPanel
-            id={task.id}
+            id={liveTask.id}
             projectLabel={projectLabel ?? null}
-            status={task.status}
-            priority={task.priority}
+            status={liveTask.status}
+            priority={liveTask.priority}
             environment={details.environment}
             reporterName={reporterName}
-            assigneeId={task.assignee?.id ?? null}
-            tags={task.tags}
+            assigneeId={liveTask.assignee?.id ?? null}
+            tags={liveTask.tags}
             typeLabel={details.type ?? null}
             users={users}
-            createdAt={task.createdAt}
-            updatedAt={task.createdAt}
+            createdAt={liveTask.createdAt}
+            updatedAt={liveTask.createdAt}
           />
         </div>
       </div>
