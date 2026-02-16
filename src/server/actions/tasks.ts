@@ -56,6 +56,10 @@ const addCommentSchema = z.object({
   authorName: z.string().max(120).optional(),
 });
 
+const taskDeleteSchema = z.object({
+  taskId: z.string().cuid(),
+});
+
 function buildDescription(base: string | null | undefined, extra: string[]) {
   const cleanBase = (base ?? "").trim();
   const cleanExtra = extra.map((x) => x.trim()).filter(Boolean);
@@ -75,6 +79,53 @@ async function broadcastTaskEvent(
     sseManager.broadcast(projectId, event),
     sseManager.broadcast(`workspace:${workspaceId}`, event),
   ]);
+}
+
+async function canManageTaskDeletion(params: {
+  taskId: string;
+  currentUserId: string | null;
+  workspaceId: string;
+  currentUserRole: "ADMIN" | "USER" | null;
+}) {
+  const task = await prisma.task.findFirst({
+    where: { id: params.taskId },
+    select: {
+      id: true,
+      key: true,
+      status: true,
+      projectId: true,
+      creatorId: true,
+      isDeleted: true,
+      project: { select: { workspaceId: true } },
+    },
+  });
+
+  if (!task || task.project.workspaceId !== params.workspaceId) {
+    return { ok: false as const, formError: "Недоступно" };
+  }
+
+  const isCreator = Boolean(params.currentUserId && task.creatorId === params.currentUserId);
+  const isGlobalAdmin = params.currentUserRole === "ADMIN";
+  let isWorkspaceAdmin = false;
+
+  if (params.currentUserId) {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: task.project.workspaceId,
+          userId: params.currentUserId,
+        },
+      },
+      select: { role: true },
+    });
+    isWorkspaceAdmin = membership?.role === "ADMIN";
+  }
+
+  if (!isCreator && !isWorkspaceAdmin && !isGlobalAdmin) {
+    return { ok: false as const, formError: "Недостаточно прав" };
+  }
+
+  return { ok: true as const, task };
 }
 
 export async function createTaskAction(data: TaskInput) {
@@ -164,6 +215,7 @@ export async function createTaskAction(data: TaskInput) {
           dueDate: validated.dueDate ?? null,
 
           reporterId: effectiveReporterId,
+          creatorId: authUser?.id ?? null,
           assigneeId: validated.assigneeId ?? null,
 
           requesterName: effectiveRequesterName,
@@ -257,7 +309,7 @@ export async function updateTaskStatusAction(data: {
 
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
-      where: { id: validatedData.id },
+      where: { id: validatedData.id, isDeleted: false },
       select: {
         projectId: true,
         project: { select: { allowGuest: true, workspaceId: true } },
@@ -361,7 +413,7 @@ export async function updateTaskFieldsAction(data: {
 
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
-      where: { id: validatedData.id },
+      where: { id: validatedData.id, isDeleted: false },
       select: {
         projectId: true,
         project: { select: { allowGuest: true, workspaceId: true } },
@@ -489,7 +541,7 @@ export async function addCommentAction(data: {
 
     const workspaceId = await getCurrentWorkspaceId();
     const taskProject = await prisma.task.findFirst({
-      where: { id: validatedData.taskId },
+      where: { id: validatedData.taskId, isDeleted: false },
       select: {
         projectId: true,
         project: { select: { allowGuest: true, workspaceId: true } },
@@ -560,5 +612,130 @@ export async function addCommentAction(data: {
       return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
     return { ok: false as const, formError: "Не удалось добавить комментарий." };
+  }
+}
+
+export async function deleteTaskAction(taskId: string) {
+  try {
+    const validated = taskDeleteSchema.parse({ taskId });
+    const [authUser, workspaceId] = await Promise.all([
+      getCurrentUser(),
+      getCurrentWorkspaceId(),
+    ]);
+
+    const permission = await canManageTaskDeletion({
+      taskId: validated.taskId,
+      currentUserId: authUser?.id ?? null,
+      workspaceId,
+      currentUserRole: authUser?.role ?? null,
+    });
+
+    if (!permission.ok) return permission;
+    if (permission.task.isDeleted) return { ok: true as const };
+
+    await prisma.task.update({
+      where: { id: permission.task.id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    await broadcastTaskEvent(permission.task.projectId, workspaceId, {
+      type: "task_deleted",
+      payload: {
+        taskId: permission.task.id,
+        projectId: permission.task.projectId,
+      },
+    });
+
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
+    revalidatePath("/trash");
+    revalidatePath(`/tasks/${permission.task.key ?? permission.task.id}`);
+
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
+    }
+    return { ok: false as const, formError: "Не удалось удалить задачу." };
+  }
+}
+
+export async function restoreTaskAction(taskId: string) {
+  try {
+    const validated = taskDeleteSchema.parse({ taskId });
+    const [authUser, workspaceId] = await Promise.all([
+      getCurrentUser(),
+      getCurrentWorkspaceId(),
+    ]);
+
+    const permission = await canManageTaskDeletion({
+      taskId: validated.taskId,
+      currentUserId: authUser?.id ?? null,
+      workspaceId,
+      currentUserRole: authUser?.role ?? null,
+    });
+
+    if (!permission.ok) return permission;
+    if (!permission.task.isDeleted) return { ok: true as const };
+
+    const restored = await prisma.task.update({
+      where: { id: permission.task.id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        projectId: true,
+        key: true,
+        title: true,
+        description: true,
+        type: true,
+        priority: true,
+        status: true,
+        assigneeId: true,
+        requesterName: true,
+        createdAt: true,
+      },
+    });
+
+    await broadcastTaskEvent(restored.projectId, workspaceId, {
+      type: "task_restored",
+      payload: {
+        taskId: restored.id,
+        projectId: restored.projectId,
+        task: {
+          id: restored.id,
+          projectId: restored.projectId,
+          key: restored.key,
+          title: restored.title,
+          description: restored.description,
+          type: restored.type,
+          priority: restored.priority,
+          status: restored.status,
+          assigneeId: restored.assigneeId,
+          requesterName: restored.requesterName,
+          createdAt: restored.createdAt.toISOString(),
+        },
+      },
+    });
+
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
+    revalidatePath("/trash");
+    revalidatePath(`/tasks/${restored.key ?? restored.id}`);
+
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
+    }
+    return { ok: false as const, formError: "Не удалось восстановить задачу." };
   }
 }

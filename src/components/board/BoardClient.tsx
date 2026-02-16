@@ -88,6 +88,35 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
           return prev.filter((task) => task.id !== event.payload.taskId);
         }
 
+        if (event.type === "task_restored") {
+          const restoredTask = event.payload.task;
+          if (!restoredTask) return prev;
+
+          const assignee =
+            restoredTask.assigneeId !== null
+              ? users.find((user) => user.id === restoredTask.assigneeId) ?? null
+              : null;
+          const mappedTask: BoardTask = {
+            id: restoredTask.id,
+            projectId: restoredTask.projectId,
+            key: restoredTask.key,
+            title: restoredTask.title,
+            type: restoredTask.type,
+            description: restoredTask.description,
+            priority: restoredTask.priority,
+            status: restoredTask.status,
+            createdAt: restoredTask.createdAt,
+            assignee,
+            reporter: null,
+            requesterName: restoredTask.requesterName,
+          };
+          const exists = prev.some((task) => task.id === mappedTask.id);
+          if (exists) {
+            return prev.map((task) => (task.id === mappedTask.id ? mappedTask : task));
+          }
+          return [mappedTask, ...prev];
+        }
+
         if (event.type === "task_created") {
           const nextTask = event.payload.task;
           const assignee =

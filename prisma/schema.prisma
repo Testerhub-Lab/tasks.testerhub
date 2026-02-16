@@ -14,6 +14,10 @@ model Task {
   type           String    @default("TASK")
   priority       Priority  @default(MEDIUM)
   status         Status    @default(NEW)
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+  creatorId      String?
+  creator        User?     @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   reporterId     String?
   reporter       User?     @relation("TaskReporter", fields: [reporterId], references: [id], onDelete: SetNull)
   assigneeId     String?
@@ -80,6 +84,7 @@ model User {
 
   comments      Comment[]
 
+  createdTasks  Task[] @relation("TaskCreator")
   reportedTasks Task[] @relation("TaskReporter")
   assignedTasks Task[] @relation("TaskAssignee")
   activities    TaskActivity[]

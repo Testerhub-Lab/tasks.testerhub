@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import prisma from "../../../lib/prisma";
+import { getCurrentUser } from "@/server/auth/session";
 
 const taskSchema = z.object({
   projectId: z.string().min(1),
@@ -25,6 +26,7 @@ export async function createNewTask(data: {
   requesterEmail?: string;
 }) {
   const validatedData = taskSchema.parse(data);
+  const authUser = await getCurrentUser();
 
   const task = await prisma.$transaction(async (tx) => {
     const project = await tx.project.update({
@@ -43,6 +45,7 @@ export async function createNewTask(data: {
         tags: validatedData.tags ? validatedData.tags.split(",") : [],
         requesterName: validatedData.requesterName,
         requesterEmail: validatedData.requesterEmail,
+        creatorId: authUser?.id ?? null,
         projectId: project.id,
         number: nextNumber,
         key: taskKey,

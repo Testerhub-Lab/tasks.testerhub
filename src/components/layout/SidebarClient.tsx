@@ -234,6 +234,19 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             </span>
             <span>Members</span>
           </Link>
+          <Link
+            href="/trash"
+            className={`sidebar__item ${pathname.startsWith("/trash") ? "is-active" : ""}`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M4 7h16" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 12h8l1-12" />
+              </svg>
+            </span>
+            <span>Trash</span>
+          </Link>
         </nav>
       </div>
 

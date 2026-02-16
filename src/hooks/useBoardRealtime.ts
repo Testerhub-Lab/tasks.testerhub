@@ -69,6 +69,17 @@ function applyEventToTasks(prevTasks: RealtimeTask[], event: RealtimeEvent): Rea
       );
     case "task_deleted":
       return prevTasks.filter((task) => task.id !== event.payload.taskId);
+    case "task_restored": {
+      const restoredTask = event.payload.task;
+      if (!restoredTask) return prevTasks;
+      const existingIndex = prevTasks.findIndex((task) => task.id === restoredTask.id);
+      if (existingIndex >= 0) {
+        const next = [...prevTasks];
+        next[existingIndex] = restoredTask;
+        return next;
+      }
+      return [restoredTask, ...prevTasks];
+    }
     case "comment_added":
       return prevTasks;
   }
@@ -157,7 +168,7 @@ export function useBoardRealtime({
         applyEventToBoardCache(prev, parsed)
       );
 
-      if (parsed.type === "task_updated") {
+      if (parsed.type === "task_updated" || parsed.type === "task_restored") {
         scheduleQueryRefresh();
       }
 

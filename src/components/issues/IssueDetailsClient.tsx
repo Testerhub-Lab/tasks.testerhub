@@ -2,12 +2,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Card from "../ui/Card";
-import Badge from "../ui/Badge";
 import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import { getDisplayName } from "../../server/auth/displayName";
-import { updateTaskFieldsAction } from "../../server/actions/tasks";
+import { deleteTaskAction, updateTaskFieldsAction } from "../../server/actions/tasks";
 import { toast } from "../ui/toast";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
@@ -82,12 +81,14 @@ interface IssueDetailsClientProps {
   task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
+  canDelete?: boolean;
 }
 
 const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   task,
   projectLabel,
   users,
+  canDelete = false,
 }) => {
   const router = useRouter();
   const [liveTask, setLiveTask] = useState<TaskWithProjectAndReporter>(task);
@@ -102,6 +103,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const originalTitleRef = useRef(titleValue);
@@ -336,6 +339,27 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     }
   };
 
+  const handleDeleteTask = async () => {
+    setDeleteSubmitting(true);
+    try {
+      const result = await deleteTaskAction(liveTask.id);
+      if (!result.ok) {
+        const formError = "formError" in result ? result.formError : null;
+        if (isAuthRequiredError({ formError })) {
+          showAuthRequiredToast();
+          return;
+        }
+        toast.error(formError ?? "Не удалось удалить задачу.");
+        return;
+      }
+      setDeleteConfirmOpen(false);
+      router.push("/board");
+      router.refresh();
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="space-y-2">
@@ -413,6 +437,15 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="rounded-md border border-red-400/30 px-2.5 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
+              >
+                Удалить
+              </button>
+            ) : null}
             <BackButton />
           </div>
         </div>
@@ -598,6 +631,34 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
           />
         </div>
       </div>
+      {deleteConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <Card className="w-full max-w-md space-y-4 border border-white/12 bg-[rgba(12,16,28,0.96)] p-5">
+            <h3 className="text-base font-semibold text-white">Удалить задачу?</h3>
+            <p className="text-sm text-white/75">
+              Она попадёт в Корзину и её можно будет восстановить.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={deleteSubmitting}
+                className="rounded-md px-3 py-1.5 text-sm text-white/80 hover:bg-white/8"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteTask()}
+                disabled={deleteSubmitting}
+                className="rounded-md bg-red-500/85 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
+              >
+                {deleteSubmitting ? "Удаляем..." : "Удалить"}
+              </button>
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 };

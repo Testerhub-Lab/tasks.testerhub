@@ -4,6 +4,7 @@ export type RealtimeEventType =
   | "task_created"
   | "task_updated"
   | "task_deleted"
+  | "task_restored"
   | "comment_added";
 
 export interface RealtimeTask {
@@ -51,6 +52,15 @@ export interface TaskDeletedEvent {
   };
 }
 
+export interface TaskRestoredEvent {
+  type: "task_restored";
+  payload: {
+    taskId: string;
+    projectId: string;
+    task?: RealtimeTask;
+  };
+}
+
 export interface CommentAddedEvent {
   type: "comment_added";
   payload: {
@@ -63,6 +73,7 @@ export type RealtimeEvent =
   | TaskCreatedEvent
   | TaskUpdatedEvent
   | TaskDeletedEvent
+  | TaskRestoredEvent
   | CommentAddedEvent;
 
 export interface HeartbeatEvent {
