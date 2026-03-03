@@ -1,5 +1,3 @@
-"use server";
-
 import { randomBytes } from "crypto";
 import { z } from "zod";
 
