@@ -90,7 +90,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     setMounted(true);
     if (authSignInPath) {
       const origin = window.location.origin;
-      const url = `${origin}${authSignInPath}?redirect=${encodeURIComponent(currentPath)}`;
+      const url = `${origin}/signin?redirect=${encodeURIComponent(currentPath)}`;
       setSignInUrl(url);
       return;
     }
