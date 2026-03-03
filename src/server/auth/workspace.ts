@@ -7,6 +7,9 @@ import { createPersonalWorkspace, getOrCreateDefaultWorkspace } from "../queries
 
 const WORKSPACE_COOKIE = "th_workspace";
 
+/** Один раз на пользователя: не даём параллельным запросам создать несколько личных воркспейсов */
+const createPersonalWorkspaceLocks = new Map<string, Promise<string>>();
+
 export async function getCurrentWorkspaceId() {
   const jar = await cookies();
   const cookieId = jar.get(WORKSPACE_COOKIE)?.value ?? null;
@@ -33,34 +36,53 @@ export async function getCurrentWorkspaceId() {
 
   if (first) return first.workspaceId;
 
-  // legacy fallback: if user has activity in default workspace, attach them there
-  const defaultWs = await getOrCreateDefaultWorkspace();
-  const legacyTask = await prisma.task.findFirst({
-    where: {
-      project: { workspaceId: defaultWs.id },
-      OR: [{ reporterId: user.id }, { assigneeId: user.id }],
-    },
-    select: { id: true },
-  });
-  const legacyComment = legacyTask
-    ? null
-    : await prisma.comment.findFirst({
-        where: { userId: user.id, task: { project: { workspaceId: defaultWs.id } } },
-        select: { id: true },
-      });
+  // Сериализуем создание личного воркспейса по userId, чтобы Sidebar/TopBar не создали по два
+  let lock = createPersonalWorkspaceLocks.get(user.id);
+  if (!lock) {
+    lock = (async () => {
+      try {
+        const again = await prisma.workspaceMember.findFirst({
+          where: { userId: user.id },
+          orderBy: { createdAt: "asc" },
+          select: { workspaceId: true },
+        });
+        if (again) return again.workspaceId;
 
-  if (legacyTask || legacyComment) {
-    await prisma.workspaceMember.create({
-      data: { workspaceId: defaultWs.id, userId: user.id, role: "ADMIN" },
-    });
-    return defaultWs.id;
+        const defaultWs = await getOrCreateDefaultWorkspace();
+        const legacyTask = await prisma.task.findFirst({
+          where: {
+            project: { workspaceId: defaultWs.id },
+            OR: [{ reporterId: user.id }, { assigneeId: user.id }],
+          },
+          select: { id: true },
+        });
+        const legacyComment = legacyTask
+          ? null
+          : await prisma.comment.findFirst({
+              where: { userId: user.id, task: { project: { workspaceId: defaultWs.id } } },
+              select: { id: true },
+            });
+
+        if (legacyTask || legacyComment) {
+          await prisma.workspaceMember.create({
+            data: { workspaceId: defaultWs.id, userId: user.id, role: "ADMIN" },
+          });
+          return defaultWs.id;
+        }
+
+        const ws = await createPersonalWorkspace({
+          userId: user.id,
+          name: user.name ? `${user.name}'s Workspace` : null,
+        });
+        return ws.id;
+      } finally {
+        createPersonalWorkspaceLocks.delete(user.id);
+      }
+    })();
+    createPersonalWorkspaceLocks.set(user.id, lock);
   }
 
-  const ws = await createPersonalWorkspace({
-    userId: user.id,
-    name: user.name ? `${user.name}'s Workspace` : null,
-  });
-  return ws.id;
+  return lock;
 }
 
 export async function setCurrentWorkspaceId(workspaceId: string) {
