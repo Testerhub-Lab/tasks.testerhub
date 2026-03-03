@@ -8,3 +8,6 @@ services:
     volumes:
       - ./data/uploads:/app/public/uploads
     restart: unless-stopped
+    # Доступ к БД на хосте: из контейнера используйте host.docker.internal в DATABASE_URL
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

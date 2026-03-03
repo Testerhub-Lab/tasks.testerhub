@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { type Role } from "@prisma/client";
 import { fetchMainCurrentUser } from "./mainApp";
+import { isAuthentikConfigured } from "./authentik";
 
 const COOKIE_NAME = "th_session";
 const AUTH_BLOCKED_COOKIE = "th_auth_blocked";
@@ -136,6 +137,10 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     if (process.env.NODE_ENV !== "production") {
       console.info("[auth] fallback blocked by th_auth_blocked");
     }
+    return null;
+  }
+
+  if (isAuthentikConfigured()) {
     return null;
   }
 

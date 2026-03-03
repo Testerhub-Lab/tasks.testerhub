@@ -26,9 +26,16 @@ interface TopBarClientProps {
   projects: ProjectOption[];
   users: UserOption[];
   mainAppBaseUrl: string | null;
+  /** When set, Sign in uses this path (e.g. /api/auth/signin/authentik) instead of main app SSO */
+  authSignInPath?: string | null;
 }
 
-const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBaseUrl }) => {
+const TopBarClient: React.FC<TopBarClientProps> = ({
+  projects,
+  users,
+  mainAppBaseUrl,
+  authSignInPath = null,
+}) => {
   const pathname = usePathname();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -81,6 +88,12 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
 
   useEffect(() => {
     setMounted(true);
+    if (authSignInPath) {
+      const origin = window.location.origin;
+      const url = `${origin}${authSignInPath}?redirect=${encodeURIComponent(currentPath)}`;
+      setSignInUrl(url);
+      return;
+    }
     if (!mainAppBaseUrl) {
       setSignInUrl(null);
       return;
@@ -93,7 +106,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({ projects, users, mainAppBas
     url.searchParams.set("audience", "tasks");
     url.searchParams.set("redirect", redirectToTasks);
     setSignInUrl(url.toString());
-  }, [currentPath, mainAppBaseUrl]);
+  }, [currentPath, mainAppBaseUrl, authSignInPath]);
 
   useEffect(() => {
     const createParam = searchParams.get("create");
