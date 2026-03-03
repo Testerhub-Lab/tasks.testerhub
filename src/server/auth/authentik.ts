@@ -8,12 +8,18 @@ const openidConfigSchema = z.object({
   issuer: z.string(),
 });
 
-const userinfoSchema = z.object({
-  sub: z.string().min(1),
-  email: z.string().email().optional(),
-  name: z.string().optional().nullable(),
-  preferred_username: z.string().optional(),
-});
+const userinfoSchema = z
+  .object({
+    sub: z.union([z.string(), z.number()]).transform((v) => String(v)),
+    email: z
+      .union([z.string().email(), z.string().length(0), z.literal(undefined)])
+      .optional()
+      .transform((v) => (v && v.length > 0 ? v : undefined)),
+    name: z.string().optional().nullable(),
+    preferred_username: z.string().optional(),
+    username: z.string().optional(),
+  })
+  .passthrough();
 
 export type AuthentikUserinfo = z.infer<typeof userinfoSchema>;
 
@@ -120,13 +126,21 @@ export async function getAuthentikUserinfo(accessToken: string): Promise<Authent
   const data = (await res.json()) as unknown;
   const parsed = userinfoSchema.safeParse(data);
   if (!parsed.success) {
+    console.warn("[authentik] userinfo parse failed", {
+      error: parsed.error.flatten(),
+      raw: JSON.stringify(data).slice(0, 500),
+    });
     throw new Error("Invalid Authentik userinfo response");
   }
   const u = parsed.data;
+  const email =
+    u.email ??
+    (u.preferred_username && u.preferred_username.includes("@") ? u.preferred_username : undefined) ??
+    (u.username && u.username.includes("@") ? u.username : undefined);
   return {
     sub: u.sub,
-    email: u.email ?? (u.preferred_username && u.preferred_username.includes("@") ? u.preferred_username : undefined),
-    name: u.name ?? u.preferred_username ?? null,
+    email: email ?? undefined,
+    name: u.name ?? u.preferred_username ?? u.username ?? null,
   };
 }
 
