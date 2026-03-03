@@ -43,8 +43,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/sso/error?reason=missing_code", request.url));
   }
 
-  const origin = request.nextUrl.origin;
-  const redirectUri = `${origin}/api/auth/callback/authentik`;
+  const baseUrl =
+    process.env.APP_URL?.trim().replace(/\/$/, "") || request.nextUrl.origin;
+  const redirectUri = `${baseUrl}/api/auth/callback/authentik`;
 
   let accessToken: string;
   try {
