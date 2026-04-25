@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <html lang="ru" data-theme="dark" data-main-app-base-url={process.env.MAIN_APP_BASE_URL ?? ""}>
+    <html lang="ru" data-theme="dark">
       <body className="antialiased min-h-screen overflow-x-clip">
         <div className="app-shell">
           <Sidebar />

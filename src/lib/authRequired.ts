@@ -8,20 +8,8 @@ export function isAuthRequiredError(source: AuthRequiredSource | null | undefine
   return source.formError === "Требуется авторизация";
 }
 
-function getMainAppBaseUrl(): string | null {
-  if (typeof document === "undefined") return null;
-  const value = document.documentElement.getAttribute("data-main-app-base-url");
-  return value && value.trim().length ? value : null;
-}
-
 export function getSignInUrl(currentPath: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const baseUrl = getMainAppBaseUrl() ?? origin;
-  const redirectToTasks = `${origin}/sso?redirect=${encodeURIComponent(currentPath)}`;
-  const url = new URL("/sso/start", baseUrl);
-  url.searchParams.set("audience", "tasks");
-  url.searchParams.set("redirect", redirectToTasks);
-  return url.toString();
+  return `/signin?redirect=${encodeURIComponent(currentPath)}`;
 }
 
 export function showAuthRequiredToast(): void {
@@ -31,7 +19,7 @@ export function showAuthRequiredToast(): void {
   toast(
     "error",
     "Нужна авторизация",
-    "Чтобы продолжить, войдите через основной аккаунт.",
+    "Чтобы продолжить, войдите в аккаунт.",
     4200,
     {
       label: "Sign in",

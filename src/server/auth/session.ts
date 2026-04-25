@@ -2,8 +2,6 @@ import { cookies, headers } from "next/headers";
 import { createHash, randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { type Role } from "@prisma/client";
-import { fetchMainCurrentUser } from "./mainApp";
-import { isAuthentikConfigured } from "./authentik";
 
 const COOKIE_NAME = "th_session";
 const AUTH_BLOCKED_COOKIE = "th_auth_blocked";
@@ -139,42 +137,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
     return null;
   }
-
-  if (isAuthentikConfigured()) {
-    return null;
-  }
-
-  try {
-    const h = await headers();
-    const cookieHeader = h.get("cookie");
-    const mainUser = await fetchMainCurrentUser(cookieHeader);
-    if (!mainUser) return null;
-
-    const user = await prisma.user.upsert({
-      where: { testerHubId: mainUser.id },
-      create: {
-        testerHubId: mainUser.id,
-        email: mainUser.email,
-        name: mainUser.name ?? null,
-      },
-      update: {
-        email: mainUser.email,
-        name: mainUser.name ?? undefined,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        testerHubId: true,
-      },
-    });
-
-    await createSession(user.id, await getRequestMeta());
-    return user;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export async function clearSession() {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SignInButton from "./SignInButton";
+import SignInForm from "./SignInForm";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -24,11 +24,16 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           Вход в Pulsar
         </h1>
         <p className="mt-3 text-sm text-[var(--muted)]">
-          Вы будете перенаправлены на общую авторизацию TesterHub. Войдите или
-          зарегистрируйтесь там — после этого вы вернётесь сюда.
+          Войдите в локальный аккаунт Tasks Tracker.
         </p>
         <div className="mt-6 flex flex-col gap-3">
-          <SignInButton redirect={redirect} />
+          <SignInForm redirect={redirect} />
+          <Link
+            href={`/register?redirect=${encodeURIComponent(redirect)}`}
+            className="text-center text-sm text-[var(--muted)] underline hover:text-[var(--text)]"
+          >
+            Нет аккаунта? Зарегистрироваться
+          </Link>
           <Link
             href="/board"
             className="text-center text-sm text-[var(--muted)] underline hover:text-[var(--text)]"

@@ -25,16 +25,11 @@ type UserOption = { id: string; name: string | null; email: string };
 interface TopBarClientProps {
   projects: ProjectOption[];
   users: UserOption[];
-  mainAppBaseUrl: string | null;
-  /** When set, Sign in uses this path (e.g. /api/auth/signin/authentik) instead of main app SSO */
-  authSignInPath?: string | null;
 }
 
 const TopBarClient: React.FC<TopBarClientProps> = ({
   projects,
   users,
-  mainAppBaseUrl,
-  authSignInPath = null,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
@@ -50,13 +45,14 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
 
-  const [signInUrl, setSignInUrl] = useState<string | null>(null);
-  const [isMounted, setMounted] = useState(false);
-
   const currentPath = useMemo(() => {
     const qs = searchParams.toString();
     return qs ? `${pathname}?${qs}` : pathname;
   }, [pathname, searchParams]);
+  const signInUrl = useMemo(
+    () => `/signin?redirect=${encodeURIComponent(currentPath)}`,
+    [currentPath]
+  );
 
   const allowedQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -85,28 +81,6 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
       window.removeEventListener("open-create-modal", handleOpen);
     };
   }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    if (authSignInPath) {
-      const origin = window.location.origin;
-      const url = `${origin}/signin?redirect=${encodeURIComponent(currentPath)}`;
-      setSignInUrl(url);
-      return;
-    }
-    if (!mainAppBaseUrl) {
-      setSignInUrl(null);
-      return;
-    }
-    const origin = window.location.origin;
-    const redirectToTasks = `${origin}/sso?redirect=${encodeURIComponent(
-      currentPath
-    )}`;
-    const url = new URL("/sso/start", mainAppBaseUrl);
-    url.searchParams.set("audience", "tasks");
-    url.searchParams.set("redirect", redirectToTasks);
-    setSignInUrl(url.toString());
-  }, [currentPath, mainAppBaseUrl, authSignInPath]);
 
   useEffect(() => {
     const createParam = searchParams.get("create");
@@ -256,7 +230,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
               </div>
             ) : null}
           </div>
-        ) : isMounted && signInUrl ? (
+        ) : (
           <div className="ml-2 flex items-center gap-2">
             <Button
               variant="secondary"
@@ -270,7 +244,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
               Гость
             </span>
           </div>
-        ) : null}
+        )}
       </div>
 
       <CreateTaskModal
