@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const DEFAULT_WORKSPACE = {
   id: "default",
@@ -36,6 +37,7 @@ export async function createPersonalWorkspace(params: {
     data: {
       name: baseName,
       slug,
+      personalOwnerId: params.userId,
     },
   });
 
@@ -44,6 +46,51 @@ export async function createPersonalWorkspace(params: {
   });
 
   return ws;
+}
+
+export async function getOrCreatePersonalWorkspace(params: {
+  userId: string;
+  name?: string | null;
+}) {
+  const existing = await prisma.workspace.findUnique({
+    where: { personalOwnerId: params.userId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: existing.id,
+          userId: params.userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: existing.id,
+          userId: params.userId,
+          role: "ADMIN",
+        },
+      });
+    }
+
+    return prisma.workspace.findUniqueOrThrow({ where: { id: existing.id } });
+  }
+
+  try {
+    return await createPersonalWorkspace(params);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return prisma.workspace.findUniqueOrThrow({
+        where: { personalOwnerId: params.userId },
+      });
+    }
+    throw error;
+  }
 }
 
 export async function getWorkspacesForUser(userId: string) {

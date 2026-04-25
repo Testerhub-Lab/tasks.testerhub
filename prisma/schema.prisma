@@ -82,6 +82,7 @@ model User {
   role        Role     @default(USER)
   testerHubId String?  @unique
   lastSeenBacklogAt DateTime?
+  personalWorkspace Workspace? @relation("PersonalWorkspaceOwner")
 
   comments      Comment[]
 
@@ -120,10 +121,12 @@ model Workspace {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  personalOwnerId String? @unique
   createdAt DateTime @default(now())
   projects  Project[]
   members   WorkspaceMember[]
   invites   WorkspaceInvite[]
+  personalOwner User? @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: SetNull)
 }
 
 model WorkspaceMember {
