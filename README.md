@@ -1,36 +1,125 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TesterHub Tasks
 
-## Getting Started
+TesterHub Tasks - это веб-приложение для работы с задачами и баг-репортами.
+Проект помогает вести рабочую доску: создавать задачи, раскладывать их по статусам,
+добавлять комментарии, вложения, приоритеты и фильтровать список по нужным параметрам.
 
-First, run the development server:
+Демо: https://pulsar.testerhub.ru/board
+
+## Что умеет проект
+
+- Kanban-доска со статусами Todo, In progress, Testing и Done.
+- Создание задач и баг-репортов через модальное окно.
+- Карточка задачи с описанием, приоритетом, исполнителем и вложениями.
+- Комментарии и история изменений по задаче.
+- Фильтры по статусу, приоритету, тегам, проекту и исполнителю.
+- Backlog для входящих задач.
+- Рабочие пространства, проекты и участники.
+- Авторизация через email/password и Authentik OIDC.
+- Гостевой сценарий для проектов, где разрешена работа без входа.
+- Загрузка файлов к задаче.
+
+## Стек
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- Prisma ORM
+- PostgreSQL
+- Docker
+- GitHub Actions
+
+## Как запустить локально
+
+Нужны Node.js 20+ и PostgreSQL.
+
+1. Установить зависимости:
+
+```bash
+npm install
+```
+
+2. Создать `.env` на основе `.env.example` и указать строку подключения к базе:
+
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/tasks_tracker"
+```
+
+3. Применить миграции и сгенерировать Prisma Client:
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+```
+
+4. Запустить проект:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+После запуска приложение будет доступно по адресу:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Сборка
 
-## Learn More
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Структура проекта
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+src/app                 страницы и API routes
+src/components          основные UI-компоненты
+src/server              server actions, проверки и запросы к данным
+src/lib                 общие серверные утилиты
+src/hooks               клиентские хуки
+prisma                  схема базы данных и миграции
+docs                    заметки по авторизации и настройке
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Основные страницы
 
-## Deploy on Vercel
+- `/board` - Kanban-доска.
+- `/issues` - список задач.
+- `/backlog` - входящие задачи.
+- `/tasks/[ref]` - карточка задачи.
+- `/settings/workspace` - настройки рабочего пространства.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Переменные окружения
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Минимально нужен `DATABASE_URL`.
+
+Для OIDC-авторизации через Authentik используются:
+
+```env
+AUTHENTIK_ISSUER=
+AUTHENTIK_CLIENT_ID=
+AUTHENTIK_CLIENT_SECRET=
+```
+
+Для ссылок-приглашений в workspace:
+
+```env
+WORKSPACE_INVITE_SECRET=
+```
+
+Реальный `.env` не должен попадать в репозиторий.
+
+## Деплой
+
+Проект собирается в Docker-образ и деплоится через GitHub Actions.
+В продакшене используется PostgreSQL, а загруженные файлы сохраняются в `public/uploads`.
+
+## Проверка перед публикацией
+
+- `.env` и другие файлы с секретами не добавлены в Git.
+- README содержит рабочие команды запуска.
+- Демо открывается в браузере.
+- Основной сценарий работает: создать задачу, открыть карточку, добавить комментарий, перенести задачу по доске.
