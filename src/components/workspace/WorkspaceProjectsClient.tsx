@@ -14,7 +14,6 @@ interface ProjectRow {
   id: string;
   key: string;
   name: string;
-  allowGuest: boolean;
   archivedAt?: string | null;
 }
 
@@ -29,7 +28,6 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
 }) => {
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
-  const [allowGuest, setAllowGuest] = useState(true);
   const [creating, setCreating] = useState(false);
   const router = useRouter();
 
@@ -50,7 +48,6 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
       workspaceId,
       key: trimmedKey,
       name: trimmedName,
-      allowGuest,
     });
     setCreating(false);
 
@@ -83,7 +80,7 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
       </div>
 
       <div className="surface rounded-[var(--radius-lg)] p-4">
-        <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)_auto_auto]">
+        <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)_auto]">
           <Input
             value={key}
             onChange={(event) => setKey(event.target.value.toUpperCase())}
@@ -98,15 +95,6 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
             className="h-7 text-[11px]"
             maxLength={60}
           />
-          <label className="flex items-center gap-2 text-xs text-white/60">
-            <input
-              type="checkbox"
-              checked={allowGuest}
-              onChange={(event) => setAllowGuest(event.target.checked)}
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Guests
-          </label>
           <Button
             variant="primary"
             className="h-7 px-3 text-[11px]"
@@ -119,10 +107,9 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
       </div>
 
       <div className="surface rounded-[var(--radius-lg)]">
-        <div className="grid grid-cols-[120px_minmax(0,1fr)_100px_auto] gap-2 border-b border-white/5 px-4 py-2 text-[10px] uppercase tracking-wide text-white/40">
+        <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2 border-b border-white/5 px-4 py-2 text-[10px] uppercase tracking-wide text-white/40">
           <span>Key</span>
           <span>Name</span>
-          <span>Guests</span>
           <span className="text-right">Actions</span>
         </div>
         <div className="divide-y divide-white/5">
@@ -134,7 +121,7 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
             sorted.map((project) => (
               <div
                 key={project.id}
-                className="grid grid-cols-[120px_minmax(0,1fr)_100px_auto] items-center gap-2 px-4 py-2"
+                className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-2"
               >
                 <span className="text-xs text-white/80">{project.key}</span>
                 <span className="truncate text-sm text-white">
@@ -144,9 +131,6 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
                       archived
                     </span>
                   ) : null}
-                </span>
-                <span className="text-xs text-white/60">
-                  {project.allowGuest ? "Enabled" : "Disabled"}
                 </span>
                 <div className="flex justify-end">
                   <Button

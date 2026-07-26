@@ -49,9 +49,15 @@ interface BoardClientProps {
   tasks: BoardTask[];
   users: UserOption[];
   boardId?: string | null;
+  editableProjectIds?: string[];
 }
 
-const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null }) => {
+const BoardClient: React.FC<BoardClientProps> = ({
+  tasks,
+  users,
+  boardId = null,
+  editableProjectIds = [],
+}) => {
   const router = useRouter();
   const [isMounted, setMounted] = useState(false);
   const [items, setItems] = useState<BoardTask[]>(tasks);
@@ -80,6 +86,10 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
   }, [tasks]);
 
   const effectiveBoardId = useMemo(() => boardId ?? null, [boardId]);
+  const editableProjectIdSet = useMemo(
+    () => new Set(editableProjectIds),
+    [editableProjectIds]
+  );
 
   const applyRealtimeEvent = React.useCallback(
     (event: RealtimeEvent) => {
@@ -282,6 +292,10 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
 
     const task = items.find((t) => t.id === taskId);
     if (!task) return;
+    if (!editableProjectIdSet.has(task.projectId)) {
+      cleanupDragState();
+      return;
+    }
     if (task.status === to) return;
 
     // optimistic UI
@@ -292,7 +306,16 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
     setSavingMove({ id: taskId, to });
 
     try {
-      await updateTaskStatusAction({ id: taskId, status: to });
+      const result = await updateTaskStatusAction({ id: taskId, status: to });
+      if (!result.ok) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === taskId ? { ...item, status: task.status } : item
+          )
+        );
+        setErrorMessage(result.formError ?? "Не удалось переместить задачу.");
+        return;
+      }
       router.refresh();
     } catch {
       // rollback
@@ -308,6 +331,8 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
 
   const handleAssigneeChange = async (taskId: string, assigneeId: string | null) => {
     setErrorMessage(null);
+    const task = items.find((item) => item.id === taskId);
+    if (!task || !editableProjectIdSet.has(task.projectId)) return;
     const previous = items;
     const nextAssignee =
       assigneeId === null
@@ -355,6 +380,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
                 users={users}
                 onAssigneeChange={handleAssigneeChange}
                 isSavingAssignee={savingAssignee === task.id}
+                canEdit={editableProjectIdSet.has(task.projectId)}
               />
             ) : (
               <IssueCard
@@ -374,6 +400,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
                   handleAssigneeChange(task.id, assigneeId)
                 }
                 isSavingAssignee={savingAssignee === task.id}
+                canEdit={editableProjectIdSet.has(task.projectId)}
               />
             )
           )}
@@ -422,6 +449,7 @@ const BoardClient: React.FC<BoardClientProps> = ({ tasks, users, boardId = null 
                     handleAssigneeChange(activeTask.id, assigneeId)
                   }
                   isSavingAssignee={savingAssignee === activeTask.id}
+                  canEdit={false}
                 />
               </div>
             ) : null}
@@ -438,6 +466,7 @@ interface DraggableIssueCardProps {
   users: UserOption[];
   onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
   isSavingAssignee: boolean;
+  canEdit: boolean;
 }
 
 const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
@@ -446,12 +475,13 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   users,
   onAssigneeChange,
   isSavingAssignee,
+  canEdit,
 }) => {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: task.id,
-      disabled: isSaving,
+      disabled: isSaving || !canEdit,
     });
 
   const style = transform
@@ -462,7 +492,9 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative cursor-grab active:cursor-grabbing ${
+      className={`relative ${
+        canEdit ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+      } ${
         isDragging ? "opacity-60" : ""
       }`}
       onClick={() => {
@@ -493,6 +525,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
         users={users}
         onAssigneeChange={(assigneeId) => onAssigneeChange(task.id, assigneeId)}
         isSavingAssignee={isSavingAssignee}
+        canEdit={canEdit}
       />
     </div>
   );

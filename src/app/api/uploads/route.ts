@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import path from "path";
 import { promises as fs } from "fs";
+import { ProjectRole } from "@prisma/client";
+import { getCurrentUser } from "@/server/auth/session";
+import { hasProjectRole } from "@/server/auth/access";
+import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -39,7 +43,20 @@ async function ensureDir(dir: string) {
 
 export async function POST(req: Request) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const form = await req.formData();
+    const projectId = form.get("projectId");
+    if (typeof projectId !== "string" || !projectId) {
+      return NextResponse.json({ ok: false, error: "Missing projectId" }, { status: 400 });
+    }
+    const access = await hasProjectRole(user, projectId, ProjectRole.MEMBER);
+    if (!access) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
 
     const files = form.getAll("files").filter((v): v is File => v instanceof File);
     const metaRaw = form.get("meta");
@@ -86,7 +103,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const uploadDir =
+      process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
     await ensureDir(uploadDir);
 
     const uploaded: UploadResultItem[] = [];
@@ -102,6 +120,22 @@ export async function POST(req: Request) {
       const fullPath = path.join(uploadDir, storedName);
       const buf = Buffer.from(await f.arrayBuffer());
       await fs.writeFile(fullPath, buf);
+      try {
+        await prisma.upload.create({
+          data: {
+            storedName,
+            originalName: f.name,
+            contentType: f.type || "application/octet-stream",
+            size: f.size,
+            projectId,
+            uploadedById: user.id,
+          },
+          select: { id: true },
+        });
+      } catch (error) {
+        await fs.unlink(fullPath).catch(() => null);
+        throw error;
+      }
 
       uploaded.push({
         clientId: m.clientId,
@@ -109,7 +143,7 @@ export async function POST(req: Request) {
         size: f.size,
         type: f.type || "application/octet-stream",
         storedName,
-        url: `/uploads/${storedName}`,
+        url: `/api/uploads/${storedName}`,
       });
     }
 
@@ -124,21 +158,61 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as { url?: string } | null;
-    const url = body?.url;
-
-    if (!url || typeof url !== "string") {
-      return NextResponse.json({ ok: false, error: "Missing url" }, { status: 400 });
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Разрешаем удалять только из /uploads/
-    if (!url.startsWith("/uploads/")) {
+    const body = (await req.json().catch(() => null)) as {
+      url?: string;
+      projectId?: string;
+    } | null;
+    const url = body?.url;
+    const projectId = body?.projectId;
+
+    if (
+      !url ||
+      typeof url !== "string" ||
+      !projectId ||
+      typeof projectId !== "string"
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Missing url or projectId" },
+        { status: 400 }
+      );
+    }
+
+    // Разрешаем удалять только файлы из защищённого upload API.
+    if (!url.startsWith("/api/uploads/")) {
       return NextResponse.json({ ok: false, error: "Invalid url" }, { status: 400 });
     }
 
-    const filename = url.replace("/uploads/", "");
-    const fullPath = path.join(process.cwd(), "public", "uploads", filename);
+    const filename = url.replace("/api/uploads/", "");
+    if (path.basename(filename) !== filename) {
+      return NextResponse.json({ ok: false, error: "Invalid url" }, { status: 400 });
+    }
+    const upload = await prisma.upload.findUnique({
+      where: { storedName: filename },
+      select: { id: true, projectId: true },
+    });
+    if (!upload || upload.projectId !== projectId) {
+      return NextResponse.json({ ok: false, error: "File not found" }, { status: 404 });
+    }
 
+    const access = await hasProjectRole(
+      user,
+      upload.projectId,
+      ProjectRole.MEMBER
+    );
+    if (!access) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const uploadDir =
+      process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
+    const fullPath = path.join(uploadDir, filename);
+
+    await prisma.upload.delete({ where: { id: upload.id } });
     await fs.unlink(fullPath).catch(() => null);
 
     return NextResponse.json({ ok: true });

@@ -3,29 +3,39 @@
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "./session";
-import { getOrCreateDefaultWorkspace, getOrCreatePersonalWorkspace } from "../queries/workspaces";
+import { getOrCreatePersonalWorkspace } from "../queries/workspaces";
 
 const WORKSPACE_COOKIE = "th_workspace";
 
 /** Один раз на пользователя: не даём параллельным запросам создать несколько личных воркспейсов */
 const createPersonalWorkspaceLocks = new Map<string, Promise<string>>();
 
-export async function getCurrentWorkspaceId() {
+export async function getCurrentWorkspaceId(): Promise<string | null> {
   const jar = await cookies();
   const cookieId = jar.get(WORKSPACE_COOKIE)?.value ?? null;
   const user = await getCurrentUser();
 
-  if (!user) {
-    const ws = await getOrCreateDefaultWorkspace();
-    return ws.id;
-  }
+  if (!user) return null;
 
   if (cookieId) {
     const membership = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId: cookieId, userId: user.id } },
-      select: { workspaceId: true },
+      select: { workspaceId: true, role: true },
     });
-    if (membership) return membership.workspaceId;
+    if (membership && (membership.role === "ADMIN" || user.role === "ADMIN")) {
+      return membership.workspaceId;
+    }
+    if (membership) {
+      const activeProjectAccess = await prisma.projectMember.findFirst({
+        where: {
+          userId: user.id,
+          project: { workspaceId: cookieId },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        select: { id: true },
+      });
+      if (activeProjectAccess) return membership.workspaceId;
+    }
   }
 
   // Сериализуем создание личного воркспейса по userId, чтобы Sidebar/TopBar не создали по два

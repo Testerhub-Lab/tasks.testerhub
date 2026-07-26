@@ -35,6 +35,7 @@ interface IssueMetaPanelProps {
   tags?: string[];
   typeLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
+  canEdit?: boolean;
   createdAt: Date | string;
   updatedAt?: Date | string | null;
 }
@@ -50,6 +51,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   tags,
   typeLabel,
   users,
+  canEdit = false,
   createdAt,
   updatedAt,
 }) => {
@@ -240,8 +242,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           <div className="relative" ref={assigneeRef}>
             <button
               type="button"
-              onClick={() => setOpenMenu(openMenu === "assignee" ? null : "assignee")}
-              className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+              disabled={!canEdit}
+              onClick={() => {
+                if (canEdit) {
+                  setOpenMenu(openMenu === "assignee" ? null : "assignee");
+                }
+              }}
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6 disabled:cursor-default disabled:hover:bg-transparent"
             >
               <span
                 className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
@@ -333,8 +340,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           <div className="relative" ref={statusRef}>
             <button
               type="button"
-              onClick={() => setOpenMenu(openMenu === "status" ? null : "status")}
-              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+              disabled={!canEdit}
+              onClick={() => {
+                if (canEdit) {
+                  setOpenMenu(openMenu === "status" ? null : "status");
+                }
+              }}
+              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6 disabled:cursor-default disabled:hover:bg-transparent"
             >
               <span className="truncate">{statusLabel[currentStatus] ?? currentStatus}</span>
             </button>
@@ -371,8 +383,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           <div className="relative" ref={priorityRef}>
             <button
               type="button"
-              onClick={() => setOpenMenu(openMenu === "priority" ? null : "priority")}
-              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6"
+              disabled={!canEdit}
+              onClick={() => {
+                if (canEdit) {
+                  setOpenMenu(openMenu === "priority" ? null : "priority");
+                }
+              }}
+              className="flex min-w-[140px] items-center justify-end gap-2 rounded-md px-2 py-1 text-sm text-white/85 hover:bg-white/6 disabled:cursor-default disabled:hover:bg-transparent"
             >
               <span className="inline-flex items-end gap-1 text-white/70">
                 {Array.from({ length: 4 }).map((_, index) => {

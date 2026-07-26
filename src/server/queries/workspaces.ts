@@ -1,22 +1,6 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-const DEFAULT_WORKSPACE = {
-  id: "default",
-  name: "Default workspace",
-  slug: "default",
-};
-
-export async function getOrCreateDefaultWorkspace() {
-  const existing = await prisma.workspace.findUnique({
-    where: { id: DEFAULT_WORKSPACE.id },
-  });
-  if (existing) return existing;
-  return prisma.workspace.create({
-    data: DEFAULT_WORKSPACE,
-  });
-}
-
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -94,8 +78,28 @@ export async function getOrCreatePersonalWorkspace(params: {
 }
 
 export async function getWorkspacesForUser(userId: string) {
+  const now = new Date();
   return prisma.workspaceMember.findMany({
-    where: { userId },
+    where: {
+      userId,
+      OR: [
+        { role: "ADMIN" },
+        {
+          workspace: {
+            projects: {
+              some: {
+                members: {
+                  some: {
+                    userId,
+                    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });

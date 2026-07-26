@@ -9,6 +9,14 @@ import {
 import { permanentRedirect } from "next/navigation";
 import TaskComments from "../../../components/comments/TaskComments";
 import { getCurrentWorkspaceId } from "../../../server/auth/workspace";
+import { getCurrentUser } from "../../../server/auth/session";
+import { getAccessibleProjectIds } from "../../../server/auth/access";
+import {
+  getProjectAccess,
+  projectRoleAtLeast,
+} from "../../../server/auth/access";
+import { ProjectRole } from "@prisma/client";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +32,16 @@ const TaskPage = async ({ params }: TaskPageProps) => {
 
   const normalizedRef = ref.toUpperCase();
   const issueKeyPattern = /^[A-Z0-9]+-\d+$/;
+  const user = await getCurrentUser();
+  if (!user) redirect(`/signin?redirect=${encodeURIComponent(`/tasks/${ref}`)}`);
   const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/signin");
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId, {
+    includeArchived: true,
+  });
   const task = issueKeyPattern.test(normalizedRef)
-    ? await getTaskByKey(normalizedRef, workspaceId)
-    : await getTaskById(ref, workspaceId);
+    ? await getTaskByKey(normalizedRef, accessibleProjectIds)
+    : await getTaskById(ref, accessibleProjectIds);
 
   if (!task) {
     return notFound();
@@ -40,6 +54,14 @@ const TaskPage = async ({ params }: TaskPageProps) => {
 
   const comments = await getCommentsByTaskId(task.id);
   const activities = await getTaskActivitiesByTaskId(task.id);
+  const projectAccess = await getProjectAccess(user, task.projectId, {
+    workspaceId,
+    includeArchived: true,
+  });
+  const canComment = Boolean(
+    projectAccess &&
+      projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)
+  );
 
   return (
     <div className="space-y-6">
@@ -52,6 +74,7 @@ const TaskPage = async ({ params }: TaskPageProps) => {
         createdAt={task.createdAt}
         comments={comments}
         activities={activities}
+        canComment={canComment}
       />
       </div>
     </div>

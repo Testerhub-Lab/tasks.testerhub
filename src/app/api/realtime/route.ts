@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sseManager } from "@/lib/sse";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getCurrentUser } from "@/server/auth/session";
+import { getProjectAccess, getWorkspaceRole } from "@/server/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,15 +18,23 @@ export async function GET(request: Request) {
     );
   }
 
-  const [workspaceId, authUser] = await Promise.all([
-    getCurrentWorkspaceId(),
-    getCurrentUser(),
-  ]);
+  const authUser = await getCurrentUser();
+  if (!authUser) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
 
   if (boardId.startsWith("workspace:")) {
     const requestedWorkspaceId = boardId.slice("workspace:".length);
     if (!requestedWorkspaceId || requestedWorkspaceId !== workspaceId) {
       return NextResponse.json({ ok: false, error: "Board not found" }, { status: 404 });
+    }
+    const workspaceRole = await getWorkspaceRole(authUser, workspaceId);
+    if (workspaceRole !== "ADMIN") {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
     const stream = sseManager.connect(boardId, request.signal);
@@ -41,14 +50,15 @@ export async function GET(request: Request) {
 
   const project = await prisma.project.findFirst({
     where: { id: boardId, workspaceId, archivedAt: null },
-    select: { id: true, allowGuest: true },
+    select: { id: true },
   });
 
   if (!project) {
     return NextResponse.json({ ok: false, error: "Board not found" }, { status: 404 });
   }
 
-  if (!authUser && !project.allowGuest) {
+  const access = await getProjectAccess(authUser, project.id, { workspaceId });
+  if (!access) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 403 });
   }
 

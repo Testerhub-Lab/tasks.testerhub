@@ -19,7 +19,12 @@ const viewTabs = [
   { label: "List", href: "/issues" },
 ];
 
-type ProjectOption = { id: string; name: string; key: string };
+type ProjectOption = {
+  id: string;
+  name: string;
+  key: string;
+  canWrite: boolean;
+};
 type UserOption = { id: string; name: string | null; email: string };
 
 interface TopBarClientProps {
@@ -41,6 +46,10 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const { user, loading, refresh } = useAuth();
+  const writableProjects = useMemo(
+    () => projects.filter((project) => project.canWrite),
+    [projects]
+  );
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
@@ -203,7 +212,12 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
           />
         </div>
 
-        <Button variant="primary" onClick={openModal} className="cursor-pointer">
+        <Button
+          variant="primary"
+          onClick={openModal}
+          className="cursor-pointer"
+          disabled={writableProjects.length === 0}
+        >
           Create
         </Button>
 
@@ -253,7 +267,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
         onSubmit={handleCreateTask}
         loading={isSubmitting}
         errorMessage={formError}
-        projects={projects}
+        projects={writableProjects}
         users={users}
         initialProjectId={initialProjectId}
       />

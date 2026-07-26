@@ -14,6 +14,7 @@ interface SidebarClientProps {
   workspaces: WorkspaceOption[];
   currentWorkspaceId: string;
   canManageWorkspace: boolean;
+  canManageProjects: boolean;
 }
 
 const getBasePath = (pathname: string) => {
@@ -29,6 +30,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   workspaces,
   currentWorkspaceId,
   canManageWorkspace,
+  canManageProjects,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
@@ -127,13 +129,13 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 Workspace settings
               </Link>
             ) : null}
-            {canManageWorkspace ? (
+            {canManageProjects ? (
               <Link
-                href="/settings/workspace#members"
+                href="/settings/workspace#project-access"
                 className="sidebar__menu-item"
                 onClick={() => setWorkspaceOpen(false)}
               >
-                Invite and manage members
+                Project access
               </Link>
             ) : null}
             {workspaces.length > 1 ? (
@@ -204,36 +206,40 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             </span>
             <span>Issues</span>
           </Link>
-          <Link
-            href="/settings/workspace?tab=projects#projects"
-            className={`sidebar__item ${
-              isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
-            }`}
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M4 7h16v10H4z" />
-                <path d="M9 7v10" />
-              </svg>
-            </span>
-            <span>Projects</span>
-          </Link>
-          <Link
-            href="/settings/workspace?tab=members#members"
-            className={`sidebar__item ${
-              isSettingsWorkspace && settingsTab === "members" ? "is-active" : ""
-            }`}
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <circle cx="8" cy="9" r="3" />
-                <circle cx="16" cy="9" r="3" />
-                <path d="M3 20c1.4-3 8.6-3 10 0" />
-                <path d="M11 20c1.2-2.6 7.8-2.6 10 0" />
-              </svg>
-            </span>
-            <span>Members</span>
-          </Link>
+          {canManageWorkspace ? (
+            <Link
+              href="/settings/workspace?tab=projects#projects"
+              className={`sidebar__item ${
+                isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
+              }`}
+            >
+              <span className="sidebar__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M4 7h16v10H4z" />
+                  <path d="M9 7v10" />
+                </svg>
+              </span>
+              <span>Projects</span>
+            </Link>
+          ) : null}
+          {canManageProjects ? (
+            <Link
+              href="/settings/workspace?tab=access#project-access"
+              className={`sidebar__item ${
+                isSettingsWorkspace && settingsTab === "access" ? "is-active" : ""
+              }`}
+            >
+              <span className="sidebar__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <circle cx="8" cy="9" r="3" />
+                  <circle cx="16" cy="9" r="3" />
+                  <path d="M3 20c1.4-3 8.6-3 10 0" />
+                  <path d="M11 20c1.2-2.6 7.8-2.6 10 0" />
+                </svg>
+              </span>
+              <span>Project access</span>
+            </Link>
+          ) : null}
           <Link
             href="/trash"
             className={`sidebar__item ${pathname.startsWith("/trash") ? "is-active" : ""}`}

@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data/uploads:/app/public/uploads
+      - ./data/uploads:/app/data/uploads
     restart: unless-stopped
     # Доступ к БД на хосте: из контейнера используйте host.docker.internal в DATABASE_URL
     extra_hosts:

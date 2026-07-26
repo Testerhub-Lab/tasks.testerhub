@@ -81,6 +81,7 @@ interface IssueDetailsClientProps {
   task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
+  canEdit?: boolean;
   canDelete?: boolean;
 }
 
@@ -88,6 +89,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   task,
   projectLabel,
   users,
+  canEdit = false,
   canDelete = false,
 }) => {
   const router = useRouter();
@@ -404,8 +406,14 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={() => setEditingTitle(true)}
-                    className="max-w-[70%] min-w-0 truncate rounded-lg px-2 py-1 text-left text-lg font-medium leading-tight text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                    onClick={() => {
+                      if (canEdit) setEditingTitle(true);
+                    }}
+                    className={`max-w-[70%] min-w-0 truncate rounded-lg px-2 py-1 text-left text-lg font-medium leading-tight text-white transition focus:outline-none ${
+                      canEdit
+                        ? "hover:bg-white/5 focus:ring-2 focus:ring-[var(--color-primary)]/40"
+                        : "cursor-default"
+                    }`}
                   >
                     {titleValue}
                   </button>
@@ -513,8 +521,14 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => setEditingDescription(true)}
-                className="w-full rounded-md px-2 py-2 text-left transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+                onClick={() => {
+                  if (canEdit) setEditingDescription(true);
+                }}
+                className={`w-full rounded-md px-2 py-2 text-left transition focus:outline-none ${
+                  canEdit
+                    ? "hover:bg-white/5 focus:ring-2 focus:ring-[var(--color-primary)]/30"
+                    : "cursor-default"
+                }`}
               >
                 <div className="space-y-5 prose prose-invert max-w-none">
                   {!isEmptyValue(details.description) ? (
@@ -626,6 +640,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             tags={liveTask.tags}
             typeLabel={details.type ?? null}
             users={users}
+            canEdit={canEdit}
             createdAt={liveTask.createdAt}
             updatedAt={liveTask.createdAt}
           />

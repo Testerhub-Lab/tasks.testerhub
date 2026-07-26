@@ -28,9 +28,7 @@ export function verifyWorkspaceInvite(params: {
     if (Date.now() > expMs) return false;
   }
   const secret = process.env.WORKSPACE_INVITE_SECRET;
-  if (!secret) {
-    return process.env.NODE_ENV !== "production";
-  }
+  if (!secret) return false;
 
   const { wsSlug, projectId, exp, sig, inviteId } = params;
   const payload = inviteId
@@ -60,7 +58,7 @@ export function buildWorkspaceInviteLink(params: {
       projectId: params.projectId,
       exp,
       inviteId: params.inviteId,
-    }) ?? (process.env.NODE_ENV !== "production" ? "dev" : null);
+    });
 
   if (!sig) return null;
 

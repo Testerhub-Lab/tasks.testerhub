@@ -93,6 +93,7 @@ interface TaskCommentsProps {
   createdAt: Date;
   comments: CommentItem[];
   activities: TaskActivityItem[];
+  canComment?: boolean;
 }
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 80) => {
@@ -110,6 +111,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   createdAt,
   comments,
   activities,
+  canComment = false,
 }) => {
   const [text, setText] = useState("");
   const [authorName, setAuthorName] = useState("");
@@ -588,7 +590,8 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       <div className="h-px bg-white/10" />
 
       {/* Composer */}
-      <div className="space-y-2">
+      {canComment ? (
+        <div className="space-y-2">
         <Textarea
           name="text"
           placeholder="Add a comment…"
@@ -639,7 +642,12 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
             </Button>
           </div>
         </div>
-      </div>
+        </div>
+      ) : (
+        <div className="text-sm text-white/45">
+          Доступ только для чтения.
+        </div>
+      )}
     </Card>
   );
 };

@@ -39,7 +39,10 @@ export const taskSchema = z
     environment: z.string().max(2000).optional().nullable(),
 
     tags: tagsInputSchema.default([]),
-    attachments: z.array(z.string()).default([]),
+    attachments: z
+      .array(z.string().regex(/^\/api\/uploads\/[a-zA-Z0-9._-]+$/))
+      .max(10)
+      .default([]),
 
     dueDate: z.coerce.date().optional().nullable(),
 

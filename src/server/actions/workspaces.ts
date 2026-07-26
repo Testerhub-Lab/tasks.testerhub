@@ -6,6 +6,28 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "../auth/session";
 import { setCurrentWorkspaceId } from "../auth/workspace";
 import { buildWorkspaceInviteLink } from "../auth/invite";
+import { ProjectRole } from "@prisma/client";
+import { getWorkspaceRole, hasProjectRole } from "../auth/access";
+
+async function canManageWorkspace(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  workspaceId: string
+) {
+  return (await getWorkspaceRole(user, workspaceId)) === "ADMIN";
+}
+
+async function canManageProject(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  workspaceId: string,
+  projectId: string
+) {
+  return Boolean(
+    await hasProjectRole(user, projectId, ProjectRole.ADMIN, {
+      workspaceId,
+      includeArchived: true,
+    })
+  );
+}
 
 export async function setWorkspaceAction(workspaceId: string) {
   const user = await getCurrentUser();
@@ -13,10 +35,21 @@ export async function setWorkspaceAction(workspaceId: string) {
 
   const membership = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: user.id } },
-    select: { workspaceId: true },
+    select: { workspaceId: true, role: true },
   });
 
   if (!membership) return { ok: false as const };
+  if (membership.role !== "ADMIN" && user.role !== "ADMIN") {
+    const activeProjectAccess = await prisma.projectMember.findFirst({
+      where: {
+        userId: user.id,
+        project: { workspaceId },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    if (!activeProjectAccess) return { ok: false as const };
+  }
 
   await setCurrentWorkspaceId(workspaceId);
   return { ok: true as const };
@@ -36,14 +69,7 @@ export async function updateWorkspaceAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id },
-      },
-      select: { role: true },
-    });
-
-    if (membership?.role !== "ADMIN") {
+    if (!(await canManageWorkspace(user, validated.workspaceId))) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
@@ -70,26 +96,29 @@ export async function updateWorkspaceAction(input: {
 
 const inviteLinkSchema = z.object({
   workspaceId: z.string().min(1),
-  projectId: z.string().min(1).optional().nullable(),
+  projectId: z.string().min(1),
+  projectRole: z.enum(["MEMBER", "VIEWER"]).default("MEMBER"),
+  accessDurationDays: z.number().int().min(1).max(365).optional().nullable(),
 });
 
 export async function createWorkspaceInviteAction(input: {
   workspaceId: string;
-  projectId?: string | null;
+  projectId: string;
+  projectRole?: "MEMBER" | "VIEWER";
+  accessDurationDays?: number | null;
 }) {
   try {
     const validated = inviteLinkSchema.parse(input);
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id },
-      },
-      select: { role: true },
-    });
-
-    if (membership?.role !== "ADMIN") {
+    if (
+      !(await canManageProject(
+        user,
+        validated.workspaceId,
+        validated.projectId
+      ))
+    ) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
@@ -102,16 +131,17 @@ export async function createWorkspaceInviteAction(input: {
       return { ok: false as const, formError: "Workspace not found" };
     }
 
-    const projectId = validated.projectId ?? "";
-
-    if (projectId) {
-      const project = await prisma.project.findFirst({
-        where: { id: projectId, workspaceId: validated.workspaceId },
-        select: { id: true },
-      });
-      if (!project) {
-        return { ok: false as const, formError: "Project not found" };
-      }
+    const projectId = validated.projectId;
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        workspaceId: validated.workspaceId,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!project) {
+      return { ok: false as const, formError: "Project not found" };
     }
 
     const baseUrl = process.env.MAIN_APP_BASE_URL?.replace(/\/$/, "");
@@ -121,60 +151,31 @@ export async function createWorkspaceInviteAction(input: {
 
     const now = Date.now();
     const exp = new Date(now + 1000 * 60 * 60 * 24 * 7);
-
-    const existing = await prisma.workspaceInvite.findFirst({
-      where: {
+    const created = await prisma.workspaceInvite.create({
+      data: {
         workspaceId: validated.workspaceId,
-        projectId: projectId || null,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
+        projectId,
+        projectRole: validated.projectRole,
+        accessDurationDays: validated.accessDurationDays,
+        createdById: user.id,
+        expiresAt: exp,
       },
       select: { id: true, expiresAt: true },
-      orderBy: { createdAt: "desc" },
     });
-
-    const inviteId = existing?.id ?? null;
-    const inviteExp = existing?.expiresAt ?? exp;
-
-    if (!existing) {
-      const created = await prisma.workspaceInvite.create({
-        data: {
-          workspaceId: validated.workspaceId,
-          projectId: projectId || null,
-          createdById: user.id,
-          expiresAt: exp,
-        },
-        select: { id: true, expiresAt: true },
-      });
-      revalidatePath("/settings/workspace");
-      const link = buildWorkspaceInviteLink({
-        baseUrl,
-        wsSlug: workspace.slug,
-        projectId,
-        exp: created.expiresAt.getTime(),
-        inviteId: created.id,
-      });
-
-      if (!link) {
-        return { ok: false as const, formError: "WORKSPACE_INVITE_SECRET is not set" };
-      }
-
-      return { ok: true as const, link, inviteId: created.id };
-    }
-
+    revalidatePath("/settings/workspace");
     const link = buildWorkspaceInviteLink({
       baseUrl,
       wsSlug: workspace.slug,
       projectId,
-      exp: inviteExp.getTime(),
-      inviteId,
+      exp: created.expiresAt.getTime(),
+      inviteId: created.id,
     });
 
     if (!link) {
       return { ok: false as const, formError: "WORKSPACE_INVITE_SECRET is not set" };
     }
 
-    return { ok: true as const, link, inviteId: inviteId ?? "" };
+    return { ok: true as const, link, inviteId: created.id };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { ok: false as const, formError: "Неверные данные" };
@@ -197,18 +198,30 @@ export async function revokeWorkspaceInviteAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const membership = await prisma.workspaceMember.findUnique({
+    const invite = await prisma.workspaceInvite.findFirst({
       where: {
-        workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id },
+        id: validated.inviteId,
+        workspaceId: validated.workspaceId,
       },
-      select: { role: true },
+      select: { id: true, projectId: true },
     });
-    if (membership?.role !== "ADMIN") {
+    if (!invite) {
+      return { ok: false as const, formError: "Ссылка не найдена" };
+    }
+
+    const allowed = invite.projectId
+      ? await canManageProject(
+          user,
+          validated.workspaceId,
+          invite.projectId
+        )
+      : await canManageWorkspace(user, validated.workspaceId);
+    if (!allowed) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
     await prisma.workspaceInvite.update({
-      where: { id: validated.inviteId },
+      where: { id: invite.id },
       data: { revokedAt: new Date() },
       select: { id: true },
     });
@@ -231,14 +244,12 @@ const createProjectSchema = z.object({
     .max(6)
     .regex(/^[A-Z0-9]+$/, "Project key must be A-Z/0-9"),
   name: z.string().min(2).max(60),
-  allowGuest: z.boolean().optional(),
 });
 
 export async function createWorkspaceProjectAction(input: {
   workspaceId: string;
   key: string;
   name: string;
-  allowGuest?: boolean;
 }) {
   try {
     const validated = createProjectSchema.parse({
@@ -249,13 +260,7 @@ export async function createWorkspaceProjectAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id },
-      },
-      select: { role: true },
-    });
-    if (membership?.role !== "ADMIN") {
+    if (!(await canManageWorkspace(user, validated.workspaceId))) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
@@ -271,7 +276,6 @@ export async function createWorkspaceProjectAction(input: {
       data: {
         key: validated.key,
         name: validated.name,
-        allowGuest: validated.allowGuest ?? true,
         workspaceId: validated.workspaceId,
       },
       select: { id: true },
@@ -307,13 +311,13 @@ export async function setProjectArchivedAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id },
-      },
-      select: { role: true },
-    });
-    if (membership?.role !== "ADMIN") {
+    if (
+      !(await canManageProject(
+        user,
+        validated.workspaceId,
+        validated.projectId
+      ))
+    ) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
@@ -361,20 +365,16 @@ export async function updateWorkspaceMemberRoleAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const admin = await prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id } },
-      select: { role: true },
-    });
-    if (admin?.role !== "ADMIN") {
+    if (!(await canManageWorkspace(user, validated.workspaceId))) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
     const target = await prisma.workspaceMember.findUnique({
       where: { id: validated.memberId },
-      select: { userId: true, role: true },
+      select: { userId: true, role: true, workspaceId: true },
     });
 
-    if (!target) {
+    if (!target || target.workspaceId !== validated.workspaceId) {
       return { ok: false as const, formError: "Участник не найден" };
     }
 
@@ -413,19 +413,15 @@ export async function removeWorkspaceMemberAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
-    const admin = await prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId: validated.workspaceId, userId: user.id } },
-      select: { role: true },
-    });
-    if (admin?.role !== "ADMIN") {
+    if (!(await canManageWorkspace(user, validated.workspaceId))) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
     const target = await prisma.workspaceMember.findUnique({
       where: { id: validated.memberId },
-      select: { userId: true },
+      select: { userId: true, workspaceId: true },
     });
-    if (!target) {
+    if (!target || target.workspaceId !== validated.workspaceId) {
       return { ok: false as const, formError: "Участник не найден" };
     }
 
@@ -433,9 +429,22 @@ export async function removeWorkspaceMemberAction(input: {
       return { ok: false as const, formError: "Нельзя удалить себя" };
     }
 
-    await prisma.workspaceMember.delete({
-      where: { id: validated.memberId },
+    const projectIds = await prisma.project.findMany({
+      where: { workspaceId: validated.workspaceId },
+      select: { id: true },
     });
+
+    await prisma.$transaction([
+      prisma.projectMember.deleteMany({
+        where: {
+          userId: target.userId,
+          projectId: { in: projectIds.map((project) => project.id) },
+        },
+      }),
+      prisma.workspaceMember.delete({
+        where: { id: validated.memberId },
+      }),
+    ]);
 
     revalidatePath("/settings/workspace");
 
@@ -445,5 +454,185 @@ export async function removeWorkspaceMemberAction(input: {
       return { ok: false as const, formError: "Неверные данные" };
     }
     return { ok: false as const, formError: "Не удалось удалить участника" };
+  }
+}
+
+const updateProjectMemberRoleSchema = z.object({
+  workspaceId: z.string().min(1),
+  projectMemberId: z.string().min(1),
+  role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
+});
+
+export async function updateProjectMemberRoleAction(input: {
+  workspaceId: string;
+  projectMemberId: string;
+  role: "ADMIN" | "MEMBER" | "VIEWER";
+}) {
+  try {
+    const validated = updateProjectMemberRoleSchema.parse(input);
+    const user = await getCurrentUser();
+    if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    const target = await prisma.projectMember.findUnique({
+      where: { id: validated.projectMemberId },
+      select: {
+        id: true,
+        userId: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+    if (!target || target.project.workspaceId !== validated.workspaceId) {
+      return { ok: false as const, formError: "Участник проекта не найден" };
+    }
+    if (
+      !(await canManageProject(
+        user,
+        validated.workspaceId,
+        target.projectId
+      ))
+    ) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+    if (target.userId === user.id && validated.role !== "ADMIN") {
+      return { ok: false as const, formError: "Нельзя понизить себя" };
+    }
+
+    await prisma.projectMember.update({
+      where: { id: target.id },
+      data: { role: validated.role },
+      select: { id: true },
+    });
+
+    revalidatePath("/settings/workspace");
+    revalidatePath("/board");
+    revalidatePath("/issues");
+    revalidatePath("/backlog");
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, formError: "Неверные данные" };
+    }
+    return { ok: false as const, formError: "Не удалось обновить роль" };
+  }
+}
+
+const updateProjectMemberExpirySchema = z.object({
+  workspaceId: z.string().min(1),
+  projectMemberId: z.string().min(1),
+  accessDurationDays: z.number().int().min(1).max(365).nullable(),
+});
+
+export async function updateProjectMemberExpiryAction(input: {
+  workspaceId: string;
+  projectMemberId: string;
+  accessDurationDays: number | null;
+}) {
+  try {
+    const validated = updateProjectMemberExpirySchema.parse(input);
+    const user = await getCurrentUser();
+    if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    const target = await prisma.projectMember.findUnique({
+      where: { id: validated.projectMemberId },
+      select: {
+        id: true,
+        userId: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+    if (!target || target.project.workspaceId !== validated.workspaceId) {
+      return { ok: false as const, formError: "Участник проекта не найден" };
+    }
+    if (
+      !(await canManageProject(
+        user,
+        validated.workspaceId,
+        target.projectId
+      ))
+    ) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+    if (target.userId === user.id) {
+      return { ok: false as const, formError: "Нельзя ограничить собственный доступ" };
+    }
+
+    const expiresAt = validated.accessDurationDays
+      ? new Date(
+          Date.now() +
+            validated.accessDurationDays * 24 * 60 * 60 * 1000
+        )
+      : null;
+
+    await prisma.projectMember.update({
+      where: { id: target.id },
+      data: { expiresAt },
+      select: { id: true },
+    });
+
+    revalidatePath("/settings/workspace");
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, formError: "Неверные данные" };
+    }
+    return { ok: false as const, formError: "Не удалось обновить срок доступа" };
+  }
+}
+
+const removeProjectMemberSchema = z.object({
+  workspaceId: z.string().min(1),
+  projectMemberId: z.string().min(1),
+});
+
+export async function removeProjectMemberAction(input: {
+  workspaceId: string;
+  projectMemberId: string;
+}) {
+  try {
+    const validated = removeProjectMemberSchema.parse(input);
+    const user = await getCurrentUser();
+    if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    const target = await prisma.projectMember.findUnique({
+      where: { id: validated.projectMemberId },
+      select: {
+        id: true,
+        userId: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+    if (!target || target.project.workspaceId !== validated.workspaceId) {
+      return { ok: false as const, formError: "Участник проекта не найден" };
+    }
+    if (
+      !(await canManageProject(
+        user,
+        validated.workspaceId,
+        target.projectId
+      ))
+    ) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+    if (target.userId === user.id) {
+      return { ok: false as const, formError: "Нельзя удалить себя из проекта" };
+    }
+
+    await prisma.projectMember.delete({
+      where: { id: target.id },
+    });
+
+    revalidatePath("/settings/workspace");
+    revalidatePath("/board");
+    revalidatePath("/issues");
+    revalidatePath("/backlog");
+    return { ok: true as const };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, formError: "Неверные данные" };
+    }
+    return { ok: false as const, formError: "Не удалось удалить доступ" };
   }
 }

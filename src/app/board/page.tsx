@@ -7,6 +7,8 @@ import { getProjects } from "../../server/queries/projects";
 import { getUsersForAssignee } from "../../server/queries/users";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
+import { getAccessibleProjectIds } from "../../server/auth/access";
+import { redirect } from "next/navigation";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -28,12 +30,15 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
   };
 
   const user = await getCurrentUser();
+  if (!user) redirect("/signin?redirect=/board");
   const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/signin?redirect=/board");
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
   const [tasks, users] = await Promise.all([
-    getTasks(queryFilters, user?.id ?? null, workspaceId),
-    getUsersForAssignee(workspaceId),
+    getTasks(queryFilters, user.id, accessibleProjectIds),
+    getUsersForAssignee(workspaceId, accessibleProjectIds),
   ]);
-  const projects = await getProjects(workspaceId);
+  const projects = await getProjects(workspaceId, user);
   const isFiltered = hasActiveFilters(filters);
 
   return (
@@ -63,8 +68,10 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
               >
                 Clear filters
               </Link>
-            ) : (
+            ) : projects.some((project) => project.canWrite) ? (
               <CreateIssueButton />
+            ) : (
+              <span className="text-sm text-white/50">Доступ только для чтения</span>
             )}
           </div>
         </div>
@@ -72,7 +79,10 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
         <BoardClient
           tasks={tasks}
           users={users}
-          boardId={filters.projectId ?? `workspace:${workspaceId}`}
+          boardId={filters.projectId ?? null}
+          editableProjectIds={projects
+            .filter((project) => project.canWrite)
+            .map((project) => project.id)}
         />
       )}
     </div>

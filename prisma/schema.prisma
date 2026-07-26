@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "binary"
 }
 
@@ -31,12 +31,12 @@ model Task {
   number         Int
   key            String    @unique
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
-  project        Project   @relation(fields: [projectId], references: [id])
-  comments       Comment[]
-  activities     TaskActivity[]
+  project    Project        @relation(fields: [projectId], references: [id])
+  comments   Comment[]
+  activities TaskActivity[]
 
   @@unique([projectId, number])
 }
@@ -51,7 +51,7 @@ model TaskActivity {
   toStatus   Status?
   createdAt  DateTime     @default(now())
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([taskId, createdAt])
@@ -75,58 +75,56 @@ model Comment {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  passwordHash String?
-  name        String?
-  role        Role     @default(USER)
-  testerHubId String?  @unique
+  id                String     @id @default(uuid())
+  email             String     @unique
+  passwordHash      String?
+  name              String?
+  role              Role       @default(USER)
+  testerHubId       String?    @unique
   lastSeenBacklogAt DateTime?
   personalWorkspace Workspace? @relation("PersonalWorkspaceOwner")
 
-  comments      Comment[]
+  comments Comment[]
 
-  createdTasks  Task[] @relation("TaskCreator")
-  reportedTasks Task[] @relation("TaskReporter")
-  assignedTasks Task[] @relation("TaskAssignee")
-  activities    TaskActivity[]
+  createdTasks         Task[]            @relation("TaskCreator")
+  reportedTasks        Task[]            @relation("TaskReporter")
+  assignedTasks        Task[]            @relation("TaskAssignee")
+  activities           TaskActivity[]
   workspaceMemberships WorkspaceMember[]
-  workspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteCreator")
+  projectMemberships   ProjectMember[]
+  uploads              Upload[]
+  workspaceInvites     WorkspaceInvite[] @relation("WorkspaceInviteCreator")
 
   sessions Session[]
 }
 
-model Setting {
-  id          Int      @id @default(1)
-  boardPrivate Boolean @default(false)
-}
-
 model Project {
-  id              String   @id @default(cuid())
-  key             String   @unique
-  name            String
-  nextIssueNumber Int      @default(1)
-  allowGuest      Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  archivedAt      DateTime?
-  tasks           Task[]
-  workspaceId     String
-  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+  id               String            @id @default(cuid())
+  key              String            @unique
+  name             String
+  nextIssueNumber  Int               @default(1)
+  createdAt        DateTime          @default(now())
+  archivedAt       DateTime?
+  tasks            Task[]
+  workspaceId      String
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id])
   workspaceInvites WorkspaceInvite[]
+  members          ProjectMember[]
+  uploads          Upload[]
 
   @@index([archivedAt])
 }
 
 model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  personalOwnerId String? @unique
-  createdAt DateTime @default(now())
-  projects  Project[]
-  members   WorkspaceMember[]
-  invites   WorkspaceInvite[]
-  personalOwner User? @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: SetNull)
+  id              String            @id @default(cuid())
+  name            String
+  slug            String            @unique
+  personalOwnerId String?           @unique
+  createdAt       DateTime          @default(now())
+  projects        Project[]
+  members         WorkspaceMember[]
+  invites         WorkspaceInvite[]
+  personalOwner   User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: SetNull)
 }
 
 model WorkspaceMember {
@@ -144,13 +142,15 @@ model WorkspaceMember {
 }
 
 model WorkspaceInvite {
-  id          String   @id @default(cuid())
-  workspaceId String
-  projectId   String?
-  createdById String?
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  createdAt   DateTime @default(now())
+  id                 String      @id @default(cuid())
+  workspaceId        String
+  projectId          String?
+  projectRole        ProjectRole @default(MEMBER)
+  accessDurationDays Int?
+  createdById        String?
+  expiresAt          DateTime
+  revokedAt          DateTime?
+  createdAt          DateTime    @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -159,6 +159,40 @@ model WorkspaceInvite {
   @@index([workspaceId])
   @@index([projectId])
   @@index([revokedAt])
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectRole @default(MEMBER)
+  expiresAt DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId, expiresAt])
+}
+
+model Upload {
+  id           String   @id @default(cuid())
+  storedName   String   @unique
+  originalName String
+  contentType  String
+  size         Int
+  projectId    String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([uploadedById])
 }
 
 enum Status {
@@ -188,16 +222,22 @@ enum WorkspaceRole {
   MEMBER
 }
 
+enum ProjectRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
 enum ActivityType {
   CREATED
   STATUS_CHANGED
 }
 
 model Session {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  tokenHash String   @unique
-  createdAt DateTime @default(now())
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?

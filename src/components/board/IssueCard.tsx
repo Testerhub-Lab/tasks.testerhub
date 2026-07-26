@@ -21,6 +21,7 @@ interface IssueCardProps {
   users?: AssigneeOption[];
   onAssigneeChange?: (assigneeId: string | null) => void;
   isSavingAssignee?: boolean;
+  canEdit?: boolean;
 }
 
 const IssueCard: React.FC<IssueCardProps> = ({
@@ -36,6 +37,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
   users = [],
   onAssigneeChange,
   isSavingAssignee = false,
+  canEdit = true,
 }) => {
   const resolvedType = type?.trim() || null;
 
@@ -189,6 +191,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
             <div className="relative" ref={assigneeRef}>
               <button
                 type="button"
+                disabled={!canEdit}
                 className={`inline-flex h-[28px] w-[28px] items-center justify-center rounded-full border text-[11px] font-semibold ${
                   assigneeName
                     ? "bg-white/6 border-white/10 text-white/85"
@@ -197,7 +200,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
                 title={assigneeName ?? "Unassigned"}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setAssigneeOpen((v) => !v);
+                  if (canEdit) setAssigneeOpen((v) => !v);
                 }}
                 onPointerDown={(event) => {
                   event.stopPropagation();
@@ -206,7 +209,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
               >
                 {assigneeInitials ?? "—"}
               </button>
-              {assigneeOpen ? (
+              {canEdit && assigneeOpen ? (
                 <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
                   <button
                     type="button"

@@ -1,6 +1,6 @@
-# Workspace Entry Link (External Platform)
+# Project Entry Link
 
-Use `/entry` to send a user into a specific workspace + project and open the Create Bug modal.
+Use `/entry` to grant an authenticated user access to one project.
 
 ## URL format
 
@@ -52,7 +52,8 @@ function makeEntryLink({ baseUrl, ws, projectId, ttlMs, invite, secret }) {
 
 ## Notes
 - Set `WORKSPACE_INVITE_SECRET` in production.
-- In dev, if the secret is not set, the link is accepted.
+- The invite record defines the project role and optional access duration.
+- The link is rejected when `WORKSPACE_INVITE_SECRET` is not configured.
 - If `exp` is in the past, the link is rejected.
 
 ### Where the secret lives

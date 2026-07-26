@@ -33,7 +33,7 @@ export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
 export const buildTaskWhere = (
   filters: IssueFilters,
   currentUserId?: string | null,
-  workspaceId?: string | null
+  accessibleProjectIds: string[] = []
 ): Prisma.TaskWhereInput => {
   const where: Prisma.TaskWhereInput = {
     isDeleted: false,
@@ -69,7 +69,11 @@ export const buildTaskWhere = (
   }
 
   if (filters.projectId) {
-    where.projectId = filters.projectId;
+    where.projectId = accessibleProjectIds.includes(filters.projectId)
+      ? filters.projectId
+      : "__no-access__";
+  } else {
+    where.projectId = { in: accessibleProjectIds };
   }
 
   if (filters.assignee) {
@@ -84,9 +88,7 @@ export const buildTaskWhere = (
     }
   }
 
-  if (workspaceId) {
-    where.project = { workspaceId, archivedAt: null };
-  }
+  where.project = { archivedAt: null };
 
   return where;
 };
@@ -94,10 +96,10 @@ export const buildTaskWhere = (
 export async function getTasks(
   filters: IssueFilters,
   currentUserId?: string | null,
-  workspaceId?: string | null
+  accessibleProjectIds: string[] = []
 ): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    where: buildTaskWhere(filters, currentUserId, workspaceId),
+    where: buildTaskWhere(filters, currentUserId, accessibleProjectIds),
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
@@ -107,9 +109,12 @@ export async function getTasks(
   });
 }
 
-export async function getLatestTasks(limit = 10): Promise<TaskListItem[]> {
+export async function getLatestTasks(
+  accessibleProjectIds: string[],
+  limit = 10
+): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    where: { isDeleted: false },
+    where: { isDeleted: false, projectId: { in: accessibleProjectIds } },
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
@@ -120,9 +125,11 @@ export async function getLatestTasks(limit = 10): Promise<TaskListItem[]> {
   });
 }
 
-export async function getAllTasks(): Promise<TaskListItem[]> {
+export async function getAllTasks(
+  accessibleProjectIds: string[]
+): Promise<TaskListItem[]> {
   return prisma.task.findMany({
-    where: { isDeleted: false },
+    where: { isDeleted: false, projectId: { in: accessibleProjectIds } },
     include: {
       project: true,
       reporter: { select: { id: true, name: true, email: true } },
@@ -134,7 +141,7 @@ export async function getAllTasks(): Promise<TaskListItem[]> {
 
 export async function getBacklogUnreadCount(
   since?: Date | null,
-  workspaceId?: string | null
+  accessibleProjectIds: string[] = []
 ) {
   const sinceDate = since ?? new Date(0);
   return prisma.task.count({
@@ -142,14 +149,15 @@ export async function getBacklogUnreadCount(
       isDeleted: false,
       status: Status.NEW,
       createdAt: { gt: sinceDate },
-      ...(workspaceId ? { project: { workspaceId, archivedAt: null } } : {}),
+      projectId: { in: accessibleProjectIds },
+      project: { archivedAt: null },
     },
   });
 }
 
 export async function getTaskById(
   id: string,
-  workspaceId?: string | null
+  accessibleProjectIds: string[]
 ): Promise<TaskWithProjectAndReporter | null> {
   return prisma.task.findFirst({
     include: {
@@ -157,13 +165,13 @@ export async function getTaskById(
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
     },
-    where: { id, isDeleted: false, ...(workspaceId ? { project: { workspaceId } } : {}) },
+    where: { id, isDeleted: false, projectId: { in: accessibleProjectIds } },
   });
 }
 
 export async function getTaskByKey(
   key: string,
-  workspaceId?: string | null
+  accessibleProjectIds: string[]
 ): Promise<TaskWithProjectAndReporter | null> {
   return prisma.task.findFirst({
     include: {
@@ -171,7 +179,7 @@ export async function getTaskByKey(
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
     },
-    where: { key, isDeleted: false, ...(workspaceId ? { project: { workspaceId } } : {}) },
+    where: { key, isDeleted: false, projectId: { in: accessibleProjectIds } },
   });
 }
 
@@ -207,11 +215,13 @@ export async function getCommentsByTaskId(taskId: string) {
   });
 }
 
-export async function getDeletedTasks(workspaceId: string): Promise<TaskListItem[]> {
+export async function getDeletedTasks(
+  accessibleProjectIds: string[]
+): Promise<TaskListItem[]> {
   return prisma.task.findMany({
     where: {
       isDeleted: true,
-      project: { workspaceId },
+      projectId: { in: accessibleProjectIds },
     },
     include: {
       project: true,

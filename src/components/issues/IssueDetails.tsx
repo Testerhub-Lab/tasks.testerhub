@@ -6,6 +6,12 @@ import { getCurrentUser } from "../../server/auth/session";
 import prisma from "@/lib/prisma";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import IssueDetailsClient from "./IssueDetailsClient";
+import {
+  getAccessibleProjectIds,
+  getProjectAccess,
+  projectRoleAtLeast,
+} from "@/server/auth/access";
+import { ProjectRole } from "@prisma/client";
 
 interface IssueDetailsProps {
   task: TaskWithProjectAndReporter;
@@ -16,31 +22,48 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     getCurrentWorkspaceId(),
     getCurrentUser(),
   ]);
+  if (!workspaceId || !user) return null;
   const project =
     (task as { projectId?: string | null }).projectId
       ? await getProjectById(
           (task as { projectId?: string | null }).projectId!,
           workspaceId,
+          user,
           { includeArchived: true }
         )
       : null;
-  const users = await getUsersForAssignee(workspaceId);
-  const membership = user
-    ? await prisma.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId: user.id,
-          },
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId, {
+    includeArchived: true,
+  });
+  const users = await getUsersForAssignee(workspaceId, accessibleProjectIds);
+  const [membership, projectAccess] = await Promise.all([
+    prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: user.id,
         },
-        select: { role: true },
-      })
-    : null;
+      },
+      select: { role: true },
+    }),
+    getProjectAccess(user, task.projectId, {
+      workspaceId,
+      includeArchived: true,
+    }),
+  ]);
 
   const canDelete =
-    Boolean(user && task.creatorId === user.id) ||
     membership?.role === "ADMIN" ||
-    user?.role === "ADMIN";
+    user.role === "ADMIN" ||
+    (projectAccess
+      ? projectRoleAtLeast(projectAccess.role, ProjectRole.ADMIN) ||
+        (task.creatorId === user.id &&
+          projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER))
+      : false);
+  const canEdit = Boolean(
+    projectAccess &&
+      projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)
+  );
 
   const projectLabel = project ? `${project.key} — ${project.name}` : null;
 
@@ -49,6 +72,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       task={task}
       projectLabel={projectLabel}
       users={users}
+      canEdit={canEdit}
       canDelete={Boolean(canDelete)}
     />
   );

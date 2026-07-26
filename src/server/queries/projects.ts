@@ -1,4 +1,12 @@
 import prisma from "../../lib/prisma";
+import type { AccessUser } from "../auth/access";
+import {
+  getAccessibleProjectIds,
+  getProjectAccess,
+  getWorkspaceRole,
+  projectRoleAtLeast,
+} from "../auth/access";
+import { ProjectRole } from "@prisma/client";
 const DEFAULT_PROJECT = {
   key: "TH",
   name: "TesterHub",
@@ -16,23 +24,62 @@ export async function getOrCreateDefaultProject(workspaceId: string) {
 
 export async function getProjects(
   workspaceId: string,
+  user: AccessUser,
   options?: { includeArchived?: boolean }
 ) {
-  return prisma.project.findMany({
+  const [accessibleProjectIds, workspaceRole] = await Promise.all([
+    getAccessibleProjectIds(user, workspaceId, options),
+    getWorkspaceRole(user, workspaceId),
+  ]);
+  const now = new Date();
+  const projects = await prisma.project.findMany({
     where: {
       workspaceId,
+      id: { in: accessibleProjectIds },
       ...(options?.includeArchived ? {} : { archivedAt: null }),
     },
-    select: { id: true, name: true, key: true, allowGuest: true, archivedAt: true },
+    select: {
+      id: true,
+      name: true,
+      key: true,
+      archivedAt: true,
+      members: {
+        where: {
+          userId: user.id,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        select: { role: true },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: "asc" },
+  });
+
+  return projects.map(({ members, ...project }) => {
+    const accessRole =
+      workspaceRole === "ADMIN"
+        ? ProjectRole.ADMIN
+        : members[0]?.role ?? ProjectRole.VIEWER;
+    return {
+      ...project,
+      accessRole,
+      canWrite: projectRoleAtLeast(accessRole, ProjectRole.MEMBER),
+    };
   });
 }
 
 export async function getProjectById(
   id: string,
-  workspaceId?: string,
+  workspaceId: string,
+  user: AccessUser,
   options?: { includeArchived?: boolean }
 ) {
+  const access = await getProjectAccess(user, id, {
+    workspaceId,
+    includeArchived: options?.includeArchived,
+  });
+  if (!access) return null;
+
   return prisma.project.findFirst({
     where: {
       id,

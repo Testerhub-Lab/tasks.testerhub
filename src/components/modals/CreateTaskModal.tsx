@@ -12,7 +12,12 @@ import { createTaskAction } from "@/server/actions/tasks";
 import type { TaskInput } from "@/server/validators/task";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
-type ProjectOption = { id: string; name: string; key: string };
+type ProjectOption = {
+  id: string;
+  name: string;
+  key: string;
+  canWrite?: boolean;
+};
 type UserOption = { id: string; name: string | null; email: string };
 
 type IssueType = "Bug" | "Task";
@@ -57,7 +62,10 @@ function isUploadErr(x: unknown): x is UploadApiErr {
   return o.ok === false && typeof o.error === "string";
 }
 
-async function uploadMany(items: Array<{ clientId: string; file: File }>): Promise<Map<string, string>> {
+async function uploadMany(
+  items: Array<{ clientId: string; file: File }>,
+  projectId: string
+): Promise<Map<string, string>> {
   const fd = new FormData();
 
   const meta: UploadMetaItem[] = items.map(({ clientId, file }) => ({
@@ -72,6 +80,7 @@ async function uploadMany(items: Array<{ clientId: string; file: File }>): Promi
   }
 
   fd.append("meta", JSON.stringify(meta)); // ✅ массив, длина совпадает с files
+  fd.append("projectId", projectId);
 
   const res = await fetch("/api/uploads", { method: "POST", body: fd });
   const json: unknown = await res.json().catch(() => null);
@@ -218,6 +227,10 @@ export default function CreateTaskModal({
 
   const addFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    if (!effectiveProjectId) {
+      toast.error("Select project before uploading files");
+      return;
+    }
   
     const queued = files.map((file) => ({ clientId: makeClientId(), file }));
   
@@ -234,7 +247,7 @@ export default function CreateTaskModal({
     ]);
   
     try {
-      const urlByClientId = await uploadMany(queued);
+      const urlByClientId = await uploadMany(queued, effectiveProjectId);
   
       setAttachments((prev) =>
         prev.map((it) => {
@@ -252,7 +265,7 @@ export default function CreateTaskModal({
         prev.map((it) => (it.state === "uploading" ? { ...it, state: "error", error: msg } : it))
       );
     }
-  }, []);  
+  }, [effectiveProjectId]);
 
   const onFileInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

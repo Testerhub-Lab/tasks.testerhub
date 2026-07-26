@@ -6,6 +6,8 @@ import { getTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
+import { getAccessibleProjectIds } from "../../server/auth/access";
+import { redirect } from "next/navigation";
 import {
   hasActiveFilters,
   parseSearchParams,
@@ -21,9 +23,12 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
   const filters = parseSearchParams(resolvedSearchParams);
 
   const user = await getCurrentUser();
+  if (!user) redirect("/signin?redirect=/issues");
   const workspaceId = await getCurrentWorkspaceId();
-  const tasks = await getTasks(filters, user?.id ?? null, workspaceId);
-  const projects = await getProjects(workspaceId);
+  if (!workspaceId) redirect("/signin?redirect=/issues");
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
+  const tasks = await getTasks(filters, user.id, accessibleProjectIds);
+  const projects = await getProjects(workspaceId, user);
   const isFiltered = hasActiveFilters(filters);
 
   return (
@@ -54,8 +59,10 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
               >
                 Clear filters
               </Link>
-            ) : (
+            ) : projects.some((project) => project.canWrite) ? (
               <CreateIssueButton />
+            ) : (
+              <span className="text-sm text-white/50">Доступ только для чтения</span>
             )}
           </div>
         </Card>

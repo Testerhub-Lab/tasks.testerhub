@@ -3,32 +3,46 @@ import { getProjects } from "@/server/queries/projects";
 import { getBacklogUnreadCount } from "@/server/queries/tasks";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
-import { getOrCreateDefaultWorkspace, getWorkspacesForUser } from "@/server/queries/workspaces";
+import { getWorkspacesForUser } from "@/server/queries/workspaces";
+import { getAccessibleProjectIds } from "@/server/auth/access";
 import prisma from "@/lib/prisma";
 
 export default async function Sidebar() {
   const user = await getCurrentUser();
+  if (!user) return null;
   const workspaceId = await getCurrentWorkspaceId();
-  const projects = await getProjects(workspaceId);
-  const workspaces = user
-    ? await getWorkspacesForUser(user.id)
-    : [{ workspace: await getOrCreateDefaultWorkspace() }];
+  if (!workspaceId) return null;
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
+  const projects = await getProjects(workspaceId, user);
+  const workspaces = await getWorkspacesForUser(user.id);
   let backlogUnread = 0;
   let canManageWorkspace = false;
+  let canManageProjects = false;
 
-  if (user) {
-    const meta = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { lastSeenBacklogAt: true },
-    });
-    backlogUnread = await getBacklogUnreadCount(meta?.lastSeenBacklogAt ?? null, workspaceId);
+  const meta = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { lastSeenBacklogAt: true },
+  });
+  backlogUnread = await getBacklogUnreadCount(
+    meta?.lastSeenBacklogAt ?? null,
+    accessibleProjectIds
+  );
 
-    const membership = await prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId: user.id } },
-      select: { role: true },
-    });
-    canManageWorkspace = membership?.role === "ADMIN";
-  }
+  const membership = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: user.id } },
+    select: { role: true },
+  });
+  canManageWorkspace = membership?.role === "ADMIN" || user.role === "ADMIN";
+  canManageProjects =
+    canManageWorkspace ||
+    (await prisma.projectMember.count({
+      where: {
+        userId: user.id,
+        projectId: { in: accessibleProjectIds },
+        role: "ADMIN",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    })) > 0;
 
   return (
     <SidebarClient
@@ -37,6 +51,7 @@ export default async function Sidebar() {
       workspaces={workspaces.map((m) => m.workspace)}
       currentWorkspaceId={workspaceId}
       canManageWorkspace={canManageWorkspace}
+      canManageProjects={canManageProjects}
     />
   );
 }

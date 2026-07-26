@@ -6,16 +6,15 @@ import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { sseManager } from "../../lib/sse";
 import type { RealtimeEvent } from "../../types/realtime";
-import { ActivityType, Status } from "@prisma/client";
+import { ActivityType, ProjectRole, Status } from "@prisma/client";
 import { getCurrentUser } from "../auth/session";
 import { getCurrentWorkspaceId } from "../auth/workspace";
 import {
-  canChangePriority,
-  canChangeStatus,
-  canComment,
-  canCreateTask,
-  type Role,
-} from "../auth/permissions";
+  canAssignUserToProject,
+  getProjectAccess,
+  hasProjectRole,
+  projectRoleAtLeast,
+} from "../auth/access";
 import {
   taskSchema,
   taskStatusSchema,
@@ -83,9 +82,8 @@ async function broadcastTaskEvent(
 
 async function canManageTaskDeletion(params: {
   taskId: string;
-  currentUserId: string | null;
+  currentUser: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
   workspaceId: string;
-  currentUserRole: "ADMIN" | "USER" | null;
 }) {
   const task = await prisma.task.findFirst({
     where: { id: params.taskId },
@@ -104,24 +102,20 @@ async function canManageTaskDeletion(params: {
     return { ok: false as const, formError: "Недоступно" };
   }
 
-  const isCreator = Boolean(params.currentUserId && task.creatorId === params.currentUserId);
-  const isGlobalAdmin = params.currentUserRole === "ADMIN";
-  let isWorkspaceAdmin = false;
-
-  if (params.currentUserId) {
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId: task.project.workspaceId,
-          userId: params.currentUserId,
-        },
-      },
-      select: { role: true },
-    });
-    isWorkspaceAdmin = membership?.role === "ADMIN";
+  const access = await getProjectAccess(params.currentUser, task.projectId, {
+    workspaceId: params.workspaceId,
+    includeArchived: true,
+  });
+  if (!access) {
+    return { ok: false as const, formError: "Недоступно" };
   }
 
-  if (!isCreator && !isWorkspaceAdmin && !isGlobalAdmin) {
+  const isCreator = task.creatorId === params.currentUser.id;
+  const canManageProject = projectRoleAtLeast(access.role, ProjectRole.ADMIN);
+  const creatorCanDelete =
+    isCreator && projectRoleAtLeast(access.role, ProjectRole.MEMBER);
+
+  if (!creatorCanDelete && !canManageProject) {
     return { ok: false as const, formError: "Недостаточно прав" };
   }
 
@@ -132,10 +126,25 @@ export async function createTaskAction(data: TaskInput) {
   try {
     const validated = taskSchema.parse(data);
     const authUser = await getCurrentUser();
-    const role: Role =
-      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
+
+    const access = await hasProjectRole(
+      authUser,
+      validated.projectId,
+      ProjectRole.MEMBER,
+      { workspaceId }
+    );
+    if (!access) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+
     const project = await prisma.project.findFirst({
       where: { id: validated.projectId, workspaceId },
       select: {
@@ -143,7 +152,6 @@ export async function createTaskAction(data: TaskInput) {
         workspaceId: true,
         key: true,
         nextIssueNumber: true,
-        allowGuest: true,
         archivedAt: true,
       },
     });
@@ -156,29 +164,33 @@ export async function createTaskAction(data: TaskInput) {
     }
 
     if (
-      !canCreateTask({
-        role,
-        projectAllowGuest: project.allowGuest,
-      })
+      validated.assigneeId &&
+      !(await canAssignUserToProject(validated.assigneeId, project.id))
     ) {
-      return { ok: false as const, formError: "Требуется авторизация" };
+      return { ok: false as const, formError: "Исполнитель не имеет доступа к проекту" };
     }
 
-    const trimmedRequesterName = validated.requesterName?.trim() || null;
-    const isAuth = Boolean(authUser);
-    const isGuest = !isAuth;
-    const effectiveReporterId = isAuth ? authUser!.id : null;
-    const effectiveRequesterName = isAuth ? null : (trimmedRequesterName ?? "Гость");
-
-    if (isGuest && !project.allowGuest) {
-      return { ok: false as const, formError: "Гостевой режим для проекта запрещён" };
+    if (validated.attachments.length > 0) {
+      const storedNames = validated.attachments.map(
+        (attachment) => attachment.split("/").pop() ?? ""
+      );
+      const uniqueStoredNames = [...new Set(storedNames)];
+      const uploadCount = await prisma.upload.count({
+        where: {
+          storedName: { in: uniqueStoredNames },
+          projectId: project.id,
+          uploadedById: authUser.id,
+        },
+      });
+      if (
+        uniqueStoredNames.length !== storedNames.length ||
+        uploadCount !== uniqueStoredNames.length
+      ) {
+        return { ok: false as const, formError: "Некорректные вложения" };
+      }
     }
 
-    // guest name defaults to "Гость", so no extra validation here
-
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[createTask] reporter resolved", { mode: authUser ? "auth" : "guest" });
-    }
+    const effectiveReporterId = authUser.id;
 
     // Пока нет отдельных колонок steps/expected/actual/environment — складываем в description
     const extraBlocks = [
@@ -215,11 +227,11 @@ export async function createTaskAction(data: TaskInput) {
           dueDate: validated.dueDate ?? null,
 
           reporterId: effectiveReporterId,
-          creatorId: authUser?.id ?? null,
+          creatorId: authUser.id,
           assigneeId: validated.assigneeId ?? null,
 
-          requesterName: effectiveRequesterName,
-          requesterEmail: validated.requesterEmail?.trim() ?? null,
+          requesterName: null,
+          requesterEmail: null,
 
           projectId: updatedProject.id,
           number: nextNumber,
@@ -244,8 +256,8 @@ export async function createTaskAction(data: TaskInput) {
         data: {
           taskId: created.id,
           type: ActivityType.CREATED,
-          userId: authUser?.id ?? null,
-          authorName: authUser ? null : effectiveRequesterName,
+          userId: authUser.id,
+          authorName: null,
         },
         select: { id: true },
       });
@@ -304,28 +316,33 @@ export async function updateTaskStatusAction(data: {
   try {
     const validatedData = updateStatusSchema.parse(data);
     const authUser = await getCurrentUser();
-    const role: Role =
-      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id, isDeleted: false },
       select: {
         projectId: true,
-        project: { select: { allowGuest: true, workspaceId: true } },
+        project: { select: { workspaceId: true } },
       },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
     }
 
-    if (
-      !canChangeStatus({
-        role,
-        projectAllowGuest: taskProject?.project?.allowGuest,
-      })
-    ) {
-      return { ok: false as const, formError: "Требуется авторизация" };
+    const access = await hasProjectRole(
+      authUser,
+      taskProject.projectId,
+      ProjectRole.MEMBER,
+      { workspaceId }
+    );
+    if (!access) {
+      return { ok: false as const, formError: "Недостаточно прав" };
     }
 
     const existing = await prisma.task.findUnique({
@@ -358,8 +375,8 @@ export async function updateTaskStatusAction(data: {
           type: ActivityType.STATUS_CHANGED,
           fromStatus: existing.status,
           toStatus: validatedData.status,
-          userId: authUser?.id ?? null,
-          authorName: authUser ? null : "Гость",
+          userId: authUser.id,
+          authorName: null,
         },
         select: { id: true },
       });
@@ -408,41 +425,43 @@ export async function updateTaskFieldsAction(data: {
   try {
     const validatedData = updateFieldsSchema.parse(data);
     const authUser = await getCurrentUser();
-    const role: Role =
-      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id, isDeleted: false },
       select: {
         projectId: true,
-        project: { select: { allowGuest: true, workspaceId: true } },
+        project: { select: { workspaceId: true } },
       },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
     }
 
+    const access = await hasProjectRole(
+      authUser,
+      taskProject.projectId,
+      ProjectRole.MEMBER,
+      { workspaceId }
+    );
+    if (!access) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+
     if (
-      (validatedData.status &&
-        !canChangeStatus({
-          role,
-          projectAllowGuest: taskProject?.project?.allowGuest,
-        })) ||
-      (validatedData.priority &&
-        !canChangePriority({
-          role,
-          projectAllowGuest: taskProject?.project?.allowGuest,
-        })) ||
-      ((typeof validatedData.title !== "undefined" ||
-        typeof validatedData.description !== "undefined" ||
-        typeof validatedData.assigneeId !== "undefined") &&
-        !canChangeStatus({
-          role,
-          projectAllowGuest: taskProject?.project?.allowGuest,
-        }))
+      validatedData.assigneeId &&
+      !(await canAssignUserToProject(
+        validatedData.assigneeId,
+        taskProject.projectId
+      ))
     ) {
-      return { ok: false as const, formError: "Требуется авторизация" };
+      return { ok: false as const, formError: "Исполнитель не имеет доступа к проекту" };
     }
 
     const existing = await prisma.task.findUnique({
@@ -488,8 +507,8 @@ export async function updateTaskFieldsAction(data: {
           type: ActivityType.STATUS_CHANGED,
           fromStatus: existing.status,
           toStatus: validatedData.status,
-          userId: authUser?.id ?? null,
-          authorName: authUser ? null : "Гость",
+          userId: authUser.id,
+          authorName: null,
         },
         select: { id: true },
       });
@@ -536,38 +555,41 @@ export async function addCommentAction(data: {
   try {
     const validatedData = addCommentSchema.parse(data);
     const authUser = await getCurrentUser();
-    const role: Role =
-      authUser?.role === "ADMIN" ? "admin" : authUser ? "user" : "guest";
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.taskId, isDeleted: false },
       select: {
         projectId: true,
-        project: { select: { allowGuest: true, workspaceId: true } },
+        project: { select: { workspaceId: true } },
       },
     });
     if (taskProject?.project?.workspaceId !== workspaceId) {
       return { ok: false as const, formError: "Недоступно" };
     }
 
-    if (
-      !canComment({
-        role,
-        projectAllowGuest: taskProject?.project?.allowGuest,
-      })
-    ) {
-      return { ok: false as const, formError: "Требуется авторизация" };
+    const access = await hasProjectRole(
+      authUser,
+      taskProject.projectId,
+      ProjectRole.MEMBER,
+      { workspaceId }
+    );
+    if (!access) {
+      return { ok: false as const, formError: "Недостаточно прав" };
     }
 
     const createdComment = await prisma.comment.create({
       data: {
         taskId: validatedData.taskId,
         text: validatedData.text,
-        userId: authUser?.id ?? null,
-        authorName: authUser
-          ? null
-          : (validatedData.authorName?.trim() ?? "Гость"),
+        userId: authUser.id,
+        authorName: null,
       },
       select: {
         id: true,
@@ -618,16 +640,19 @@ export async function addCommentAction(data: {
 export async function deleteTaskAction(taskId: string) {
   try {
     const validated = taskDeleteSchema.parse({ taskId });
-    const [authUser, workspaceId] = await Promise.all([
-      getCurrentUser(),
-      getCurrentWorkspaceId(),
-    ]);
+    const authUser = await getCurrentUser();
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
+    const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const permission = await canManageTaskDeletion({
       taskId: validated.taskId,
-      currentUserId: authUser?.id ?? null,
+      currentUser: authUser,
       workspaceId,
-      currentUserRole: authUser?.role ?? null,
     });
 
     if (!permission.ok) return permission;
@@ -668,16 +693,19 @@ export async function deleteTaskAction(taskId: string) {
 export async function restoreTaskAction(taskId: string) {
   try {
     const validated = taskDeleteSchema.parse({ taskId });
-    const [authUser, workspaceId] = await Promise.all([
-      getCurrentUser(),
-      getCurrentWorkspaceId(),
-    ]);
+    const authUser = await getCurrentUser();
+    if (!authUser) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
+    const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
+    }
 
     const permission = await canManageTaskDeletion({
       taskId: validated.taskId,
-      currentUserId: authUser?.id ?? null,
+      currentUser: authUser,
       workspaceId,
-      currentUserRole: authUser?.role ?? null,
     });
 
     if (!permission.ok) return permission;

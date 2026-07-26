@@ -71,6 +71,7 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
 
     const body = new FormData();
     files.forEach((file) => body.append("files", file));
+    body.append("projectId", formData.projectId);
 
     const response = await fetch("/api/uploads", {
       method: "POST",
@@ -81,8 +82,12 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
       throw new Error("Upload failed");
     }
 
-    const result = (await response.json()) as { files: string[] };
-    return result.files ?? [];
+    const result = (await response.json()) as {
+      files?: Array<{ url?: string }>;
+    };
+    return (result.files ?? [])
+      .map((file) => file.url)
+      .filter((url): url is string => typeof url === "string");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

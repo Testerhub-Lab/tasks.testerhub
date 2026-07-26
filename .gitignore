@@ -20,6 +20,7 @@
 # production
 /build
 /public/uploads
+/data/uploads
 src/generated
 
 # misc

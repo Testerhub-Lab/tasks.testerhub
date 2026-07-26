@@ -2,11 +2,20 @@ import React from "react";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import { getLatestTasks } from "../../server/queries/tasks";
+import { getCurrentUser } from "../../server/auth/session";
+import { getCurrentWorkspaceId } from "../../server/auth/workspace";
+import { getAccessibleProjectIds } from "../../server/auth/access";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 const TasksPage = async () => {
-  const tasks = await getLatestTasks();
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin?redirect=/tasks");
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/signin?redirect=/tasks");
+  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
+  const tasks = await getLatestTasks(accessibleProjectIds);
 
   return (
     <div className="space-y-6">
