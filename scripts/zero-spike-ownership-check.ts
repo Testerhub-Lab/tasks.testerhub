@@ -21,7 +21,7 @@ const foreignIssueID = `foreign-${randomUUID()}`;
 async function main() {
   try {
     const userResult = await appPool.query<{ id: string }>(
-      'SELECT id FROM "User" ORDER BY "createdAt" LIMIT 1'
+      'SELECT id FROM "User" ORDER BY id LIMIT 1'
     );
     const userID = userResult.rows[0]?.id;
     if (!userID) throw new Error("Create the isolated spike user first");
