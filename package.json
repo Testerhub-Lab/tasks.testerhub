@@ -15,15 +15,17 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@headlessui/react": "^2.2.9",
-    "@prisma/adapter-pg": "^7.3.0",
-    "@prisma/client": "^7.3.0",
+    "@prisma/adapter-pg": "7.9.0",
+    "@prisma/client": "7.9.0",
+    "@uiw/react-md-editor": "^4.1.1",
     "dotenv": "^17.2.3",
     "framer-motion": "^11.3.30",
-    "next": "16.1.4",
+    "next": "16.2.12",
     "pg": "^8.17.2",
-    "prisma": "^7.3.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -34,7 +36,8 @@
     "autoprefixer": "^10.4.23",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.1.4",
+    "eslint-config-next": "16.2.12",
+    "prisma": "7.9.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.7"

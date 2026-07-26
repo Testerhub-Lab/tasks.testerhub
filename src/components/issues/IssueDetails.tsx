@@ -12,6 +12,11 @@ import {
   projectRoleAtLeast,
 } from "@/server/auth/access";
 import { ProjectRole } from "@prisma/client";
+import {
+  getProjectKnowledge,
+  getTaskKnowledgeLinks,
+  getWikiPageTree,
+} from "@/server/knowledge/queries";
 
 interface IssueDetailsProps {
   task: TaskWithProjectAndReporter;
@@ -64,6 +69,14 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     projectAccess &&
       projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)
   );
+  const [knowledge, knowledgeLinks] = await Promise.all([
+    getProjectKnowledge(task.projectId),
+    getTaskKnowledgeLinks(task.id),
+  ]);
+  const wikiPages =
+    knowledge.provider === "NATIVE"
+      ? await getWikiPageTree(task.projectId)
+      : [];
 
   const projectLabel = project ? `${project.key} — ${project.name}` : null;
 
@@ -74,6 +87,18 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       users={users}
       canEdit={canEdit}
       canDelete={Boolean(canDelete)}
+      knowledge={{
+        provider: knowledge.provider,
+        externalUrl: knowledge.externalUrl,
+        projectKey: project?.key ?? "",
+        pages: wikiPages.map((page) => ({ id: page.id, title: page.title })),
+        links: knowledgeLinks.map((link) => ({
+          id: link.id,
+          documentKey: link.documentKey,
+          title: link.title,
+          url: link.url,
+        })),
+      }}
     />
   );
 };

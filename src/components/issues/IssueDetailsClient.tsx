@@ -11,6 +11,7 @@ import { toast } from "../ui/toast";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import { useRouter } from "next/navigation";
+import TaskKnowledgePanel from "@/components/wiki/TaskKnowledgePanel";
 
 const parseDetails = (raw?: string | null) => {
   const result: {
@@ -83,6 +84,18 @@ interface IssueDetailsClientProps {
   users: Array<{ id: string; name: string | null; email: string }>;
   canEdit?: boolean;
   canDelete?: boolean;
+  knowledge: {
+    provider: "DISABLED" | "NATIVE" | "EXTERNAL";
+    externalUrl: string | null;
+    projectKey: string;
+    pages: Array<{ id: string; title: string }>;
+    links: Array<{
+      id: string;
+      documentKey: string;
+      title: string;
+      url: string | null;
+    }>;
+  };
 }
 
 const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
@@ -91,6 +104,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   users,
   canEdit = false,
   canDelete = false,
+  knowledge,
 }) => {
   const router = useRouter();
   const [liveTask, setLiveTask] = useState<TaskWithProjectAndReporter>(task);
@@ -626,6 +640,17 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               </div>
             ) : null}
           </Card>
+          {knowledge.projectKey ? (
+            <TaskKnowledgePanel
+              taskId={liveTask.id}
+              projectKey={knowledge.projectKey}
+              provider={knowledge.provider}
+              externalUrl={knowledge.externalUrl}
+              pages={knowledge.pages}
+              links={knowledge.links}
+              canEdit={canEdit}
+            />
+          ) : null}
         </div>
 
         <div className="lg:sticky lg:top-24 h-fit">

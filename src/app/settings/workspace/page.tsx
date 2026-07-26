@@ -5,6 +5,7 @@ import WorkspaceSettingsClient from "@/components/workspace/WorkspaceSettingsCli
 import WorkspaceMembersClient from "@/components/workspace/WorkspaceMembersClient";
 import WorkspaceProjectsClient from "@/components/workspace/WorkspaceProjectsClient";
 import ProjectAccessClient from "@/components/workspace/ProjectAccessClient";
+import ProjectKnowledgeSettingsClient from "@/components/workspace/ProjectKnowledgeSettingsClient";
 import { getWorkspaceRole } from "@/server/auth/access";
 import { redirect } from "next/navigation";
 
@@ -45,7 +46,13 @@ const WorkspaceSettingsPage = async () => {
             },
           }),
     },
-    select: { id: true, key: true, name: true, archivedAt: true },
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      archivedAt: true,
+      knowledge: { select: { provider: true, externalUrl: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -107,6 +114,18 @@ const WorkspaceSettingsPage = async () => {
           </section>
         </>
       ) : null}
+      <section id="knowledge">
+        <ProjectKnowledgeSettingsClient
+          projects={managedProjects.map((project) => ({
+            id: project.id,
+            key: project.key,
+            name: project.name,
+            archivedAt: project.archivedAt?.toISOString() ?? null,
+            provider: project.knowledge?.provider ?? "DISABLED",
+            externalUrl: project.knowledge?.externalUrl ?? null,
+          }))}
+        />
+      </section>
       <section id="project-access">
         <ProjectAccessClient
           workspaceId={workspace.id}

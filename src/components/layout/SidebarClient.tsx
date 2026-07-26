@@ -21,6 +21,7 @@ const getBasePath = (pathname: string) => {
   if (pathname.startsWith("/board")) return "/board";
   if (pathname.startsWith("/backlog")) return "/backlog";
   if (pathname.startsWith("/issues")) return "/issues";
+  if (pathname.startsWith("/wiki")) return "/wiki";
   return "/board";
 };
 
@@ -70,7 +71,10 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     return query ? `/issues?${query}` : "/issues";
   };
 
-  const buildHref = (projectId?: string | null) => {
+  const buildHref = (projectId?: string | null, projectKey?: string) => {
+    if (pathname.startsWith("/wiki")) {
+      return projectKey ? `/wiki/${encodeURIComponent(projectKey)}` : "/wiki";
+    }
     const params = new URLSearchParams(searchParams.toString());
     if (projectId) {
       params.set("projectId", projectId);
@@ -206,6 +210,20 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             </span>
             <span>Issues</span>
           </Link>
+          <Link
+            href="/wiki"
+            className={`sidebar__item ${
+              pathname.startsWith("/wiki") ? "is-active" : ""
+            }`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+                <path d="M8 4v16" />
+              </svg>
+            </span>
+            <span>Wiki</span>
+          </Link>
           {canManageWorkspace ? (
             <Link
               href="/settings/workspace?tab=projects#projects"
@@ -304,7 +322,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             {projects.map((project) => (
               <Link
                 key={project.id}
-                href={buildHref(project.id)}
+                href={buildHref(project.id, project.key)}
                 className={`sidebar__item ${activeProjectId === project.id ? "is-active" : ""}`}
                 title={`${project.key} — ${project.name}`}
               >

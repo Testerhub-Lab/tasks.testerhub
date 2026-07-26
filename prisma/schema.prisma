@@ -34,9 +34,10 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  project    Project        @relation(fields: [projectId], references: [id])
-  comments   Comment[]
-  activities TaskActivity[]
+  project        Project         @relation(fields: [projectId], references: [id])
+  comments       Comment[]
+  activities     TaskActivity[]
+  knowledgeLinks KnowledgeLink[]
 
   @@unique([projectId, number])
 }
@@ -86,14 +87,18 @@ model User {
 
   comments Comment[]
 
-  createdTasks         Task[]            @relation("TaskCreator")
-  reportedTasks        Task[]            @relation("TaskReporter")
-  assignedTasks        Task[]            @relation("TaskAssignee")
+  createdTasks         Task[]             @relation("TaskCreator")
+  reportedTasks        Task[]             @relation("TaskReporter")
+  assignedTasks        Task[]             @relation("TaskAssignee")
   activities           TaskActivity[]
   workspaceMemberships WorkspaceMember[]
   projectMemberships   ProjectMember[]
   uploads              Upload[]
-  workspaceInvites     WorkspaceInvite[] @relation("WorkspaceInviteCreator")
+  workspaceInvites     WorkspaceInvite[]  @relation("WorkspaceInviteCreator")
+  createdWikiPages     WikiPage[]         @relation("WikiPageCreatedBy")
+  updatedWikiPages     WikiPage[]         @relation("WikiPageUpdatedBy")
+  wikiRevisions        WikiPageRevision[]
+  knowledgeLinks       KnowledgeLink[]
 
   sessions Session[]
 }
@@ -111,6 +116,9 @@ model Project {
   workspaceInvites WorkspaceInvite[]
   members          ProjectMember[]
   uploads          Upload[]
+  knowledge        ProjectKnowledge?
+  wikiPages        WikiPage[]
+  knowledgeLinks   KnowledgeLink[]
 
   @@index([archivedAt])
 }
@@ -195,6 +203,78 @@ model Upload {
   @@index([uploadedById])
 }
 
+model ProjectKnowledge {
+  id          String            @id @default(cuid())
+  projectId   String            @unique
+  provider    KnowledgeProvider @default(DISABLED)
+  externalUrl String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WikiPage {
+  id              String    @id @default(cuid())
+  projectId       String
+  parentId        String?
+  title           String
+  slug            String
+  contentMarkdown String    @default("") @db.Text
+  sortOrder       Int       @default(0)
+  version         Int       @default(1)
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  archivedAt      DateTime?
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    WikiPage?          @relation("WikiPageTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  WikiPage[]         @relation("WikiPageTree")
+  createdBy User?              @relation("WikiPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?              @relation("WikiPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  revisions WikiPageRevision[]
+
+  @@unique([projectId, slug])
+  @@index([projectId, parentId, archivedAt, sortOrder])
+}
+
+model WikiPageRevision {
+  id              String   @id @default(cuid())
+  pageId          String
+  version         Int
+  title           String
+  contentMarkdown String   @db.Text
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  page      WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([pageId, version])
+  @@index([pageId, createdAt])
+}
+
+model KnowledgeLink {
+  id          String            @id @default(cuid())
+  taskId      String
+  projectId   String
+  provider    KnowledgeProvider
+  documentKey String
+  title       String
+  url         String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, provider, documentKey])
+  @@index([projectId])
+}
+
 enum Status {
   NEW
   TODO
@@ -226,6 +306,12 @@ enum ProjectRole {
   ADMIN
   MEMBER
   VIEWER
+}
+
+enum KnowledgeProvider {
+  DISABLED
+  NATIVE
+  EXTERNAL
 }
 
 enum ActivityType {
