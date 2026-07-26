@@ -6,6 +6,11 @@ This stack validates Zero without changing the current Pulsar product schema.
 - `zero-cache` `1.8.0` and the spike Next.js app bind only to server loopback.
 - Pulsar auth and Zero data stay in separate databases inside the disposable PostgreSQL container.
 - Only `spike_issue` is included in the Zero publication.
+- OpenTelemetry exporters are explicitly disabled until Zero ships a compatible
+  stable dependency graph.
+
+The production-gate evidence and accepted temporary restrictions are recorded
+in [PRODUCTION_GATE.md](./PRODUCTION_GATE.md).
 
 Copy `.env.example` to `.env`, replace every placeholder, then run:
 

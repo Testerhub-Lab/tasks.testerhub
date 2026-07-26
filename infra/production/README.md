@@ -68,3 +68,19 @@ counts. Copy accepted backups to off-server S3 storage.
 
 For major PostgreSQL upgrades, never change only the image major tag. Use a
 tested `pg_dump`/`pg_restore` or `pg_upgrade` procedure.
+
+## Validated baseline
+
+The side-by-side contour was validated on 2026-07-26 without changing the
+current production traffic or the shared host PostgreSQL 14 cluster:
+
+- official PostgreSQL `18.4-trixie`, logical WAL, private Docker network;
+- all 24 existing Prisma migrations applied to a fresh database;
+- application sign-in returned HTTP 200 and persisted through restart;
+- a custom-format dump restored into a separate temporary PostgreSQL 18 volume
+  with matching application and migration row counts;
+- the current production container remained available on its original port.
+
+This validation proves the isolated database contour, not the product-schema
+cutover. Build the new schema and Zero permissions first, then perform a
+separate rehearsed cutover.
