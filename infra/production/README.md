@@ -24,6 +24,8 @@ install -m 600 infra/production/.env.example /srv/tasks/production.env
 
 Replace both database passwords with independent random hexadecimal values.
 Keep `/srv/tasks/.env` as the application environment file and make it mode 600.
+For a side-by-side validation, set `PULSAR_WEB_IMAGE` to a unique local tag so
+the build cannot replace the image tag used by the current production container.
 
 Validate the rendered model before starting anything:
 

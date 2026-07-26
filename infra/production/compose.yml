@@ -40,7 +40,7 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile
-    image: ghcr.io/testerhub-lab/tasks.testerhub:latest
+    image: ${PULSAR_WEB_IMAGE:-ghcr.io/testerhub-lab/tasks.testerhub:latest}
     env_file:
       - ${PULSAR_APP_ENV_FILE:?Set PULSAR_APP_ENV_FILE}
     environment:
@@ -71,4 +71,3 @@ networks:
   edge:
   data:
     internal: true
-
