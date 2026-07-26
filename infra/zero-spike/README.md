@@ -4,7 +4,7 @@ This stack validates Zero without changing the current Pulsar product schema.
 
 - PostgreSQL `18.4` is isolated in a named volume and has no published port.
 - `zero-cache` `1.8.0` and the spike Next.js app bind only to server loopback.
-- The existing Pulsar database is used only to validate the `th_session` cookie.
+- Pulsar auth and Zero data stay in separate databases inside the disposable PostgreSQL container.
 - Only `spike_issue` is included in the Zero publication.
 
 Copy `.env.example` to `.env`, replace every placeholder, then run:

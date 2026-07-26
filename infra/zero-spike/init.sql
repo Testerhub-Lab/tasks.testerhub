@@ -1,3 +1,5 @@
+CREATE DATABASE pulsar_app;
+
 CREATE TABLE spike_issue (
   id text PRIMARY KEY,
   owner_id text NOT NULL,
