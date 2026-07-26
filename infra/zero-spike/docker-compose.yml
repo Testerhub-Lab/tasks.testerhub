@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: pulsar_zero
+      POSTGRES_USER: pulsar_zero
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar_zero"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
+      NEXT_PUBLIC_ZERO_CACHE_URL: ${NEXT_PUBLIC_ZERO_CACHE_URL:-http://localhost:4848}
+      COOKIE_SAMESITE: lax
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${ZERO_SPIKE_APP_PORT:-3013}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  zero-cache:
+    image: rocicorp/zero:1.8.0
+    environment:
+      NODE_ENV: production
+      ZERO_APP_ID: pulsar_spike
+      ZERO_APP_PUBLICATIONS: pulsar_zero_data
+      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
+      ZERO_CVR_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
+      ZERO_CHANGE_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?Set ZERO_ADMIN_PASSWORD in .env}
+      ZERO_QUERY_URL: http://app:3000/api/zero/query
+      ZERO_MUTATE_URL: http://app:3000/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+    ports:
+      - "127.0.0.1:${ZERO_CACHE_PORT:-4848}:4848"
+    volumes:
+      - zero-cache-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4848/keepalive"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 2m
+    stop_grace_period: 10m
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  zero-cache-data:

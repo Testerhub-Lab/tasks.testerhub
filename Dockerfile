@@ -1,5 +1,5 @@
-# Use the official Node.js 20 image as a base
-FROM node:20-alpine
+# Pin the active Node.js LTS line used for production builds.
+FROM node:24.18.0-alpine3.23
 
 # Set the working directory
 WORKDIR /app
@@ -8,8 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY packages/pulsar-mcp/package.json packages/pulsar-mcp/package.json
 
-# Install dependencies
-RUN npm install
+# Install exactly the dependency graph from package-lock.json.
+RUN npm ci
 
 # Copy the rest of the application code
 COPY . .
