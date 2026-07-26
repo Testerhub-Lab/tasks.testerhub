@@ -19,6 +19,19 @@ const zql = createBuilder(zeroSchema);
 const id = z.string().uuid();
 const rank = z.string().trim().min(1).max(128);
 const color = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional();
+const workflowStateInput = z.object({
+  id,
+  name: z.string().trim().min(1).max(80),
+  category: z.enum([
+    "BACKLOG",
+    "UNSTARTED",
+    "STARTED",
+    "COMPLETED",
+    "CANCELED",
+  ]),
+  color,
+  rank,
+});
 
 async function recordAudit(
   tx: Transaction<ZeroSchema>,
@@ -105,6 +118,7 @@ export const zeroMutators = defineMutators({
         displayName: z.string().trim().min(1).max(120).optional(),
         workflowID: id,
         workflowName: z.string().trim().min(1).max(80).default("Default"),
+        workflowStates: z.array(workflowStateInput).min(1).max(20).optional(),
       }),
       async ({ args, ctx, tx }) => {
         const now = Date.now();
@@ -143,6 +157,19 @@ export const zeroMutators = defineMutators({
           createdAt: now,
           updatedAt: now,
         });
+        for (const state of args.workflowStates ?? []) {
+          await tx.mutate.workflowState.insert({
+            id: state.id,
+            workspaceID: args.id,
+            workflowID: args.workflowID,
+            name: state.name,
+            category: state.category,
+            color: state.color,
+            rank: state.rank,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         await recordAudit(tx, {
           workspaceID: args.id,
           actorID: ctx.userID,

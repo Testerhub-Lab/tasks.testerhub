@@ -1,6 +1,7 @@
 import type { Transaction } from "@rocicorp/zero";
 import { describe, expect, it, vi } from "vitest";
 import { zeroMutators } from "./mutators";
+import { DEFAULT_WORKFLOW_STATES } from "./stage3";
 import type { ZeroSchema } from "./schema";
 
 const userA = "00000000-0000-7000-8000-000000000001";
@@ -23,6 +24,11 @@ function makeTransaction(runResults: unknown[]) {
     commentInsert: vi.fn(),
     memberUpdate: vi.fn(),
     issueTagInsert: vi.fn(),
+    userInsert: vi.fn(),
+    workspaceInsert: vi.fn(),
+    memberInsert: vi.fn(),
+    workflowInsert: vi.fn(),
+    workflowStateInsert: vi.fn(),
   };
   const tx = {
     location: "server",
@@ -34,7 +40,14 @@ function makeTransaction(runResults: unknown[]) {
       project: { update: spies.projectUpdate },
       issue: { insert: spies.issueInsert, update: spies.issueUpdate },
       comment: { insert: spies.commentInsert },
-      workspaceMember: { update: spies.memberUpdate },
+      user: { insert: spies.userInsert },
+      workspace: { insert: spies.workspaceInsert },
+      workspaceMember: {
+        insert: spies.memberInsert,
+        update: spies.memberUpdate,
+      },
+      workflow: { insert: spies.workflowInsert },
+      workflowState: { insert: spies.workflowStateInsert },
       issueTag: { insert: spies.issueTagInsert },
     },
     dbTransaction: {
@@ -174,6 +187,43 @@ describe("Zero mutation authorization negative cases", () => {
 });
 
 describe("Zero mutation authorization allowed case", () => {
+  it("creates the default workflow states atomically with a workspace", async () => {
+    const { spies, tx } = makeTransaction([undefined]);
+    const states = DEFAULT_WORKFLOW_STATES.map((state, index) => ({
+      ...state,
+      id: `00000000-0000-7000-8000-00000000010${index}`,
+    }));
+
+    await zeroMutators.workspaces.create.fn({
+      args: {
+        id: workspaceA,
+        name: "Stage 3",
+        slug: "stage-3",
+        displayName: "Stage 3 Owner",
+        workflowID,
+        workflowName: "Default",
+        workflowStates: states,
+      },
+      ctx: { userID: userA },
+      tx,
+    });
+
+    expect(spies.userInsert).toHaveBeenCalledOnce();
+    expect(spies.workspaceInsert).toHaveBeenCalledOnce();
+    expect(spies.memberInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "OWNER", userID: userA })
+    );
+    expect(spies.workflowInsert).toHaveBeenCalledOnce();
+    expect(spies.workflowStateInsert).toHaveBeenCalledTimes(states.length);
+    expect(spies.workflowStateInsert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        category: "BACKLOG",
+        rank: DEFAULT_WORKFLOW_STATES[0].rank,
+      })
+    );
+  });
+
   it("lets the owner change a member role and records the audit event", async () => {
     const { spies, tx } = makeTransaction([
       { workspaceID: workspaceA, userID: userA, role: "OWNER" },
