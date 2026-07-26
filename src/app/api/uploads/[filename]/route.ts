@@ -40,9 +40,9 @@ export async function GET(
   });
   if (!access) return new Response("Not found", { status: 404 });
 
-  const uploadDir =
-    process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
-  const fullPath = path.join(uploadDir, filename);
+  const fullPath = process.env.UPLOAD_DIR
+    ? path.join(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR, filename)
+    : path.join(process.cwd(), "data", "uploads", filename);
 
   try {
     const file = await fs.readFile(fullPath);

@@ -49,5 +49,16 @@
     "tsx": "^4.20.6",
     "typescript": "^5",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "@prisma/dev": {
+      "find-my-way": "9.7.0",
+      "valibot": "1.4.2"
+    },
+    "eslint-plugin-react-hooks": "7.0.1",
+    "next": {
+      "postcss": "8.5.23",
+      "sharp": "0.35.3"
+    }
   }
 }

@@ -103,8 +103,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const uploadDir =
-      process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
+    const uploadDir = process.env.UPLOAD_DIR
+      ? path.resolve(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR)
+      : path.join(process.cwd(), "data", "uploads");
     await ensureDir(uploadDir);
 
     const uploaded: UploadResultItem[] = [];
@@ -117,7 +118,9 @@ export async function POST(req: Request) {
       const base = path.basename(f.name, ext);
       const storedName = `${makeId()}-${safeName(base)}${ext || ""}`;
 
-      const fullPath = path.join(uploadDir, storedName);
+      const fullPath = process.env.UPLOAD_DIR
+        ? path.join(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR, storedName)
+        : path.join(process.cwd(), "data", "uploads", storedName);
       const buf = Buffer.from(await f.arrayBuffer());
       await fs.writeFile(fullPath, buf);
       try {
@@ -208,9 +211,9 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
-    const uploadDir =
-      process.env.UPLOAD_DIR ?? path.join(process.cwd(), "data", "uploads");
-    const fullPath = path.join(uploadDir, filename);
+    const fullPath = process.env.UPLOAD_DIR
+      ? path.join(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR, filename)
+      : path.join(process.cwd(), "data", "uploads", filename);
 
     await prisma.upload.delete({ where: { id: upload.id } });
     await fs.unlink(fullPath).catch(() => null);
