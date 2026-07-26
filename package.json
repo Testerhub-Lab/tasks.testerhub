@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "zero:permissions:check": "tsx scripts/zero-stage2-permissions-check.ts",
     "mcp:dev": "npm --workspace @testerhub/pulsar-mcp run dev",
     "mcp:build": "npm --workspace @testerhub/pulsar-mcp run build",
     "mcp:start": "npm --workspace @testerhub/pulsar-mcp run start",

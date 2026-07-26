@@ -16,6 +16,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ../zero-stage2/schema.sql:/docker-entrypoint-initdb.d/002-stage2-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar_zero"]
       interval: 5s
@@ -34,7 +35,7 @@ services:
       NEXT_PUBLIC_ZERO_CACHE_URL: ${NEXT_PUBLIC_ZERO_CACHE_URL:-http://localhost:4848}
       COOKIE_SAMESITE: lax
     ports:
-      - "127.0.0.1:${ZERO_SPIKE_APP_PORT:-3013}:3000"
+      - "127.0.0.1:${ZERO_STAGE2_APP_PORT:-3013}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,7 +45,7 @@ services:
     image: rocicorp/zero:1.8.0
     environment:
       NODE_ENV: production
-      ZERO_APP_ID: pulsar_spike
+      ZERO_APP_ID: pulsar_stage2
       ZERO_APP_PUBLICATIONS: pulsar_zero_data
       ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
       ZERO_CVR_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
