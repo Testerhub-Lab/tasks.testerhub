@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   useConnectionState,
   useQuery,
@@ -10,6 +10,7 @@ import {
 import { zeroMutators } from "@/zero/mutators";
 import { zeroQueries } from "@/zero/queries";
 import { zeroSchema } from "@/zero/schema";
+import { registerZeroLogoutCleanup } from "@/zero/logout";
 
 type ZeroSpikeClientProps = {
   cacheURL: string;
@@ -39,6 +40,11 @@ function ZeroSpikeContent() {
   const connection = useConnectionState();
   const [issues] = useQuery(zeroQueries.issues.mine());
   const [title, setTitle] = useState("");
+
+  useEffect(
+    () => registerZeroLogoutCleanup(() => zero.delete().then(() => undefined)),
+    [zero]
+  );
 
   const createIssue = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

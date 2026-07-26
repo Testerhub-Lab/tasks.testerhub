@@ -153,6 +153,12 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   };
 
   const handleLogout = async () => {
+    try {
+      const { clearZeroClientDataOnLogout } = await import("@/zero/logout");
+      await clearZeroClientDataOnLogout();
+    } catch (error) {
+      console.error("Failed to clear local Zero data during logout", error);
+    }
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     setUserMenuOpen(false);
     await refresh();
