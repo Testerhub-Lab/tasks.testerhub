@@ -99,6 +99,8 @@ model User {
   updatedWikiPages     WikiPage[]         @relation("WikiPageUpdatedBy")
   wikiRevisions        WikiPageRevision[]
   knowledgeLinks       KnowledgeLink[]
+  apiTokens            ApiToken[]
+  apiAuditLogs         ApiAuditLog[]
 
   sessions Session[]
 }
@@ -119,6 +121,7 @@ model Project {
   knowledge        ProjectKnowledge?
   wikiPages        WikiPage[]
   knowledgeLinks   KnowledgeLink[]
+  apiAuditLogs     ApiAuditLog[]
 
   @@index([archivedAt])
 }
@@ -273,6 +276,64 @@ model KnowledgeLink {
 
   @@unique([taskId, provider, documentKey])
   @@index([projectId])
+}
+
+model ApiToken {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  tokenPrefix String    @unique
+  tokenHash   String    @unique
+  scopes      String[]
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auditLogs       ApiAuditLog[]
+  idempotencyKeys ApiIdempotencyKey[]
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model ApiAuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  apiTokenId   String?
+  projectId    String?
+  action       String
+  resourceType String
+  resourceId   String?
+  requestId    String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiToken ApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([apiTokenId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([resourceType, resourceId])
+}
+
+model ApiIdempotencyKey {
+  id         String   @id @default(cuid())
+  apiTokenId String
+  key        String
+  operation  String
+  response   Json
+  statusCode Int
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  apiToken ApiToken @relation(fields: [apiTokenId], references: [id], onDelete: Cascade)
+
+  @@unique([apiTokenId, key])
+  @@index([expiresAt])
 }
 
 enum Status {

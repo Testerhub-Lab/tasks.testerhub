@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Copy package.json and package-lock.json
 COPY package*.json ./
+COPY packages/pulsar-mcp/package.json packages/pulsar-mcp/package.json
 
 # Install dependencies
 RUN npm install

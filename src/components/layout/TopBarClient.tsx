@@ -234,6 +234,13 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
             </button>
             {isUserMenuOpen ? (
               <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-slate-950/90 p-1 shadow-lg backdrop-blur">
+                <Link
+                  href="/settings/integrations"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5"
+                >
+                  API и интеграции
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}

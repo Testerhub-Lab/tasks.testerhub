@@ -1,0 +1,7 @@
+interface:
+  display_name: "Pulsar workflow"
+  short_description: "Фиксирует решения в задачах и Wiki Pulsar"
+  default_prompt: "Используй $pulsar-workflow, чтобы зафиксировать решение в Wiki и связанных задачах Pulsar."
+
+policy:
+  allow_implicit_invocation: true
