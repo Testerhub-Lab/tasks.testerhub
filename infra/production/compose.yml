@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:18.4-trixie
+    environment:
+      POSTGRES_DB: pulsar
+      POSTGRES_USER: pulsar_zero
+      POSTGRES_PASSWORD: ${PULSAR_ZERO_DB_PASSWORD:?Set PULSAR_ZERO_DB_PASSWORD}
+      PULSAR_APP_DB_PASSWORD: ${PULSAR_APP_DB_PASSWORD:?Set PULSAR_APP_DB_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_connections=100
+    shm_size: 256mb
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    stop_grace_period: 1m
+    restart: unless-stopped
+    networks:
+      - data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: ghcr.io/testerhub-lab/tasks.testerhub:latest
+    env_file:
+      - ${PULSAR_APP_ENV_FILE:?Set PULSAR_APP_ENV_FILE}
+    environment:
+      DATABASE_URL: postgresql://pulsar_app:${PULSAR_APP_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+    ports:
+      - "127.0.0.1:${APP_PORT:-3012}:3000"
+    volumes:
+      - ${UPLOAD_DATA_DIR:-/srv/tasks/data/uploads}:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+    restart: unless-stopped
+    networks:
+      - edge
+      - data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  postgres-data:
+
+networks:
+  edge:
+  data:
+    internal: true
+
