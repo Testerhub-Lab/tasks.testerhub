@@ -1,12 +1,13 @@
 services:
   web:
+    build: .
     image: ghcr.io/testerhub-lab/tasks.testerhub:latest
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     env_file:
       - .env
     volumes:
-      - ./data/uploads:/app/data/uploads
+      - "${UPLOAD_DATA_DIR:-./data/uploads}:/app/data/uploads"
     restart: unless-stopped
     # Доступ к БД на хосте: из контейнера используйте host.docker.internal в DATABASE_URL
     extra_hosts:
