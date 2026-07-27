@@ -44,6 +44,11 @@ const requests = [
     args: [{ projectID }],
   },
   { id: "issue", name: "issues.byID", args: [{ issueID }] },
+  {
+    id: "issues-ids",
+    name: "issues.byIDs",
+    args: [{ issueIDs: [issueID] }],
+  },
   { id: "comments", name: "comments.byIssue", args: [{ issueID }] },
   {
     id: "wiki-pages",
@@ -152,7 +157,7 @@ describe("Zero query permissions", () => {
   });
 
   it("exposes native, active Wiki records only", async () => {
-    const wikiASTs = getASTs(await transformFor(userA)).slice(8, 12);
+    const wikiASTs = getASTs(await transformFor(userA)).slice(9, 13);
     expect(wikiASTs).toHaveLength(4);
 
     for (const ast of wikiASTs) {

@@ -61,6 +61,8 @@ export const pulsarOpenApi = {
     "/issues": {
       get: {
         operationId: "searchIssues",
+        description:
+          "Server-side PostgreSQL full-text/trigram search. Candidate IDs are hydrated through the authorized Zero domain query.",
         parameters: [
           {
             name: "projectKey",

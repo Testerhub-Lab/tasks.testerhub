@@ -17,6 +17,12 @@ are intentionally excluded:
 The temporary PULSAR-6 spike table and UI remain available in branch history,
 but are not part of the active Zero schema or publication.
 
+Issue search stays server-side. PostgreSQL `pg_trgm`, a `simple` full-text GIN
+index, and title/description trigram indexes select authorized candidate IDs;
+the REST domain then reads the entities through the batched `issues.byIDs`
+named Zero query. Search indexes are database-only and are not part of the
+Zero publication.
+
 ## Permission boundary
 
 - Every application query is a named query and adds a `workspace_members`

@@ -1,5 +1,7 @@
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE users (
   id uuid PRIMARY KEY,
   display_name text,
@@ -188,6 +190,17 @@ CREATE INDEX issues_project_rank_idx
   ON issues (project_id, state_id, rank)
   WHERE archived_at IS NULL;
 CREATE INDEX issues_workspace_updated_idx ON issues (workspace_id, updated_at DESC);
+CREATE INDEX issues_search_fts_idx
+  ON issues USING gin (
+    to_tsvector('simple', title || ' ' || coalesce(description, ''))
+  )
+  WHERE archived_at IS NULL;
+CREATE INDEX issues_title_trgm_idx
+  ON issues USING gin (title gin_trgm_ops)
+  WHERE archived_at IS NULL;
+CREATE INDEX issues_description_trgm_idx
+  ON issues USING gin (description gin_trgm_ops)
+  WHERE archived_at IS NULL;
 
 CREATE TABLE comments (
   id uuid PRIMARY KEY,

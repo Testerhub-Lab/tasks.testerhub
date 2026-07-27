@@ -8,6 +8,9 @@ const workspaceArgs = z.object({ workspaceID: z.string().uuid() });
 const workflowArgs = z.object({ workflowID: z.string().uuid() });
 const projectArgs = z.object({ projectID: z.string().uuid() });
 const issueArgs = z.object({ issueID: z.string().uuid() });
+const issueIDsArgs = z.object({
+  issueIDs: z.array(z.string().uuid()).min(1).max(100),
+});
 const wikiPageArgs = z.object({ pageID: z.string().uuid() });
 
 export const zeroQueries = defineQueries({
@@ -111,6 +114,24 @@ export const zeroQueries = defineQueries({
             participant.related("user")
           )
           .one()
+    ),
+    byIDs: defineQuery(
+      issueIDsArgs,
+      ({ args, ctx }: { args: z.infer<typeof issueIDsArgs>; ctx: ZeroContext }) =>
+        zql.issue
+          .where("id", "IN", args.issueIDs)
+          .where("archivedAt", "IS", null)
+          .whereExists("members", (member) =>
+            member.where("userID", ctx.userID)
+          )
+          .related("project")
+          .related("creator")
+          .related("reporter")
+          .related("state")
+          .related("tags")
+          .related("participants", (participant) =>
+            participant.related("user")
+          )
     ),
   },
   comments: {

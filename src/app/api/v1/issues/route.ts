@@ -8,6 +8,7 @@ import { runIdempotentCommand } from "@/server/api/idempotent-command";
 import { requireIdempotencyKey } from "@/server/api/idempotency";
 import {
   createIssueApiSchema,
+  issueSearchQuerySchema,
   issueStatusSchema,
 } from "@/server/api/schemas";
 import {
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
     return apiData(
       await searchApiIssues(context.user, {
         projectKey: url.searchParams.get("projectKey"),
-        query: url.searchParams.get("q")?.trim() ?? "",
+        query: issueSearchQuerySchema.parse(url.searchParams.get("q") ?? ""),
         statuses,
         limit,
       })

@@ -17,6 +17,8 @@ export const issuePrioritySchema = z.enum([
   "CRITICAL",
 ]);
 
+export const issueSearchQuerySchema = z.string().trim().max(200);
+
 export const createProjectApiSchema = z.object({
   workspaceId: z.string().uuid(),
   key: z

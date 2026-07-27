@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
-import { getZeroDatabase } from "@/zero/db";
+import { getZeroDatabase, getZeroPool } from "@/zero/db";
 import { zeroMutators } from "@/zero/mutators";
 import { zeroQueries } from "@/zero/queries";
 import { issueKey, rankAfter } from "@/zero/stage3";
 import type { WorkflowCategory, WorkspaceRole } from "@/zero/schema";
 import type { ApiActor } from "./auth";
 import { ApiError } from "./errors";
+import { findIssueCandidateIDs } from "./issue-search";
 import type {
   addCommentApiSchema,
   createIssueApiSchema,
@@ -167,7 +168,10 @@ export async function requireApiIssueByKey(userID: string, key: string) {
 }
 
 function serializeIssue(
-  row: Awaited<ReturnType<typeof requireApiIssueByKey>>
+  row: Pick<
+    Awaited<ReturnType<typeof requireApiIssueByKey>>,
+    "issue" | "project"
+  >
 ) {
   const { issue, project } = row;
   if (!issue.state) {
@@ -285,38 +289,31 @@ export async function searchApiIssues(
     limit: number;
   }
 ) {
-  const projects = input.projectKey
-    ? [await requireApiProjectByKey(user.id, input.projectKey)]
-    : await projectRows(user.id);
-  const groups = await Promise.all(
-    projects.map(async (project) => ({
-      project,
-      issues: await getZeroDatabase().run(
-        zeroQueries.issues.byProject.fn({
-          args: { projectID: project.project.id },
-          ctx: { userID: user.id },
-        })
-      ),
-    }))
+  const project = input.projectKey
+    ? await requireApiProjectByKey(user.id, input.projectKey)
+    : null;
+  const candidateIDs = await findIssueCandidateIDs(getZeroPool(), {
+    userID: user.id,
+    query: input.query,
+    projectKey: project?.project.key,
+    statuses: input.statuses,
+    limit: input.limit,
+  });
+  if (candidateIDs.length === 0) return [];
+
+  const issues = await getZeroDatabase().run(
+    zeroQueries.issues.byIDs.fn({
+      args: { issueIDs: candidateIDs },
+      ctx: { userID: user.id },
+    })
   );
-  const needle = input.query.toLowerCase();
-  return groups
-    .flatMap(({ project, issues }) =>
-      issues.map((issue) => serializeIssue({ issue, ...project }))
-    )
-    .filter(
-      (issue) =>
-        input.statuses.length === 0 || input.statuses.includes(issue.status)
-    )
-    .filter(
-      (issue) =>
-        !needle ||
-        issue.key.toLowerCase().includes(needle) ||
-        issue.title.toLowerCase().includes(needle) ||
-        issue.description?.toLowerCase().includes(needle)
-    )
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .slice(0, input.limit);
+  const issueByID = new Map(issues.map((issue) => [issue.id, issue]));
+  return candidateIDs.flatMap((issueID) => {
+    const issue = issueByID.get(issueID);
+    return issue?.project
+      ? [serializeIssue({ issue, project: issue.project })]
+      : [];
+  });
 }
 
 export async function getApiIssue(user: ApiActor, key: string) {

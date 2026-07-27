@@ -5,12 +5,16 @@ import { zeroSchema } from "./schema";
 let zeroPool: Pool | undefined;
 let zeroDatabase: ReturnType<typeof createZeroDatabase> | undefined;
 
-function createZeroDatabase() {
+export function getZeroPool() {
   const connectionString = process.env.ZERO_UPSTREAM_DB;
   if (!connectionString) throw new Error("ZERO_UPSTREAM_DB is not set");
 
   zeroPool ??= new Pool({ connectionString });
-  return zeroNodePg(zeroSchema, zeroPool);
+  return zeroPool;
+}
+
+function createZeroDatabase() {
+  return zeroNodePg(zeroSchema, getZeroPool());
 }
 
 export function getZeroDatabase() {

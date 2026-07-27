@@ -174,6 +174,18 @@ async function checkMcp(
     if (issue.key !== issueKey) {
       throw new Error("MCP get_issue returned a different issue");
     }
+    const searchResult = await client.callTool({
+      name: "search_issues",
+      arguments: {
+        projectKey,
+        query: "exercise command",
+        statuses: ["IN_PROGRESS"],
+      },
+    });
+    const search = parseText<Array<{ key?: string }>>(searchResult);
+    if (search[0]?.key !== issueKey) {
+      throw new Error("MCP search_issues did not return the expected issue");
+    }
     const pageResult = await client.callTool({
       name: "get_wiki_page",
       arguments: { pageId: pageID },
@@ -354,10 +366,58 @@ async function main() {
 
   const search = await api<Array<{ key: string }>>(
     owner.token,
-    `/api/v1/issues?projectKey=${projectKey}&status=IN_PROGRESS&q=shared`
+    `/api/v1/issues?projectKey=${projectKey}&status=IN_PROGRESS&q=exercise%20command`
   );
   if (search[0]?.key !== issue.key) {
     throw new Error("REST issue search did not return the updated issue");
+  }
+  const wrongStatusSearch = await api<Array<{ key: string }>>(
+    owner.token,
+    `/api/v1/issues?projectKey=${projectKey}&status=DONE&q=${issue.key}`
+  );
+  if (wrongStatusSearch.length !== 0) {
+    throw new Error("REST issue search ignored the status filter");
+  }
+
+  const foreignProjectKey =
+    `F4${randomUUID().replaceAll("-", "").slice(0, 6)}`.toUpperCase();
+  const foreignNeedle = `foreign-${randomUUID().slice(0, 8)}`;
+  await api(viewer.token, "/api/v1/projects", {
+    method: "POST",
+    body: {
+      workspaceId: viewer.workspaceID,
+      key: foreignProjectKey,
+      name: "Foreign Stage 4 project",
+    },
+    idempotencyKey: "stage4-foreign-project",
+    expectedStatus: 201,
+  });
+  const foreignIssue = await api<{ key: string }>(
+    viewer.token,
+    "/api/v1/issues",
+    {
+      method: "POST",
+      body: {
+        projectKey: foreignProjectKey,
+        title: `Workspace-private ${foreignNeedle}`,
+      },
+      idempotencyKey: "stage4-foreign-issue",
+      expectedStatus: 201,
+    }
+  );
+  const foreignAsOwner = await api<Array<{ key: string }>>(
+    owner.token,
+    `/api/v1/issues?q=${foreignNeedle}`
+  );
+  if (foreignAsOwner.length !== 0) {
+    throw new Error("REST issue search leaked a foreign workspace candidate");
+  }
+  const foreignAsViewer = await api<Array<{ key: string }>>(
+    viewer.token,
+    `/api/v1/issues?q=${foreignNeedle}`
+  );
+  if (foreignAsViewer[0]?.key !== foreignIssue.key) {
+    throw new Error("REST issue search hid the caller's own workspace issue");
   }
 
   const wikiBody = {
@@ -476,7 +536,10 @@ async function main() {
       commentVisible: true,
       idempotencyReplay: true,
       issueSearch: true,
+      issueSearchForeignWorkspaceHidden: true,
+      issueSearchStatusFilter: true,
       mcpGetIssue: true,
+      mcpIssueSearch: true,
       mcpGetWikiPage: true,
       mcpWikiWriteRoundTrip: true,
       mcpToolRegistered: true,

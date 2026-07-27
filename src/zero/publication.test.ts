@@ -58,4 +58,17 @@ describe("Zero publications", () => {
       /CREATE TABLE issues[\s\S]*?\btype text NOT NULL DEFAULT 'TASK'/
     );
   });
+
+  it("installs and indexes the dedicated PostgreSQL issue search", () => {
+    expect(stage2SQL).toMatch(/CREATE EXTENSION IF NOT EXISTS pg_trgm/);
+    expect(stage2SQL).toMatch(
+      /CREATE INDEX issues_search_fts_idx[\s\S]*?to_tsvector\('simple'/
+    );
+    expect(stage2SQL).toMatch(
+      /CREATE INDEX issues_title_trgm_idx[\s\S]*?gin_trgm_ops/
+    );
+    expect(stage2SQL).toMatch(
+      /CREATE INDEX issues_description_trgm_idx[\s\S]*?gin_trgm_ops/
+    );
+  });
 });
