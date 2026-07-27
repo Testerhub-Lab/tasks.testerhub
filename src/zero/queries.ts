@@ -8,6 +8,7 @@ const workspaceArgs = z.object({ workspaceID: z.string().uuid() });
 const workflowArgs = z.object({ workflowID: z.string().uuid() });
 const projectArgs = z.object({ projectID: z.string().uuid() });
 const issueArgs = z.object({ issueID: z.string().uuid() });
+const wikiPageArgs = z.object({ pageID: z.string().uuid() });
 
 export const zeroQueries = defineQueries({
   workspaces: {
@@ -123,6 +124,81 @@ export const zeroQueries = defineQueries({
             member.where("userID", ctx.userID)
           )
           .related("author")
+          .orderBy("createdAt", "asc")
+    ),
+  },
+  wikiPages: {
+    byProject: defineQuery(
+      projectArgs,
+      ({ args, ctx }: { args: z.infer<typeof projectArgs>; ctx: ZeroContext }) =>
+        zql.wikiPage
+          .where("projectID", args.projectID)
+          .where("archivedAt", "IS", null)
+          .whereExists("project", (project) =>
+            project.where("knowledgeProvider", "NATIVE")
+          )
+          .whereExists("members", (member) =>
+            member.where("userID", ctx.userID)
+          )
+          .related("updater")
+          .orderBy("sortOrder", "asc")
+          .orderBy("title", "asc")
+    ),
+    byID: defineQuery(
+      wikiPageArgs,
+      ({ args, ctx }: { args: z.infer<typeof wikiPageArgs>; ctx: ZeroContext }) =>
+        zql.wikiPage
+          .where("id", args.pageID)
+          .where("archivedAt", "IS", null)
+          .whereExists("project", (project) =>
+            project.where("knowledgeProvider", "NATIVE")
+          )
+          .whereExists("members", (member) =>
+            member.where("userID", ctx.userID)
+          )
+          .related("project")
+          .related("creator")
+          .related("updater")
+          .one()
+    ),
+  },
+  wikiPageRevisions: {
+    byPage: defineQuery(
+      wikiPageArgs,
+      ({ args, ctx }: { args: z.infer<typeof wikiPageArgs>; ctx: ZeroContext }) =>
+        zql.wikiPageRevision
+          .where("pageID", args.pageID)
+          .whereExists("page", (page) =>
+            page
+              .where("archivedAt", "IS", null)
+              .whereExists("project", (project) =>
+                project.where("knowledgeProvider", "NATIVE")
+              )
+          )
+          .whereExists("members", (member) =>
+            member.where("userID", ctx.userID)
+          )
+          .related("creator")
+          .orderBy("version", "desc")
+    ),
+  },
+  issueWikiLinks: {
+    byIssue: defineQuery(
+      issueArgs,
+      ({ args, ctx }: { args: z.infer<typeof issueArgs>; ctx: ZeroContext }) =>
+        zql.issueWikiLink
+          .where("issueID", args.issueID)
+          .whereExists("page", (page) =>
+            page
+              .where("archivedAt", "IS", null)
+              .whereExists("project", (project) =>
+                project.where("knowledgeProvider", "NATIVE")
+              )
+          )
+          .whereExists("members", (member) =>
+            member.where("userID", ctx.userID)
+          )
+          .related("page")
           .orderBy("createdAt", "asc")
     ),
   },

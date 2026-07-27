@@ -71,6 +71,8 @@ async function createActor(label: string) {
         "projects:write",
         "issues:read",
         "issues:write",
+        "wiki:read",
+        "wiki:write",
       ],
     },
     select: { id: true },
@@ -105,7 +107,12 @@ async function createActor(label: string) {
   };
 }
 
-async function checkMcp(token: string, issueKey: string) {
+async function checkMcp(
+  token: string,
+  projectKey: string,
+  issueKey: string,
+  pageID: string
+) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ["packages/pulsar-mcp/dist/index.js"],
@@ -122,25 +129,105 @@ async function checkMcp(token: string, issueKey: string) {
   });
   await client.connect(transport);
   try {
+    const parseText = <T>(toolResult: unknown) => {
+      if (
+        !toolResult ||
+        typeof toolResult !== "object" ||
+        !("content" in toolResult) ||
+        !Array.isArray(toolResult.content)
+      ) {
+        throw new Error("MCP tool returned no content");
+      }
+      if ("isError" in toolResult && toolResult.isError) {
+        throw new Error("MCP tool returned an error");
+      }
+      const content = toolResult.content as Array<{
+        type: string;
+        text?: string;
+      }>;
+      const block = content.find((item) => item.type === "text");
+      if (!block?.text) {
+        throw new Error("MCP tool returned no text result");
+      }
+      return JSON.parse(block.text) as T;
+    };
     const tools = await client.listTools();
     if (!tools.tools.some((tool) => tool.name === "create_project")) {
       throw new Error("MCP create_project is not registered");
+    }
+    for (const name of [
+      "list_wiki_pages",
+      "get_wiki_page",
+      "create_wiki_page",
+      "update_wiki_page",
+      "link_issue_to_wiki",
+    ]) {
+      if (!tools.tools.some((tool) => tool.name === name)) {
+        throw new Error(`MCP ${name} is not registered`);
+      }
     }
     const result = await client.callTool({
       name: "get_issue",
       arguments: { key: issueKey },
     });
-    const content = result.content as Array<{
-      type: string;
-      text?: string;
-    }>;
-    const block = content.find((item) => item.type === "text");
-    if (!block?.text) {
-      throw new Error("MCP get_issue returned no text result");
-    }
-    const issue = JSON.parse(block.text) as { key?: string };
+    const issue = parseText<{ key?: string }>(result);
     if (issue.key !== issueKey) {
       throw new Error("MCP get_issue returned a different issue");
+    }
+    const pageResult = await client.callTool({
+      name: "get_wiki_page",
+      arguments: { pageId: pageID },
+    });
+    const page = parseText<{ id?: string }>(pageResult);
+    if (page.id !== pageID) {
+      throw new Error("MCP get_wiki_page returned a different page");
+    }
+    const listResult = await client.callTool({
+      name: "list_wiki_pages",
+      arguments: { projectKey },
+    });
+    parseText(listResult);
+
+    const createdResult = await client.callTool({
+      name: "create_wiki_page",
+      arguments: {
+        projectKey,
+        parentId: pageID,
+        title: "MCP Wiki child",
+        contentMarkdown: "Created through MCP",
+      },
+    });
+    const created = parseText<{ id: string; version: number }>(createdResult);
+    const updatedResult = await client.callTool({
+      name: "update_wiki_page",
+      arguments: {
+        pageId: created.id,
+        title: "MCP Wiki child updated",
+        expectedVersion: created.version,
+      },
+    });
+    const updated = parseText<{ version: number }>(updatedResult);
+    if (updated.version !== 2) {
+      throw new Error("MCP update_wiki_page did not create version 2");
+    }
+    const linkResult = await client.callTool({
+      name: "link_issue_to_wiki",
+      arguments: { issueKey, pageId: created.id },
+    });
+    parseText(linkResult);
+    const linkedIssueResult = await client.callTool({
+      name: "get_issue",
+      arguments: { key: issueKey },
+    });
+    const linkedIssue = parseText<{
+      knowledgeLinks?: Array<{ documentKey?: string }>;
+    }>(linkedIssueResult);
+    if (
+      !linkedIssue.knowledgeLinks?.some(
+        (link) => link.documentKey === created.id
+      )
+    ) {
+      throw new Error("MCP Wiki link is missing from get_issue");
     }
   } finally {
     await client.close();
@@ -203,6 +290,14 @@ async function main() {
   if (project.id !== projectReplay.id) {
     throw new Error("Project idempotency replay changed the resource");
   }
+  await getZeroDatabase().transaction((tx) =>
+    tx.mutate.project.update({
+      id: project.id,
+      knowledgeProvider: "NATIVE",
+      knowledgeExternalURL: null,
+      updatedAt: Date.now(),
+    })
+  );
 
   const issue = await api<{ id: string; key: string; type: string }>(
     owner.token,
@@ -264,7 +359,76 @@ async function main() {
   if (search[0]?.key !== issue.key) {
     throw new Error("REST issue search did not return the updated issue");
   }
-  await checkMcp(owner.token, issue.key);
+
+  const wikiBody = {
+    title: "Stage 4 Wiki",
+    contentMarkdown: "# REST and MCP\n\nShared Wiki domain.",
+  };
+  const page = await api<{ id: string; version: number }>(
+    owner.token,
+    `/api/v1/projects/${projectKey}/wiki/pages`,
+    {
+      method: "POST",
+      body: wikiBody,
+      idempotencyKey: "stage4-wiki-page",
+      expectedStatus: 201,
+    }
+  );
+  const pageReplay = await api<{ id: string }>(
+    owner.token,
+    `/api/v1/projects/${projectKey}/wiki/pages`,
+    {
+      method: "POST",
+      body: wikiBody,
+      idempotencyKey: "stage4-wiki-page",
+      expectedStatus: 201,
+    }
+  );
+  if (page.id !== pageReplay.id) {
+    throw new Error("Wiki idempotency replay changed the page");
+  }
+  const updatedPage = await api<{ version: number; title: string }>(
+    owner.token,
+    `/api/v1/wiki/pages/${page.id}`,
+    {
+      method: "PATCH",
+      body: {
+        title: "Stage 4 Wiki updated",
+        expectedVersion: page.version,
+      },
+    }
+  );
+  if (updatedPage.version !== 2) {
+    throw new Error("Wiki update did not create version 2");
+  }
+  await api(owner.token, `/api/v1/wiki/pages/${page.id}`, {
+    method: "PATCH",
+    body: { title: "Stale update", expectedVersion: 1 },
+    expectedStatus: 409,
+  });
+  await api(owner.token, `/api/v1/issues/${issue.key}/wiki-links`, {
+    method: "POST",
+    body: { pageId: page.id },
+    idempotencyKey: "stage4-wiki-link",
+    expectedStatus: 201,
+  });
+  const wikiList = await api<{ pages: Array<{ id: string }> }>(
+    owner.token,
+    `/api/v1/projects/${projectKey}/wiki/pages`
+  );
+  if (!wikiList.pages.some((candidate) => candidate.id === page.id)) {
+    throw new Error("Wiki page is missing from the new domain query");
+  }
+  const linkedIssue = await api<{
+    knowledgeLinks: Array<{ documentKey: string; title: string }>;
+  }>(owner.token, `/api/v1/issues/${issue.key}`);
+  if (
+    linkedIssue.knowledgeLinks[0]?.documentKey !== page.id ||
+    linkedIssue.knowledgeLinks[0]?.title !== updatedPage.title
+  ) {
+    throw new Error("Issue response is missing the new Wiki link");
+  }
+  await checkMcp(owner.token, projectKey, issue.key, page.id);
 
   await api(viewer.token, `/api/v1/issues/${issue.key}`, {
     method: "PATCH",
@@ -275,6 +439,17 @@ async function main() {
     method: "POST",
     body: { text: "Forbidden viewer comment" },
     idempotencyKey: "stage4-viewer-comment",
+    expectedStatus: 403,
+  });
+  await api(viewer.token, `/api/v1/wiki/pages/${page.id}`, {
+    method: "PATCH",
+    body: { title: "Forbidden viewer Wiki update" },
+    expectedStatus: 403,
+  });
+  await api(viewer.token, `/api/v1/issues/${issue.key}/wiki-links`, {
+    method: "POST",
+    body: { pageId: page.id },
+    idempotencyKey: "stage4-viewer-wiki-link",
     expectedStatus: 403,
   });
 
@@ -291,8 +466,8 @@ async function main() {
   const auditCount = await prisma.apiAuditLog.count({
     where: { apiTokenId: owner.tokenID },
   });
-  if (auditCount !== 4) {
-    throw new Error(`Expected 4 API audit records, got ${auditCount}`);
+  if (auditCount !== 10) {
+    throw new Error(`Expected 10 API audit records, got ${auditCount}`);
   }
 
   console.log(
@@ -302,10 +477,15 @@ async function main() {
       idempotencyReplay: true,
       issueSearch: true,
       mcpGetIssue: true,
+      mcpGetWikiPage: true,
+      mcpWikiWriteRoundTrip: true,
       mcpToolRegistered: true,
       openapi: true,
       rejectedMutationUnchanged: true,
       viewerMutationDenied: true,
+      wikiIdempotencyReplay: true,
+      wikiLinkVisible: true,
+      wikiVersionConflict: true,
     })
   );
 }

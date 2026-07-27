@@ -121,6 +121,8 @@ CREATE TABLE projects (
   key text NOT NULL,
   name text NOT NULL,
   description text,
+  knowledge_provider text NOT NULL DEFAULT 'DISABLED',
+  knowledge_external_url text,
   next_issue_number integer NOT NULL DEFAULT 1,
   created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -131,6 +133,14 @@ CREATE TABLE projects (
     REFERENCES workflows (workspace_id, id) ON DELETE RESTRICT,
   CONSTRAINT projects_key_format CHECK (key ~ '^[A-Z][A-Z0-9]{1,9}$'),
   CONSTRAINT projects_name_length CHECK (char_length(name) BETWEEN 1 AND 120),
+  CONSTRAINT projects_knowledge_provider
+    CHECK (knowledge_provider IN ('DISABLED', 'NATIVE', 'EXTERNAL')),
+  CONSTRAINT projects_knowledge_external_url
+    CHECK (
+      (knowledge_provider = 'EXTERNAL' AND knowledge_external_url IS NOT NULL)
+      OR
+      (knowledge_provider <> 'EXTERNAL' AND knowledge_external_url IS NULL)
+    ),
   CONSTRAINT projects_next_issue_number CHECK (next_issue_number > 0),
   UNIQUE (key),
   UNIQUE (workspace_id, id, workflow_id),
@@ -170,7 +180,8 @@ CREATE TABLE issues (
   CONSTRAINT issues_priority CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   CONSTRAINT issues_rank_length CHECK (char_length(rank) BETWEEN 1 AND 128),
   UNIQUE (project_id, number),
-  UNIQUE (workspace_id, id)
+  UNIQUE (workspace_id, id),
+  UNIQUE (workspace_id, project_id, id)
 );
 
 CREATE INDEX issues_project_rank_idx
@@ -194,6 +205,83 @@ CREATE TABLE comments (
 );
 
 CREATE INDEX comments_issue_created_idx ON comments (issue_id, created_at, id);
+
+CREATE TABLE wiki_pages (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  parent_id uuid,
+  title text NOT NULL,
+  slug text NOT NULL,
+  content_markdown text NOT NULL DEFAULT '',
+  sort_order integer NOT NULL DEFAULT 0,
+  version integer NOT NULL DEFAULT 1,
+  created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  updated_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
+  CONSTRAINT wiki_pages_project_fk
+    FOREIGN KEY (workspace_id, project_id)
+    REFERENCES projects (workspace_id, id) ON DELETE CASCADE,
+  CONSTRAINT wiki_pages_parent_fk
+    FOREIGN KEY (workspace_id, project_id, parent_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE RESTRICT,
+  CONSTRAINT wiki_pages_title_length
+    CHECK (char_length(title) BETWEEN 1 AND 160),
+  CONSTRAINT wiki_pages_slug_length
+    CHECK (char_length(slug) BETWEEN 1 AND 200),
+  CONSTRAINT wiki_pages_sort_order CHECK (sort_order >= 0),
+  CONSTRAINT wiki_pages_version CHECK (version > 0),
+  UNIQUE (project_id, slug),
+  UNIQUE (workspace_id, project_id, id)
+);
+
+CREATE INDEX wiki_pages_tree_idx
+  ON wiki_pages (project_id, parent_id, sort_order, title, id)
+  WHERE archived_at IS NULL;
+
+CREATE TABLE wiki_page_revisions (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  page_id uuid NOT NULL,
+  version integer NOT NULL,
+  title text NOT NULL,
+  content_markdown text NOT NULL,
+  created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT wiki_page_revisions_page_fk
+    FOREIGN KEY (workspace_id, project_id, page_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE CASCADE,
+  CONSTRAINT wiki_page_revisions_title_length
+    CHECK (char_length(title) BETWEEN 1 AND 160),
+  CONSTRAINT wiki_page_revisions_version CHECK (version > 0),
+  UNIQUE (page_id, version)
+);
+
+CREATE INDEX wiki_page_revisions_page_created_idx
+  ON wiki_page_revisions (page_id, version DESC);
+
+CREATE TABLE issue_wiki_links (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  issue_id uuid NOT NULL,
+  page_id uuid NOT NULL,
+  created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT issue_wiki_links_issue_fk
+    FOREIGN KEY (workspace_id, project_id, issue_id)
+    REFERENCES issues (workspace_id, project_id, id) ON DELETE CASCADE,
+  CONSTRAINT issue_wiki_links_page_fk
+    FOREIGN KEY (workspace_id, project_id, page_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE CASCADE,
+  UNIQUE (issue_id, page_id)
+);
+
+CREATE INDEX issue_wiki_links_page_idx
+  ON issue_wiki_links (page_id, issue_id);
 
 CREATE TABLE tags (
   id uuid PRIMARY KEY,
@@ -302,7 +390,8 @@ CREATE PUBLICATION pulsar_zero_data FOR TABLE
     created_at, updated_at, archived_at
   ),
   projects (
-    id, workspace_id, workflow_id, key, name, description, next_issue_number,
+    id, workspace_id, workflow_id, key, name, description,
+    knowledge_provider, knowledge_external_url, next_issue_number,
     created_by_id, created_at, updated_at, archived_at
   ),
   issues (
@@ -313,6 +402,18 @@ CREATE PUBLICATION pulsar_zero_data FOR TABLE
   comments (
     id, workspace_id, issue_id, author_id, body,
     created_at, updated_at, archived_at
+  ),
+  wiki_pages (
+    id, workspace_id, project_id, parent_id, title, slug, content_markdown,
+    sort_order, version, created_by_id, updated_by_id,
+    created_at, updated_at, archived_at
+  ),
+  wiki_page_revisions (
+    id, workspace_id, project_id, page_id, version, title, content_markdown,
+    created_by_id, created_at
+  ),
+  issue_wiki_links (
+    id, workspace_id, project_id, issue_id, page_id, created_by_id, created_at
   ),
   tags (
     id, workspace_id, name, color, created_at, updated_at, archived_at

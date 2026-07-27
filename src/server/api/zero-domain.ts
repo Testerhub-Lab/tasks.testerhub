@@ -130,7 +130,10 @@ async function projectRows(userID: string, workspaceID?: string | null) {
   );
 }
 
-async function requireProject(userID: string, projectKey: string) {
+export async function requireApiProjectByKey(
+  userID: string,
+  projectKey: string
+) {
   const normalized = projectKey.trim().toUpperCase();
   const match = (await projectRows(userID)).find(
     ({ project }) => project.key === normalized
@@ -141,7 +144,7 @@ async function requireProject(userID: string, projectKey: string) {
   return match;
 }
 
-async function requireIssue(userID: string, key: string) {
+export async function requireApiIssueByKey(userID: string, key: string) {
   const match = /^([A-Z][A-Z0-9]{1,9})-(\d+)$/.exec(
     key.trim().toUpperCase()
   );
@@ -149,7 +152,7 @@ async function requireIssue(userID: string, key: string) {
     throw new ApiError(404, "issue_not_found", "Задача не найдена");
   }
 
-  const project = await requireProject(userID, match[1]);
+  const project = await requireApiProjectByKey(userID, match[1]);
   const issues = await getZeroDatabase().run(
     zeroQueries.issues.byProject.fn({
       args: { projectID: project.project.id },
@@ -164,7 +167,7 @@ async function requireIssue(userID: string, key: string) {
 }
 
 function serializeIssue(
-  row: Awaited<ReturnType<typeof requireIssue>>
+  row: Awaited<ReturnType<typeof requireApiIssueByKey>>
 ) {
   const { issue, project } = row;
   if (!issue.state) {
@@ -266,8 +269,8 @@ export async function listApiProjects(
         slug: workspace.slug,
       },
       knowledge: {
-        provider: "DISABLED" as const,
-        externalUrl: null,
+        provider: project.knowledgeProvider,
+        externalUrl: project.knowledgeExternalURL ?? null,
       },
     })
   );
@@ -283,7 +286,7 @@ export async function searchApiIssues(
   }
 ) {
   const projects = input.projectKey
-    ? [await requireProject(user.id, input.projectKey)]
+    ? [await requireApiProjectByKey(user.id, input.projectKey)]
     : await projectRows(user.id);
   const groups = await Promise.all(
     projects.map(async (project) => ({
@@ -317,13 +320,21 @@ export async function searchApiIssues(
 }
 
 export async function getApiIssue(user: ApiActor, key: string) {
-  const row = await requireIssue(user.id, key);
-  const comments = await getZeroDatabase().run(
-    zeroQueries.comments.byIssue.fn({
-      args: { issueID: row.issue.id },
-      ctx: { userID: user.id },
-    })
-  );
+  const row = await requireApiIssueByKey(user.id, key);
+  const [comments, knowledgeLinks] = await Promise.all([
+    getZeroDatabase().run(
+      zeroQueries.comments.byIssue.fn({
+        args: { issueID: row.issue.id },
+        ctx: { userID: user.id },
+      })
+    ),
+    getZeroDatabase().run(
+      zeroQueries.issueWikiLinks.byIssue.fn({
+        args: { issueID: row.issue.id },
+        ctx: { userID: user.id },
+      })
+    ),
+  ]);
   return {
     ...serializeIssue(row),
     creator: publicUser(row.issue.creator),
@@ -336,7 +347,20 @@ export async function getApiIssue(user: ApiActor, key: string) {
       user: publicUser(comment.author),
     })),
     activities: [],
-    knowledgeLinks: [],
+    knowledgeLinks: knowledgeLinks.flatMap((link) =>
+      link.page && !link.page.archivedAt
+        ? [
+            {
+              id: link.id,
+              provider: "NATIVE" as const,
+              documentKey: link.page.id,
+              title: link.page.title,
+              url: null,
+              createdAt: iso(link.createdAt),
+            },
+          ]
+        : []
+    ),
   };
 }
 
@@ -393,7 +417,7 @@ export async function createApiIssue(
   user: ApiActor,
   input: CreateIssueInput
 ) {
-  const project = await requireProject(user.id, input.projectKey);
+  const project = await requireApiProjectByKey(user.id, input.projectKey);
   const states = await workflowStates(user.id, project.project.workflowID);
   const state = stateForStatus(states, "NEW");
   const issues = await getZeroDatabase().run(
@@ -455,7 +479,7 @@ export async function updateApiIssue(
   key: string,
   input: UpdateIssueInput
 ) {
-  const row = await requireIssue(user.id, key);
+  const row = await requireApiIssueByKey(user.id, key);
   const states = input.status
     ? await workflowStates(user.id, row.project.workflowID)
     : [];
@@ -503,7 +527,7 @@ export async function addApiComment(
   key: string,
   input: AddCommentInput
 ) {
-  const row = await requireIssue(user.id, key);
+  const row = await requireApiIssueByKey(user.id, key);
   const id = randomUUID();
   try {
     await getZeroDatabase().transaction((tx) =>

@@ -14,6 +14,7 @@ const workspaceID = "00000000-0000-7000-8000-000000000010";
 const workflowID = "00000000-0000-7000-8000-000000000020";
 const projectID = "00000000-0000-7000-8000-000000000030";
 const issueID = "00000000-0000-7000-8000-000000000040";
+const pageID = "00000000-0000-7000-8000-000000000060";
 
 const requests = [
   { id: "workspaces", name: "workspaces.mine", args: [] },
@@ -44,6 +45,22 @@ const requests = [
   },
   { id: "issue", name: "issues.byID", args: [{ issueID }] },
   { id: "comments", name: "comments.byIssue", args: [{ issueID }] },
+  {
+    id: "wiki-pages",
+    name: "wikiPages.byProject",
+    args: [{ projectID }],
+  },
+  { id: "wiki-page", name: "wikiPages.byID", args: [{ pageID }] },
+  {
+    id: "wiki-revisions",
+    name: "wikiPageRevisions.byPage",
+    args: [{ pageID }],
+  },
+  {
+    id: "issue-wiki-links",
+    name: "issueWikiLinks.byIssue",
+    args: [{ issueID }],
+  },
   {
     id: "tags",
     name: "tags.byWorkspace",
@@ -131,6 +148,17 @@ describe("Zero query permissions", () => {
       );
       expect(JSON.stringify(second[index])).toContain(userB);
       expect(JSON.stringify(second[index])).not.toContain(userA);
+    }
+  });
+
+  it("exposes native, active Wiki records only", async () => {
+    const wikiASTs = getASTs(await transformFor(userA)).slice(8, 12);
+    expect(wikiASTs).toHaveLength(4);
+
+    for (const ast of wikiASTs) {
+      const serialized = JSON.stringify(ast);
+      expect(serialized).toContain("knowledge_provider");
+      expect(serialized).toContain("NATIVE");
     }
   });
 

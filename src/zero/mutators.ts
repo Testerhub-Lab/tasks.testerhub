@@ -5,6 +5,7 @@ import {
   type Transaction,
 } from "@rocicorp/zero";
 import { z } from "zod";
+import { createWikiSlug } from "../server/knowledge/slug";
 import {
   assertCanSetMemberRole,
   getWorkspaceRole,
@@ -83,6 +84,33 @@ async function getIssueForWrite(
   if (!issue) throw new Error("Issue access denied");
   await requireWorkspaceRole(tx, issue.workspaceID, userID, "MEMBER");
   return issue;
+}
+
+async function getWikiPageForWrite(
+  tx: Transaction<ZeroSchema>,
+  pageID: string,
+  userID: string
+) {
+  const page = await tx.run(zql.wikiPage.where("id", pageID).one());
+  if (!page || page.archivedAt) throw new Error("Wiki page access denied");
+  await requireWorkspaceRole(tx, page.workspaceID, userID, "MEMBER");
+  const project = await tx.run(
+    zql.project.where("id", page.projectID).one()
+  );
+  if (!project || project.knowledgeProvider !== "NATIVE") {
+    throw new Error("Native Wiki is disabled");
+  }
+  return { page, project };
+}
+
+function uniqueWikiSlug(title: string, slugs: readonly string[]) {
+  const base = createWikiSlug(title);
+  const existing = new Set(slugs);
+  if (!existing.has(base)) return base;
+
+  let suffix = 2;
+  while (existing.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }
 
 async function requireMatchingState(
@@ -302,6 +330,8 @@ export const zeroMutators = defineMutators({
           key: args.key,
           name: args.name,
           description: args.description,
+          knowledgeProvider: "DISABLED",
+          knowledgeExternalURL: null,
           nextIssueNumber: 1,
           createdByID: ctx.userID,
           createdAt: now,
@@ -564,6 +594,221 @@ export const zeroMutators = defineMutators({
           body: args.body,
           createdAt: now,
           updatedAt: now,
+        });
+      }
+    ),
+  },
+  wikiPages: {
+    create: defineMutator(
+      z.object({
+        id,
+        revisionID: id,
+        projectID: id,
+        parentID: id.nullable().optional(),
+        title: z.string().trim().min(1).max(160),
+        contentMarkdown: z.string().max(200000).default(""),
+      }),
+      async ({ args, ctx, tx }) => {
+        const project = await getProjectForWrite(
+          tx,
+          args.projectID,
+          ctx.userID
+        );
+        if (project.knowledgeProvider !== "NATIVE") {
+          throw new Error("Native Wiki is disabled");
+        }
+
+        const pages = await tx.run(
+          zql.wikiPage.where("projectID", project.id)
+        );
+        if (args.parentID) {
+          const parent = pages.find((page) => page.id === args.parentID);
+          if (!parent || parent.archivedAt) {
+            throw new Error("Wiki parent access denied");
+          }
+        }
+
+        const now = Date.now();
+        const sortOrder =
+          pages
+            .filter((page) => (page.parentID ?? null) === (args.parentID ?? null))
+            .reduce((maximum, page) => Math.max(maximum, page.sortOrder), -1) +
+          1;
+        const slug = uniqueWikiSlug(
+          args.title,
+          pages.map((page) => page.slug)
+        );
+
+        await tx.mutate.wikiPage.insert({
+          id: args.id,
+          workspaceID: project.workspaceID,
+          projectID: project.id,
+          parentID: args.parentID,
+          title: args.title,
+          slug,
+          contentMarkdown: args.contentMarkdown,
+          sortOrder,
+          version: 1,
+          createdByID: ctx.userID,
+          updatedByID: ctx.userID,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await tx.mutate.wikiPageRevision.insert({
+          id: args.revisionID,
+          workspaceID: project.workspaceID,
+          projectID: project.id,
+          pageID: args.id,
+          version: 1,
+          title: args.title,
+          contentMarkdown: args.contentMarkdown,
+          createdByID: ctx.userID,
+          createdAt: now,
+        });
+        await recordAudit(tx, {
+          workspaceID: project.workspaceID,
+          actorID: ctx.userID,
+          action: "wiki_page.created",
+          entityType: "wiki_page",
+          entityID: args.id,
+          changes: { title: args.title },
+        });
+      }
+    ),
+    update: defineMutator(
+      z
+        .object({
+          id,
+          revisionID: id,
+          title: z.string().trim().min(1).max(160).optional(),
+          contentMarkdown: z.string().max(200000).optional(),
+          expectedVersion: z.number().int().positive().optional(),
+        })
+        .refine(
+          (value) =>
+            value.title !== undefined || value.contentMarkdown !== undefined,
+          "Wiki title or content is required"
+        ),
+      async ({ args, ctx, tx }) => {
+        const { page } = await getWikiPageForWrite(
+          tx,
+          args.id,
+          ctx.userID
+        );
+        let currentVersion = page.version;
+        if (tx.location === "server") {
+          const rows = await tx.dbTransaction.query(
+            `SELECT version
+             FROM wiki_pages
+             WHERE id = $1 AND archived_at IS NULL
+             FOR UPDATE`,
+            [page.id]
+          );
+          const locked = [...rows][0];
+          if (!locked || typeof locked.version !== "number") {
+            throw new Error("Wiki page access denied");
+          }
+          currentVersion = locked.version;
+        }
+        if (
+          args.expectedVersion !== undefined &&
+          args.expectedVersion !== currentVersion
+        ) {
+          throw new Error(`Wiki version conflict:${currentVersion}`);
+        }
+
+        const title = args.title ?? page.title;
+        const contentMarkdown =
+          args.contentMarkdown ?? page.contentMarkdown;
+        const nextVersion = currentVersion + 1;
+        const now = Date.now();
+        await tx.mutate.wikiPage.update({
+          id: page.id,
+          title,
+          contentMarkdown,
+          version: nextVersion,
+          updatedByID: ctx.userID,
+          updatedAt: now,
+        });
+        await tx.mutate.wikiPageRevision.insert({
+          id: args.revisionID,
+          workspaceID: page.workspaceID,
+          projectID: page.projectID,
+          pageID: page.id,
+          version: nextVersion,
+          title,
+          contentMarkdown,
+          createdByID: ctx.userID,
+          createdAt: now,
+        });
+        await recordAudit(tx, {
+          workspaceID: page.workspaceID,
+          actorID: ctx.userID,
+          action: "wiki_page.updated",
+          entityType: "wiki_page",
+          entityID: page.id,
+          changes: {
+            fromVersion: currentVersion,
+            toVersion: nextVersion,
+          },
+        });
+      }
+    ),
+  },
+  issueWikiLinks: {
+    create: defineMutator(
+      z.object({
+        id,
+        issueID: id,
+        pageID: id,
+      }),
+      async ({ args, ctx, tx }) => {
+        const issue = await getIssueForWrite(
+          tx,
+          args.issueID,
+          ctx.userID
+        );
+        const project = await tx.run(
+          zql.project.where("id", issue.projectID).one()
+        );
+        if (!project || project.knowledgeProvider !== "NATIVE") {
+          throw new Error("Native Wiki is disabled");
+        }
+        const page = await tx.run(
+          zql.wikiPage.where("id", args.pageID).one()
+        );
+        if (
+          !page ||
+          page.archivedAt ||
+          page.workspaceID !== issue.workspaceID ||
+          page.projectID !== issue.projectID
+        ) {
+          throw new Error("Wiki page access denied");
+        }
+        const existing = await tx.run(
+          zql.issueWikiLink
+            .where("issueID", issue.id)
+            .where("pageID", page.id)
+            .one()
+        );
+        if (existing) return;
+
+        await tx.mutate.issueWikiLink.insert({
+          id: args.id,
+          workspaceID: issue.workspaceID,
+          projectID: issue.projectID,
+          issueID: issue.id,
+          pageID: page.id,
+          createdByID: ctx.userID,
+          createdAt: Date.now(),
+        });
+        await recordAudit(tx, {
+          workspaceID: issue.workspaceID,
+          actorID: ctx.userID,
+          action: "issue.wiki_link_created",
+          entityType: "issue",
+          entityID: issue.id,
+          changes: { pageID: page.id },
         });
       }
     ),

@@ -281,7 +281,7 @@ server.registerTool(
     description:
       "List the Wiki page tree and provider configuration for one project.",
     inputSchema: z.object({
-      projectKey: z.string().min(2).max(6),
+      projectKey: z.string().min(2).max(10),
     }),
     annotations: readAnnotations,
   },
@@ -300,7 +300,7 @@ server.registerTool(
     description:
       "Search Wiki page titles and Markdown content in one project.",
     inputSchema: z.object({
-      projectKey: z.string().min(2).max(6),
+      projectKey: z.string().min(2).max(10),
       query: z.string().min(1).max(200),
     }),
     annotations: readAnnotations,
@@ -322,7 +322,7 @@ server.registerTool(
     description:
       "Read one Wiki page with Markdown, version metadata and revision history.",
     inputSchema: z.object({
-      pageId: z.string().min(1),
+      pageId: z.uuid(),
     }),
     annotations: readAnnotations,
   },
@@ -339,10 +339,10 @@ server.registerTool(
     description:
       "Create a versioned Markdown page in a project's native Wiki.",
     inputSchema: z.object({
-      projectKey: z.string().min(2).max(6),
+      projectKey: z.string().min(2).max(10),
       title: z.string().min(1).max(160),
       contentMarkdown: z.string().max(200_000).default(""),
-      parentId: z.string().min(1).nullable().optional(),
+      parentId: z.uuid().nullable().optional(),
     }),
     annotations: writeAnnotations,
   },
@@ -366,7 +366,7 @@ server.registerTool(
     description:
       "Update Markdown or title and create a new revision. Pass expectedVersion after reading the page to prevent overwrites.",
     inputSchema: z.object({
-      pageId: z.string().min(1),
+      pageId: z.uuid(),
       title: z.string().min(1).max(160).optional(),
       contentMarkdown: z.string().max(200_000).optional(),
       expectedVersion: z.number().int().positive().optional(),
@@ -390,7 +390,7 @@ server.registerTool(
       "Attach a native Wiki page to an issue in the same project.",
     inputSchema: z.object({
       issueKey: z.string().min(3),
-      pageId: z.string().min(1),
+      pageId: z.uuid(),
     }),
     annotations: {
       ...writeAnnotations,

@@ -17,6 +17,7 @@ export type WorkflowCategory =
   | "CANCELED";
 export type IssuePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type IssueParticipantRole = "ASSIGNEE" | "WATCHER";
+export type KnowledgeProvider = "DISABLED" | "NATIVE" | "EXTERNAL";
 
 const user = table("user")
   .from("users")
@@ -91,6 +92,10 @@ const project = table("project")
     key: string(),
     name: string(),
     description: string().optional(),
+    knowledgeProvider: enumeration<KnowledgeProvider>().from(
+      "knowledge_provider"
+    ),
+    knowledgeExternalURL: string().from("knowledge_external_url").optional(),
     nextIssueNumber: number().from("next_issue_number"),
     createdByID: string().from("created_by_id"),
     createdAt: number().from("created_at"),
@@ -132,6 +137,54 @@ const comment = table("comment")
     createdAt: number().from("created_at"),
     updatedAt: number().from("updated_at"),
     archivedAt: number().from("archived_at").optional(),
+  })
+  .primaryKey("id");
+
+const wikiPage = table("wikiPage")
+  .from("wiki_pages")
+  .columns({
+    id: string(),
+    workspaceID: string().from("workspace_id"),
+    projectID: string().from("project_id"),
+    parentID: string().from("parent_id").optional(),
+    title: string(),
+    slug: string(),
+    contentMarkdown: string().from("content_markdown"),
+    sortOrder: number().from("sort_order"),
+    version: number(),
+    createdByID: string().from("created_by_id"),
+    updatedByID: string().from("updated_by_id"),
+    createdAt: number().from("created_at"),
+    updatedAt: number().from("updated_at"),
+    archivedAt: number().from("archived_at").optional(),
+  })
+  .primaryKey("id");
+
+const wikiPageRevision = table("wikiPageRevision")
+  .from("wiki_page_revisions")
+  .columns({
+    id: string(),
+    workspaceID: string().from("workspace_id"),
+    projectID: string().from("project_id"),
+    pageID: string().from("page_id"),
+    version: number(),
+    title: string(),
+    contentMarkdown: string().from("content_markdown"),
+    createdByID: string().from("created_by_id"),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+const issueWikiLink = table("issueWikiLink")
+  .from("issue_wiki_links")
+  .columns({
+    id: string(),
+    workspaceID: string().from("workspace_id"),
+    projectID: string().from("project_id"),
+    issueID: string().from("issue_id"),
+    pageID: string().from("page_id"),
+    createdByID: string().from("created_by_id"),
+    createdAt: number().from("created_at"),
   })
   .primaryKey("id");
 
@@ -301,6 +354,11 @@ const projectRelationships = relationships(project, ({ many, one }) => ({
     destField: ["projectID"],
     destSchema: issue,
   }),
+  wikiPages: many({
+    sourceField: ["id"],
+    destField: ["projectID"],
+    destSchema: wikiPage,
+  }),
 }));
 
 const issueRelationships = relationships(issue, ({ many, one }) => ({
@@ -333,6 +391,11 @@ const issueRelationships = relationships(issue, ({ many, one }) => ({
     sourceField: ["id"],
     destField: ["issueID"],
     destSchema: comment,
+  }),
+  wikiLinks: many({
+    sourceField: ["id"],
+    destField: ["issueID"],
+    destSchema: issueWikiLink,
   }),
   attachments: many({
     sourceField: ["id"],
@@ -380,6 +443,99 @@ const commentRelationships = relationships(comment, ({ many, one }) => ({
     destSchema: workspaceMember,
   }),
 }));
+
+const wikiPageRelationships = relationships(
+  wikiPage,
+  ({ many, one }) => ({
+    project: one({
+      sourceField: ["projectID"],
+      destField: ["id"],
+      destSchema: project,
+    }),
+    parent: one({
+      sourceField: ["parentID"],
+      destField: ["id"],
+      destSchema: wikiPage,
+    }),
+    children: many({
+      sourceField: ["id"],
+      destField: ["parentID"],
+      destSchema: wikiPage,
+    }),
+    creator: one({
+      sourceField: ["createdByID"],
+      destField: ["id"],
+      destSchema: user,
+    }),
+    updater: one({
+      sourceField: ["updatedByID"],
+      destField: ["id"],
+      destSchema: user,
+    }),
+    revisions: many({
+      sourceField: ["id"],
+      destField: ["pageID"],
+      destSchema: wikiPageRevision,
+    }),
+    issueLinks: many({
+      sourceField: ["id"],
+      destField: ["pageID"],
+      destSchema: issueWikiLink,
+    }),
+    members: many({
+      sourceField: ["workspaceID"],
+      destField: ["workspaceID"],
+      destSchema: workspaceMember,
+    }),
+  })
+);
+
+const wikiPageRevisionRelationships = relationships(
+  wikiPageRevision,
+  ({ many, one }) => ({
+    page: one({
+      sourceField: ["pageID"],
+      destField: ["id"],
+      destSchema: wikiPage,
+    }),
+    creator: one({
+      sourceField: ["createdByID"],
+      destField: ["id"],
+      destSchema: user,
+    }),
+    members: many({
+      sourceField: ["workspaceID"],
+      destField: ["workspaceID"],
+      destSchema: workspaceMember,
+    }),
+  })
+);
+
+const issueWikiLinkRelationships = relationships(
+  issueWikiLink,
+  ({ many, one }) => ({
+    issue: one({
+      sourceField: ["issueID"],
+      destField: ["id"],
+      destSchema: issue,
+    }),
+    page: one({
+      sourceField: ["pageID"],
+      destField: ["id"],
+      destSchema: wikiPage,
+    }),
+    creator: one({
+      sourceField: ["createdByID"],
+      destField: ["id"],
+      destSchema: user,
+    }),
+    members: many({
+      sourceField: ["workspaceID"],
+      destField: ["workspaceID"],
+      destSchema: workspaceMember,
+    }),
+  })
+);
 
 const tagRelationships = relationships(tag, ({ many }) => ({
   members: many({
@@ -464,6 +620,9 @@ export const zeroSchema = createSchema({
     project,
     issue,
     comment,
+    wikiPage,
+    wikiPageRevision,
+    issueWikiLink,
     tag,
     issueTag,
     issueParticipant,
@@ -478,6 +637,9 @@ export const zeroSchema = createSchema({
     projectRelationships,
     issueRelationships,
     commentRelationships,
+    wikiPageRelationships,
+    wikiPageRevisionRelationships,
+    issueWikiLinkRelationships,
     tagRelationships,
     issueTagRelationships,
     issueParticipantRelationships,

@@ -68,7 +68,7 @@ export const addCommentApiSchema = z.object({
 export const createWikiPageApiSchema = z.object({
   title: z.string().trim().min(1).max(160),
   contentMarkdown: z.string().max(200_000).default(""),
-  parentId: z.string().min(1).optional().nullable(),
+  parentId: z.string().uuid().optional().nullable(),
 });
 
 export const updateWikiPageApiSchema = z
@@ -85,5 +85,5 @@ export const updateWikiPageApiSchema = z
   );
 
 export const linkWikiPageApiSchema = z.object({
-  pageId: z.string().min(1),
+  pageId: z.string().uuid(),
 });

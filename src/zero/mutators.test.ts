@@ -13,13 +13,17 @@ const stateID = "00000000-0000-7000-8000-000000000021";
 const projectID = "00000000-0000-7000-8000-000000000030";
 const issueID = "00000000-0000-7000-8000-000000000040";
 const tagID = "00000000-0000-7000-8000-000000000050";
+const pageID = "00000000-0000-7000-8000-000000000060";
+const revisionID = "00000000-0000-7000-8000-000000000061";
 
 function makeTransaction(runResults: unknown[]) {
   const results = [...runResults];
   const spies = {
-    audit: vi.fn().mockImplementation(async (sql: string) =>
-      sql.includes("UPDATE projects") ? [{ issue_number: 1 }] : []
-    ),
+    audit: vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes("UPDATE projects")) return [{ issue_number: 1 }];
+      if (sql.includes("SELECT version")) return [{ version: 2 }];
+      return [];
+    }),
     projectUpdate: vi.fn(),
     issueInsert: vi.fn(),
     issueUpdate: vi.fn(),
@@ -33,6 +37,10 @@ function makeTransaction(runResults: unknown[]) {
     memberInsert: vi.fn(),
     workflowInsert: vi.fn(),
     workflowStateInsert: vi.fn(),
+    wikiPageInsert: vi.fn(),
+    wikiPageUpdate: vi.fn(),
+    wikiRevisionInsert: vi.fn(),
+    issueWikiLinkInsert: vi.fn(),
   };
   const tx = {
     location: "server",
@@ -52,6 +60,12 @@ function makeTransaction(runResults: unknown[]) {
       },
       workflow: { insert: spies.workflowInsert },
       workflowState: { insert: spies.workflowStateInsert },
+      wikiPage: {
+        insert: spies.wikiPageInsert,
+        update: spies.wikiPageUpdate,
+      },
+      wikiPageRevision: { insert: spies.wikiRevisionInsert },
+      issueWikiLink: { insert: spies.issueWikiLinkInsert },
       tag: { insert: spies.tagInsert },
       issueTag: {
         insert: spies.issueTagInsert,
@@ -72,6 +86,7 @@ const project = {
   id: projectID,
   workspaceID: workspaceA,
   workflowID,
+  knowledgeProvider: "NATIVE",
   nextIssueNumber: 1,
 };
 const issue = {
@@ -79,6 +94,16 @@ const issue = {
   workspaceID: workspaceA,
   projectID,
   workflowID,
+};
+const page = {
+  id: pageID,
+  workspaceID: workspaceA,
+  projectID,
+  title: "Architecture",
+  slug: "architecture",
+  contentMarkdown: "Current",
+  version: 1,
+  archivedAt: null,
 };
 
 describe("Zero mutation authorization negative cases", () => {
@@ -213,6 +238,77 @@ describe("Zero mutation authorization negative cases", () => {
     expect(spies.tagInsert).not.toHaveBeenCalled();
     expect(spies.issueTagInsert).not.toHaveBeenCalled();
     expect(spies.issueTagDelete).not.toHaveBeenCalled();
+  });
+
+  it("keeps workspace viewers from creating Wiki pages", async () => {
+    const { spies, tx } = makeTransaction([
+      project,
+      { workspaceID: workspaceA, userID: userA, role: "VIEWER" },
+    ]);
+
+    await expect(
+      zeroMutators.wikiPages.create.fn({
+        args: {
+          id: pageID,
+          revisionID,
+          projectID,
+          title: "Viewer page",
+          contentMarkdown: "",
+        },
+        ctx: { userID: userA },
+        tx,
+      })
+    ).rejects.toThrow("Workspace access denied");
+
+    expect(spies.wikiPageInsert).not.toHaveBeenCalled();
+    expect(spies.wikiRevisionInsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects links to a Wiki page from another project", async () => {
+    const foreignPage = {
+      ...page,
+      projectID: "00000000-0000-7000-8000-000000000031",
+    };
+    const { spies, tx } = makeTransaction([
+      issue,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      project,
+      foreignPage,
+    ]);
+
+    await expect(
+      zeroMutators.issueWikiLinks.create.fn({
+        args: { id: revisionID, issueID, pageID },
+        ctx: { userID: userA },
+        tx,
+      })
+    ).rejects.toThrow("Wiki page access denied");
+
+    expect(spies.issueWikiLinkInsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale expected Wiki versions before changing the page", async () => {
+    const { spies, tx } = makeTransaction([
+      page,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      project,
+    ]);
+
+    await expect(
+      zeroMutators.wikiPages.update.fn({
+        args: {
+          id: pageID,
+          revisionID,
+          title: "Stale title",
+          expectedVersion: 1,
+        },
+        ctx: { userID: userA },
+        tx,
+      })
+    ).rejects.toThrow("Wiki version conflict:2");
+
+    expect(spies.wikiPageUpdate).not.toHaveBeenCalled();
+    expect(spies.wikiRevisionInsert).not.toHaveBeenCalled();
   });
 });
 
@@ -379,6 +475,46 @@ describe("Zero mutation authorization allowed case", () => {
     expect(spies.issueTagInsert).toHaveBeenCalledTimes(1);
     expect(spies.issueTagInsert).toHaveBeenCalledWith(
       expect.objectContaining({ issueID, tagID })
+    );
+  });
+
+  it("creates a Wiki page and its first revision in one command", async () => {
+    const { spies, tx } = makeTransaction([
+      project,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      [],
+    ]);
+
+    await zeroMutators.wikiPages.create.fn({
+      args: {
+        id: pageID,
+        revisionID,
+        projectID,
+        title: "Target Architecture",
+        contentMarkdown: "# Target",
+      },
+      ctx: { userID: userA },
+      tx,
+    });
+
+    expect(spies.wikiPageInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: pageID,
+        slug: "target-architecture",
+        sortOrder: 0,
+        version: 1,
+      })
+    );
+    expect(spies.wikiRevisionInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: revisionID,
+        pageID,
+        version: 1,
+      })
+    );
+    expect(spies.audit).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO audit_events"),
+      expect.arrayContaining(["wiki_page.created"])
     );
   });
 });

@@ -129,6 +129,78 @@ export const pulsarOpenApi = {
         },
       },
     },
+    "/projects/{projectKey}/wiki/pages": {
+      get: {
+        operationId: "listWikiPages",
+        parameters: [
+          { $ref: "#/components/parameters/ProjectKeyPath" },
+          {
+            name: "q",
+            in: "query",
+            schema: { type: "string", maxLength: 200 },
+          },
+        ],
+        responses: {
+          "200": { description: "Wiki tree or matching Wiki pages" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      post: {
+        operationId: "createWikiPage",
+        parameters: [
+          { $ref: "#/components/parameters/ProjectKeyPath" },
+          { $ref: "#/components/parameters/IdempotencyKey" },
+        ],
+        requestBody: jsonBody({
+          $ref: "#/components/schemas/CreateWikiPage",
+        }),
+        responses: {
+          "201": { description: "Created Wiki page and initial revision" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "409": { description: "Native Wiki is disabled" },
+        },
+      },
+    },
+    "/wiki/pages/{pageId}": {
+      get: {
+        operationId: "getWikiPage",
+        parameters: [{ $ref: "#/components/parameters/WikiPageID" }],
+        responses: {
+          "200": { description: "Wiki page with revision metadata" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      patch: {
+        operationId: "updateWikiPage",
+        parameters: [{ $ref: "#/components/parameters/WikiPageID" }],
+        requestBody: jsonBody({
+          $ref: "#/components/schemas/UpdateWikiPage",
+        }),
+        responses: {
+          "200": { description: "Updated Wiki page and new revision" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "409": { description: "Expected Wiki version is stale" },
+        },
+      },
+    },
+    "/issues/{key}/wiki-links": {
+      post: {
+        operationId: "linkIssueToWiki",
+        parameters: [
+          { $ref: "#/components/parameters/IssueKey" },
+          { $ref: "#/components/parameters/IdempotencyKey" },
+        ],
+        requestBody: jsonBody({
+          $ref: "#/components/schemas/LinkWikiPage",
+        }),
+        responses: {
+          "201": { description: "Issue-to-Wiki link" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -157,6 +229,18 @@ export const pulsarOpenApi = {
           type: "string",
           pattern: "^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$",
         },
+      },
+      ProjectKeyPath: {
+        name: "projectKey",
+        in: "path",
+        required: true,
+        schema: { $ref: "#/components/schemas/ProjectKey" },
+      },
+      WikiPageID: {
+        name: "pageId",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
       },
     },
     schemas: {
@@ -220,6 +304,41 @@ export const pulsarOpenApi = {
         required: ["text"],
         properties: {
           text: { type: "string", minLength: 1, maxLength: 2000 },
+        },
+      },
+      CreateWikiPage: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title"],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 160 },
+          contentMarkdown: {
+            type: "string",
+            maxLength: 200000,
+            default: "",
+          },
+          parentId: { type: ["string", "null"], format: "uuid" },
+        },
+      },
+      UpdateWikiPage: {
+        type: "object",
+        additionalProperties: false,
+        anyOf: [
+          { required: ["title"] },
+          { required: ["contentMarkdown"] },
+        ],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 160 },
+          contentMarkdown: { type: "string", maxLength: 200000 },
+          expectedVersion: { type: "integer", minimum: 1 },
+        },
+      },
+      LinkWikiPage: {
+        type: "object",
+        additionalProperties: false,
+        required: ["pageId"],
+        properties: {
+          pageId: { type: "string", format: "uuid" },
         },
       },
     },
