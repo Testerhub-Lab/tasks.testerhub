@@ -49,4 +49,13 @@ describe("Zero publications", () => {
     expect(publicationSQL).not.toMatch(/FOR\s+TABLES\s+IN\s+SCHEMA/i);
   });
 
+  it("keeps REST issue keys globally unambiguous", () => {
+    expect(stage2SQL).toMatch(
+      /CREATE TABLE projects[\s\S]*?\bUNIQUE \(key\)/
+    );
+    expect(stage2SQL).not.toMatch(/\bUNIQUE \(workspace_id, key\)/);
+    expect(stage2SQL).toMatch(
+      /CREATE TABLE issues[\s\S]*?\btype text NOT NULL DEFAULT 'TASK'/
+    );
+  });
 });

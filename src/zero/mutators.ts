@@ -325,6 +325,13 @@ export const zeroMutators = defineMutators({
         stateID: id,
         title: z.string().trim().min(1).max(240),
         description: z.string().trim().max(20000).nullable().optional(),
+        type: z
+          .string()
+          .trim()
+          .min(1)
+          .max(40)
+          .transform((value) => value.toUpperCase())
+          .default("TASK"),
         priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
         rank,
       }),
@@ -338,20 +345,37 @@ export const zeroMutators = defineMutators({
         );
 
         const now = Date.now();
-        await tx.mutate.project.update({
-          id: project.id,
-          nextIssueNumber: project.nextIssueNumber + 1,
-          updatedAt: now,
-        });
+        let issueNumber = project.nextIssueNumber;
+        if (tx.location === "server") {
+          const rows = await tx.dbTransaction.query(
+            `UPDATE projects
+             SET next_issue_number = next_issue_number + 1, updated_at = now()
+             WHERE id = $1
+             RETURNING next_issue_number - 1 AS issue_number`,
+            [project.id]
+          );
+          const row = [...rows][0];
+          if (!row || typeof row.issue_number !== "number") {
+            throw new Error("Project issue number allocation failed");
+          }
+          issueNumber = row.issue_number;
+        } else {
+          await tx.mutate.project.update({
+            id: project.id,
+            nextIssueNumber: project.nextIssueNumber + 1,
+            updatedAt: now,
+          });
+        }
         await tx.mutate.issue.insert({
           id: args.id,
           workspaceID: project.workspaceID,
           projectID: project.id,
           workflowID: project.workflowID,
           stateID: args.stateID,
-          number: project.nextIssueNumber,
+          number: issueNumber,
           title: args.title,
           description: args.description,
+          type: args.type,
           priority: args.priority,
           rank: args.rank,
           creatorID: ctx.userID,
@@ -436,6 +460,88 @@ export const zeroMutators = defineMutators({
           action: "issue.archived",
           entityType: "issue",
           entityID: issue.id,
+        });
+      }
+    ),
+    setTags: defineMutator(
+      z.object({
+        id,
+        tags: z
+          .array(
+            z.object({
+              id,
+              name: z
+                .string()
+                .trim()
+                .min(1)
+                .max(60)
+                .transform((value) => value.toLowerCase()),
+            })
+          )
+          .max(20),
+      }),
+      async ({ args, ctx, tx }) => {
+        const issue = await getIssueForWrite(tx, args.id, ctx.userID);
+        const currentLinks = await tx.run(
+          zql.issueTag.where("issueID", issue.id)
+        );
+        const workspaceTags = await tx.run(
+          zql.tag
+            .where("workspaceID", issue.workspaceID)
+            .where("archivedAt", "IS", null)
+        );
+        const tagIDsByName = new Map(
+          workspaceTags.map((tag) => [tag.name.toLowerCase(), tag.id])
+        );
+        const desiredTagIDs = new Set<string>();
+
+        for (const input of args.tags) {
+          let tagID = tagIDsByName.get(input.name);
+          if (!tagID) {
+            tagID = input.id;
+            const now = Date.now();
+            await tx.mutate.tag.insert({
+              id: tagID,
+              workspaceID: issue.workspaceID,
+              name: input.name,
+              createdAt: now,
+              updatedAt: now,
+            });
+            tagIDsByName.set(input.name, tagID);
+          }
+
+          const alreadyDesired = desiredTagIDs.has(tagID);
+          desiredTagIDs.add(tagID);
+          if (
+            !alreadyDesired &&
+            !currentLinks.some((link) => link.tagID === tagID)
+          ) {
+            await tx.mutate.issueTag.insert({
+              workspaceID: issue.workspaceID,
+              issueID: issue.id,
+              tagID,
+              createdByID: ctx.userID,
+              createdAt: Date.now(),
+            });
+          }
+        }
+
+        for (const link of currentLinks) {
+          if (!desiredTagIDs.has(link.tagID)) {
+            await tx.mutate.issueTag.delete({
+              issueID: issue.id,
+              tagID: link.tagID,
+            });
+          }
+        }
+
+        await recordAudit(tx, {
+          workspaceID: issue.workspaceID,
+          actorID: ctx.userID,
+          action: "issue.tags_changed",
+          entityType: "issue",
+          entityID: issue.id,
+          changes: { tags: args.tags.map((tag) => tag.name) },
         });
       }
     ),

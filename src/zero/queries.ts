@@ -84,6 +84,8 @@ export const zeroQueries = defineQueries({
           .whereExists("members", (member) =>
             member.where("userID", ctx.userID)
           )
+          .related("creator")
+          .related("reporter")
           .related("state")
           .related("tags")
           .related("participants", (participant) =>
@@ -100,6 +102,8 @@ export const zeroQueries = defineQueries({
             member.where("userID", ctx.userID)
           )
           .related("project")
+          .related("creator")
+          .related("reporter")
           .related("state")
           .related("tags")
           .related("participants", (participant) =>

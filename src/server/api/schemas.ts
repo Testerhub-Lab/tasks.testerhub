@@ -17,8 +17,25 @@ export const issuePrioritySchema = z.enum([
   "CRITICAL",
 ]);
 
+export const createProjectApiSchema = z.object({
+  workspaceId: z.string().uuid(),
+  key: z
+    .string()
+    .trim()
+    .min(2)
+    .max(10)
+    .transform((value) => value.toUpperCase()),
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(20000).optional().nullable(),
+});
+
 export const createIssueApiSchema = z.object({
-  projectKey: z.string().trim().min(2).max(6).transform((value) => value.toUpperCase()),
+  projectKey: z
+    .string()
+    .trim()
+    .min(2)
+    .max(10)
+    .transform((value) => value.toUpperCase()),
   title: z.string().trim().min(3).max(120),
   description: z.string().max(2000).optional().nullable(),
   type: z.string().trim().min(1).max(40).default("TASK"),

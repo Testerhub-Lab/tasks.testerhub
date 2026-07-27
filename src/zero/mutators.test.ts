@@ -17,13 +17,17 @@ const tagID = "00000000-0000-7000-8000-000000000050";
 function makeTransaction(runResults: unknown[]) {
   const results = [...runResults];
   const spies = {
-    audit: vi.fn().mockResolvedValue([]),
+    audit: vi.fn().mockImplementation(async (sql: string) =>
+      sql.includes("UPDATE projects") ? [{ issue_number: 1 }] : []
+    ),
     projectUpdate: vi.fn(),
     issueInsert: vi.fn(),
     issueUpdate: vi.fn(),
     commentInsert: vi.fn(),
     memberUpdate: vi.fn(),
     issueTagInsert: vi.fn(),
+    issueTagDelete: vi.fn(),
+    tagInsert: vi.fn(),
     userInsert: vi.fn(),
     workspaceInsert: vi.fn(),
     memberInsert: vi.fn(),
@@ -48,7 +52,11 @@ function makeTransaction(runResults: unknown[]) {
       },
       workflow: { insert: spies.workflowInsert },
       workflowState: { insert: spies.workflowStateInsert },
-      issueTag: { insert: spies.issueTagInsert },
+      tag: { insert: spies.tagInsert },
+      issueTag: {
+        insert: spies.issueTagInsert,
+        delete: spies.issueTagDelete,
+      },
     },
     dbTransaction: {
       query: spies.audit,
@@ -184,9 +192,69 @@ describe("Zero mutation authorization negative cases", () => {
 
     expect(spies.issueTagInsert).not.toHaveBeenCalled();
   });
+
+  it("rejects tag replacement by a workspace viewer", async () => {
+    const { spies, tx } = makeTransaction([
+      issue,
+      { workspaceID: workspaceA, userID: userA, role: "VIEWER" },
+    ]);
+
+    await expect(
+      zeroMutators.issues.setTags.fn({
+        args: {
+          id: issueID,
+          tags: [{ id: tagID, name: "security" }],
+        },
+        ctx: { userID: userA },
+        tx,
+      })
+    ).rejects.toThrow("Workspace access denied");
+
+    expect(spies.tagInsert).not.toHaveBeenCalled();
+    expect(spies.issueTagInsert).not.toHaveBeenCalled();
+    expect(spies.issueTagDelete).not.toHaveBeenCalled();
+  });
 });
 
 describe("Zero mutation authorization allowed case", () => {
+  it("allocates an issue number authoritatively and keeps the public type", async () => {
+    const { spies, tx } = makeTransaction([
+      project,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      {
+        id: stateID,
+        workspaceID: workspaceA,
+        workflowID,
+        archivedAt: null,
+      },
+    ]);
+
+    await zeroMutators.issues.create.fn({
+      args: {
+        id: issueID,
+        projectID,
+        stateID,
+        title: "REST and Zero",
+        priority: "HIGH",
+        rank: "a0",
+      },
+      ctx: { userID: userA },
+      tx,
+    });
+
+    expect(spies.issueInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        number: 1,
+        type: "TASK",
+      })
+    );
+    expect(spies.projectUpdate).not.toHaveBeenCalled();
+    expect(spies.audit).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE projects"),
+      [projectID]
+    );
+  });
+
   it("creates the default workflow states atomically with a workspace", async () => {
     const { spies, tx } = makeTransaction([undefined]);
     const states = DEFAULT_WORKFLOW_STATES.map((state, index) => ({
@@ -250,6 +318,67 @@ describe("Zero mutation authorization allowed case", () => {
         userA,
         "workspace_member.role_changed",
       ])
+    );
+  });
+
+  it("normalizes and replaces issue tags through the authorized command", async () => {
+    const oldTagID = "00000000-0000-7000-8000-000000000051";
+    const { spies, tx } = makeTransaction([
+      issue,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      [{ issueID, tagID: oldTagID }],
+      [{ id: tagID, workspaceID: workspaceA, name: "Security" }],
+    ]);
+
+    await zeroMutators.issues.setTags.fn({
+      args: {
+        id: issueID,
+        tags: [{ id: tagID, name: " Security " }],
+      },
+      ctx: { userID: userA },
+      tx,
+    });
+
+    expect(spies.issueTagInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ issueID, tagID })
+    );
+    expect(spies.issueTagDelete).toHaveBeenCalledWith({
+      issueID,
+      tagID: oldTagID,
+    });
+    expect(spies.audit).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO audit_events"),
+      expect.arrayContaining(["issue.tags_changed"])
+    );
+  });
+
+  it("deduplicates issue tags case-insensitively", async () => {
+    const { spies, tx } = makeTransaction([
+      issue,
+      { workspaceID: workspaceA, userID: userA, role: "MEMBER" },
+      [],
+      [{ id: tagID, workspaceID: workspaceA, name: "Security" }],
+    ]);
+
+    await zeroMutators.issues.setTags.fn({
+      args: {
+        id: issueID,
+        tags: [
+          { id: tagID, name: "security" },
+          {
+            id: "00000000-0000-7000-8000-000000000052",
+            name: " SECURITY ",
+          },
+        ],
+      },
+      ctx: { userID: userA },
+      tx,
+    });
+
+    expect(spies.tagInsert).not.toHaveBeenCalled();
+    expect(spies.issueTagInsert).toHaveBeenCalledTimes(1);
+    expect(spies.issueTagInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ issueID, tagID })
     );
   });
 });

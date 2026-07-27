@@ -104,13 +104,41 @@ server.registerTool(
 );
 
 server.registerTool(
+  "create_project",
+  {
+    title: "Create a Pulsar project",
+    description:
+      "Create a project in a workspace using its default workflow.",
+    inputSchema: z.object({
+      workspaceId: z.uuid(),
+      key: z
+        .string()
+        .min(2)
+        .max(10)
+        .regex(/^[A-Z][A-Z0-9]{1,9}$/),
+      name: z.string().min(1).max(120),
+      description: z.string().max(20_000).nullable().optional(),
+    }),
+    annotations: writeAnnotations,
+  },
+  (input) =>
+    runTool(() =>
+      client.request("/api/v1/projects", {
+        method: "POST",
+        body: input,
+        idempotentCreate: true,
+      })
+    )
+);
+
+server.registerTool(
   "search_issues",
   {
     title: "Search Pulsar issues",
     description:
       "Search issues in one project or across every accessible project. Use this before create_issue to avoid duplicates.",
     inputSchema: z.object({
-      projectKey: z.string().min(2).max(6).optional(),
+      projectKey: z.string().min(2).max(10).optional(),
       query: z.string().max(200).optional(),
       statuses: z
         .array(
@@ -164,7 +192,7 @@ server.registerTool(
     description:
       "Create a new issue in a project. Search for duplicates first and use Wiki for durable context.",
     inputSchema: z.object({
-      projectKey: z.string().min(2).max(6),
+      projectKey: z.string().min(2).max(10),
       title: z.string().min(3).max(120),
       description: z.string().max(2000).optional(),
       type: z.string().min(1).max(40).default("TASK"),

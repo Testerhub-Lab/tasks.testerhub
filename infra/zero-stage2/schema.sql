@@ -132,7 +132,7 @@ CREATE TABLE projects (
   CONSTRAINT projects_key_format CHECK (key ~ '^[A-Z][A-Z0-9]{1,9}$'),
   CONSTRAINT projects_name_length CHECK (char_length(name) BETWEEN 1 AND 120),
   CONSTRAINT projects_next_issue_number CHECK (next_issue_number > 0),
-  UNIQUE (workspace_id, key),
+  UNIQUE (key),
   UNIQUE (workspace_id, id, workflow_id),
   UNIQUE (workspace_id, id)
 );
@@ -150,6 +150,7 @@ CREATE TABLE issues (
   number integer NOT NULL,
   title text NOT NULL,
   description text,
+  type text NOT NULL DEFAULT 'TASK',
   priority text NOT NULL DEFAULT 'MEDIUM',
   rank text NOT NULL,
   creator_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
@@ -165,6 +166,7 @@ CREATE TABLE issues (
     REFERENCES workflow_states (workspace_id, id, workflow_id) ON DELETE RESTRICT,
   CONSTRAINT issues_number CHECK (number > 0),
   CONSTRAINT issues_title_length CHECK (char_length(title) BETWEEN 1 AND 240),
+  CONSTRAINT issues_type_length CHECK (char_length(type) BETWEEN 1 AND 40),
   CONSTRAINT issues_priority CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   CONSTRAINT issues_rank_length CHECK (char_length(rank) BETWEEN 1 AND 128),
   UNIQUE (project_id, number),
@@ -305,7 +307,7 @@ CREATE PUBLICATION pulsar_zero_data FOR TABLE
   ),
   issues (
     id, workspace_id, project_id, workflow_id, state_id, number, title,
-    description, priority, rank, creator_id, reporter_id,
+    description, type, priority, rank, creator_id, reporter_id,
     created_at, updated_at, archived_at
   ),
   comments (

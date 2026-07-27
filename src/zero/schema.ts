@@ -110,6 +110,7 @@ const issue = table("issue")
     number: number(),
     title: string(),
     description: string().optional(),
+    type: string(),
     priority: enumeration<IssuePriority>(),
     rank: string(),
     creatorID: string().from("creator_id"),
@@ -307,6 +308,16 @@ const issueRelationships = relationships(issue, ({ many, one }) => ({
     sourceField: ["projectID"],
     destField: ["id"],
     destSchema: project,
+  }),
+  creator: one({
+    sourceField: ["creatorID"],
+    destField: ["id"],
+    destSchema: user,
+  }),
+  reporter: one({
+    sourceField: ["reporterID"],
+    destField: ["id"],
+    destSchema: user,
   }),
   state: one({
     sourceField: ["stateID"],

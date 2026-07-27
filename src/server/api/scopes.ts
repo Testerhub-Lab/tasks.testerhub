@@ -1,5 +1,6 @@
 export const API_SCOPES = [
   "projects:read",
+  "projects:write",
   "issues:read",
   "issues:write",
   "wiki:read",
@@ -10,6 +11,7 @@ export type ApiScope = (typeof API_SCOPES)[number];
 
 export const API_SCOPE_LABELS: Record<ApiScope, string> = {
   "projects:read": "Просмотр проектов",
+  "projects:write": "Создание проектов",
   "issues:read": "Чтение задач и комментариев",
   "issues:write": "Создание и изменение задач",
   "wiki:read": "Чтение Wiki",
