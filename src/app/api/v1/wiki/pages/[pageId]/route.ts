@@ -1,11 +1,10 @@
-import prisma from "@/lib/prisma";
-import { recordApiAudit } from "@/server/api/audit";
 import { authenticateApiRequest } from "@/server/api/auth";
 import {
   apiData,
   apiErrorResponse,
   readJsonBody,
 } from "@/server/api/errors";
+import { runAuditedCommand } from "@/server/api/idempotent-command";
 import { updateWikiPageApiSchema } from "@/server/api/schemas";
 import {
   getApiWikiPage,
@@ -36,16 +35,19 @@ export async function PATCH(
     const context = await authenticateApiRequest(request, ["wiki:write"]);
     const input = updateWikiPageApiSchema.parse(await readJsonBody(request));
     const { pageId } = await params;
-    const page = await updateApiWikiPage(context.user, pageId, input);
-    await recordApiAudit(prisma, context, {
-      action: "wiki.page.update",
-      resourceType: "wiki_page",
-      resourceId: page.id,
-      metadata: {
-        projectKey: page.project.key,
-        version: page.version,
-        fields: Object.keys(input),
-      },
+    const page = await runAuditedCommand(context, {
+      execute: (tx) =>
+        updateApiWikiPage(context.user, pageId, input, tx),
+      audit: (updated) => ({
+        action: "wiki.page.update",
+        resourceType: "wiki_page",
+        resourceId: updated.id,
+        metadata: {
+          projectKey: updated.project.key,
+          version: updated.version,
+          fields: Object.keys(input),
+        },
+      }),
     });
     return apiData(page);
   } catch (error) {

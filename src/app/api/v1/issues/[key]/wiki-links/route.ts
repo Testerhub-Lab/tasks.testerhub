@@ -28,7 +28,8 @@ export async function POST(request: Request, { params }: WikiLinkRouteProps) {
       key: idempotencyKey,
       operation: `issues.wiki-link:${key.trim().toUpperCase()}`,
       statusCode: 201,
-      execute: () => linkApiIssueToWiki(context.user, key, input.pageId),
+      execute: (tx) =>
+        linkApiIssueToWiki(context.user, key, input.pageId, tx),
       audit: (link) => ({
         action: "issue.wiki_link.create",
         resourceType: "knowledge_link",

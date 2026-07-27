@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
-import { getZeroDatabase } from "@/zero/db";
+import {
+  getZeroDatabase,
+  withZeroTransaction,
+  type ZeroTransaction,
+} from "@/zero/db";
 import { zeroMutators } from "@/zero/mutators";
 import { zeroQueries } from "@/zero/queries";
 import { issueKey } from "@/zero/stage3";
@@ -102,13 +106,18 @@ function asWikiApiError(error: unknown): never {
   throw error;
 }
 
-async function wikiPageRow(userID: string, pageID: string) {
-  const page = await getZeroDatabase().run(
-    zeroQueries.wikiPages.byID.fn({
-      args: { pageID },
-      ctx: { userID },
-    })
-  );
+async function wikiPageRow(
+  userID: string,
+  pageID: string,
+  transaction?: ZeroTransaction
+) {
+  const query = zeroQueries.wikiPages.byID.fn({
+    args: { pageID },
+    ctx: { userID },
+  });
+  const page = transaction
+    ? await transaction.run(query)
+    : await getZeroDatabase().run(query);
   if (!page || !page.project) {
     throw new ApiError(
       404,
@@ -244,14 +253,15 @@ export async function getApiWikiPage(user: ApiActor, pageID: string) {
 export async function createApiWikiPage(
   user: ApiActor,
   projectKey: string,
-  input: CreateWikiPageInput
+  input: CreateWikiPageInput,
+  transaction?: ZeroTransaction
 ) {
   const match = await requireApiProjectByKey(user.id, projectKey);
   requireNativeWiki(match.project);
   const id = randomUUID();
   try {
-    await getZeroDatabase().transaction((tx) =>
-      zeroMutators.wikiPages.create.fn({
+    return await withZeroTransaction(transaction, async (tx) => {
+      await zeroMutators.wikiPages.create.fn({
         args: {
           id,
           revisionID: randomUUID(),
@@ -262,39 +272,39 @@ export async function createApiWikiPage(
         },
         ctx: { userID: user.id },
         tx,
-      })
-    );
+      });
+      const page = await wikiPageRow(user.id, id, tx);
+      return {
+        id: page.id,
+        parentId: page.parentID ?? null,
+        title: page.title,
+        slug: page.slug,
+        contentMarkdown: page.contentMarkdown,
+        version: page.version,
+        project: {
+          id: match.project.id,
+          key: match.project.key,
+          name: match.project.name,
+        },
+        createdAt: iso(page.createdAt),
+        updatedAt: iso(page.updatedAt),
+      };
+    });
   } catch (error) {
     asWikiApiError(error);
   }
-
-  const page = await wikiPageRow(user.id, id);
-  return {
-    id: page.id,
-    parentId: page.parentID ?? null,
-    title: page.title,
-    slug: page.slug,
-    contentMarkdown: page.contentMarkdown,
-    version: page.version,
-    project: {
-      id: match.project.id,
-      key: match.project.key,
-      name: match.project.name,
-    },
-    createdAt: iso(page.createdAt),
-    updatedAt: iso(page.updatedAt),
-  };
 }
 
 export async function updateApiWikiPage(
   user: ApiActor,
   pageID: string,
-  input: UpdateWikiPageInput
+  input: UpdateWikiPageInput,
+  transaction?: ZeroTransaction
 ) {
   await wikiPageRow(user.id, pageID);
   try {
-    await getZeroDatabase().transaction((tx) =>
-      zeroMutators.wikiPages.update.fn({
+    return await withZeroTransaction(transaction, async (tx) => {
+      await zeroMutators.wikiPages.update.fn({
         args: {
           id: pageID,
           revisionID: randomUUID(),
@@ -304,40 +314,40 @@ export async function updateApiWikiPage(
         },
         ctx: { userID: user.id },
         tx,
-      })
-    );
+      });
+      const page = await wikiPageRow(user.id, pageID, tx);
+      return {
+        id: page.id,
+        parentId: page.parentID ?? null,
+        title: page.title,
+        slug: page.slug,
+        contentMarkdown: page.contentMarkdown,
+        version: page.version,
+        project: {
+          id: page.project.id,
+          key: page.project.key,
+          name: page.project.name,
+        },
+        createdAt: iso(page.createdAt),
+        updatedAt: iso(page.updatedAt),
+      };
+    });
   } catch (error) {
     asWikiApiError(error);
   }
-
-  const page = await wikiPageRow(user.id, pageID);
-  return {
-    id: page.id,
-    parentId: page.parentID ?? null,
-    title: page.title,
-    slug: page.slug,
-    contentMarkdown: page.contentMarkdown,
-    version: page.version,
-    project: {
-      id: page.project.id,
-      key: page.project.key,
-      name: page.project.name,
-    },
-    createdAt: iso(page.createdAt),
-    updatedAt: iso(page.updatedAt),
-  };
 }
 
 export async function linkApiIssueToWiki(
   user: ApiActor,
   key: string,
-  pageID: string
+  pageID: string,
+  transaction?: ZeroTransaction
 ) {
   const row = await requireApiIssueByKey(user.id, key);
   requireNativeWiki(row.project);
   try {
-    await getZeroDatabase().transaction((tx) =>
-      zeroMutators.issueWikiLinks.create.fn({
+    return await withZeroTransaction(transaction, async (tx) => {
+      await zeroMutators.issueWikiLinks.create.fn({
         args: {
           id: randomUUID(),
           issueID: row.issue.id,
@@ -345,33 +355,32 @@ export async function linkApiIssueToWiki(
         },
         ctx: { userID: user.id },
         tx,
-      })
-    );
+      });
+      const links = await tx.run(
+        zeroQueries.issueWikiLinks.byIssue.fn({
+          args: { issueID: row.issue.id },
+          ctx: { userID: user.id },
+        })
+      );
+      const link = links.find((candidate) => candidate.pageID === pageID);
+      if (!link?.page) {
+        throw new ApiError(
+          404,
+          "wiki_page_not_found",
+          "Wiki-страница не найдена"
+        );
+      }
+      return {
+        id: link.id,
+        provider: "NATIVE" as const,
+        documentKey: link.page.id,
+        title: link.page.title,
+        url: null,
+        createdAt: iso(link.createdAt),
+        issueKey: issueKey(row.project.key, row.issue.number),
+      };
+    });
   } catch (error) {
     asWikiApiError(error);
   }
-
-  const links = await getZeroDatabase().run(
-    zeroQueries.issueWikiLinks.byIssue.fn({
-      args: { issueID: row.issue.id },
-      ctx: { userID: user.id },
-    })
-  );
-  const link = links.find((candidate) => candidate.pageID === pageID);
-  if (!link?.page) {
-    throw new ApiError(
-      404,
-      "wiki_page_not_found",
-      "Wiki-страница не найдена"
-    );
-  }
-  return {
-    id: link.id,
-    provider: "NATIVE" as const,
-    documentKey: link.page.id,
-    title: link.page.title,
-    url: null,
-    createdAt: iso(link.createdAt),
-    issueKey: issueKey(row.project.key, row.issue.number),
-  };
 }

@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import prisma from "../src/lib/prisma";
+import { createApiTokenRecord } from "../src/server/api/token-store";
 import { generateApiToken } from "../src/server/api/tokens";
-import { getZeroDatabase } from "../src/zero/db";
+import { getZeroDatabase, getZeroPool } from "../src/zero/db";
 import { zeroMutators } from "../src/zero/mutators";
 import { DEFAULT_WORKFLOW_STATES } from "../src/zero/stage3";
 
@@ -18,6 +19,7 @@ async function api<T>(
     method?: "GET" | "POST" | "PATCH";
     body?: unknown;
     idempotencyKey?: string;
+    requestId?: string;
     expectedStatus?: number;
   } = {}
 ): Promise<T> {
@@ -31,6 +33,9 @@ async function api<T>(
         : { "Content-Type": "application/json" }),
       ...(options.idempotencyKey
         ? { "Idempotency-Key": options.idempotencyKey }
+        : {}),
+      ...(options.requestId
+        ? { "X-Request-Id": options.requestId }
         : {}),
     },
     body:
@@ -60,23 +65,6 @@ async function createActor(label: string) {
     select: { id: true, email: true, name: true },
   });
   const generated = generateApiToken();
-  const apiToken = await prisma.apiToken.create({
-    data: {
-      userId: user.id,
-      name: `stage4-${label}`,
-      tokenPrefix: generated.tokenPrefix,
-      tokenHash: generated.tokenHash,
-      scopes: [
-        "projects:read",
-        "projects:write",
-        "issues:read",
-        "issues:write",
-        "wiki:read",
-        "wiki:write",
-      ],
-    },
-    select: { id: true },
-  });
 
   const workspaceID = randomUUID();
   const workflowID = randomUUID();
@@ -98,6 +86,22 @@ async function createActor(label: string) {
       tx,
     })
   );
+  const apiToken = await createApiTokenRecord({
+    userID: user.id,
+    displayName: user.name,
+    name: `stage4-${label}`,
+    tokenPrefix: generated.tokenPrefix,
+    tokenHash: generated.tokenHash,
+    scopes: [
+      "projects:read",
+      "projects:write",
+      "issues:read",
+      "issues:write",
+      "wiki:read",
+      "wiki:write",
+    ],
+    expiresAt: null,
+  });
 
   return {
     ...user,
@@ -420,6 +424,57 @@ async function main() {
     throw new Error("REST issue search hid the caller's own workspace issue");
   }
 
+  const rollbackNeedle = `atomic-rollback-${randomUUID().slice(0, 8)}`;
+  const rollbackIdempotencyKey = "stage4-atomic-rollback";
+  const rollbackRequestID = "stage4-forced-audit-failure";
+  await getZeroPool().query(`
+    CREATE OR REPLACE FUNCTION stage4_reject_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.request_id = '${rollbackRequestID}' THEN
+        RAISE EXCEPTION 'forced stage4 audit failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+    CREATE TRIGGER stage4_reject_audit
+    BEFORE INSERT ON api_audit_logs
+    FOR EACH ROW EXECUTE FUNCTION stage4_reject_audit()
+  `);
+  try {
+    await api(owner.token, "/api/v1/issues", {
+      method: "POST",
+      body: {
+        projectKey,
+        title: `Must roll back ${rollbackNeedle}`,
+      },
+      idempotencyKey: rollbackIdempotencyKey,
+      requestId: rollbackRequestID,
+      expectedStatus: 500,
+    });
+  } finally {
+    await getZeroPool().query(`
+      DROP TRIGGER IF EXISTS stage4_reject_audit ON api_audit_logs;
+      DROP FUNCTION IF EXISTS stage4_reject_audit()
+    `);
+  }
+  const rolledBackIssues = await api<Array<{ key: string }>>(
+    owner.token,
+    `/api/v1/issues?projectKey=${projectKey}&q=${rollbackNeedle}`
+  );
+  if (rolledBackIssues.length !== 0) {
+    throw new Error("Audit failure did not roll back the domain mutation");
+  }
+  const rolledBackIdempotency = await getZeroPool().query<{ count: string }>(
+    `SELECT count(*)::text AS count
+     FROM api_idempotency_keys
+     WHERE api_token_id = $1 AND key = $2`,
+    [owner.tokenID, rollbackIdempotencyKey]
+  );
+  if (Number(rolledBackIdempotency.rows[0]?.count ?? 0) !== 0) {
+    throw new Error("Audit failure left an idempotency record behind");
+  }
+
   const wikiBody = {
     title: "Stage 4 Wiki",
     contentMarkdown: "# REST and MCP\n\nShared Wiki domain.",
@@ -523,16 +578,41 @@ async function main() {
   ) {
     throw new Error("Rejected REST mutation changed the issue");
   }
-  const auditCount = await prisma.apiAuditLog.count({
-    where: { apiTokenId: owner.tokenID },
-  });
+  const auditResult = await getZeroPool().query<{ count: string }>(
+    `SELECT count(*)::text AS count
+     FROM api_audit_logs
+     WHERE api_token_id = $1`,
+    [owner.tokenID]
+  );
+  const auditCount = Number(auditResult.rows[0]?.count ?? 0);
   if (auditCount !== 10) {
     throw new Error(`Expected 10 API audit records, got ${auditCount}`);
+  }
+  const legacySecurityTables = await prisma.$queryRaw<
+    Array<{
+      api_token: string | null;
+      api_audit: string | null;
+      api_idempotency: string | null;
+    }>
+  >`
+    SELECT
+      to_regclass('public."ApiToken"')::text AS api_token,
+      to_regclass('public."ApiAuditLog"')::text AS api_audit,
+      to_regclass('public."ApiIdempotencyKey"')::text AS api_idempotency
+  `;
+  if (
+    legacySecurityTables[0]?.api_token ||
+    legacySecurityTables[0]?.api_audit ||
+    legacySecurityTables[0]?.api_idempotency
+  ) {
+    throw new Error("Legacy application database still has API security tables");
   }
 
   console.log(
     JSON.stringify({
       apiAudit: true,
+      apiAuditRollbackAtomic: true,
+      apiSecuritySingleDatabase: true,
       commentVisible: true,
       idempotencyReplay: true,
       issueSearch: true,
@@ -553,4 +633,7 @@ async function main() {
   );
 }
 
-void main().finally(() => prisma.$disconnect());
+void main().finally(async () => {
+  await prisma.$disconnect();
+  await getZeroPool().end();
+});

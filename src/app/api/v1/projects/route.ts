@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       key: idempotencyKey,
       operation: "projects.create",
       statusCode: 201,
-      execute: () => createApiProject(context.user, input),
+      execute: (tx) => createApiProject(context.user, input, tx),
       audit: (project) => ({
         action: "project.create",
         resourceType: "project",

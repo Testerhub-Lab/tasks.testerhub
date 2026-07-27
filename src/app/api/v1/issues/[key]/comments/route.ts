@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: CommentRouteProps) {
       key: idempotencyKey,
       operation: `issues.comment:${key.trim().toUpperCase()}`,
       statusCode: 201,
-      execute: () => addApiComment(context.user, key, input),
+      execute: (tx) => addApiComment(context.user, key, input, tx),
       audit: (comment) => ({
         action: "issue.comment.create",
         resourceType: "comment",

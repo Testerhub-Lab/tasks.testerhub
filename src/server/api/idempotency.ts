@@ -1,11 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import type { ZeroTransaction } from "@/zero/db";
 import type { ApiContext } from "./auth";
 import { ApiError } from "./errors";
-
-type IdempotencyDatabase = Pick<
-  Prisma.TransactionClient,
-  "apiIdempotencyKey"
->;
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -22,37 +18,32 @@ export function requireIdempotencyKey(request: Request): string {
 }
 
 export async function getIdempotentResponse(
-  database: IdempotencyDatabase,
+  transaction: ZeroTransaction,
   context: ApiContext,
   key: string,
   operation: string
 ) {
-  const stored = await database.apiIdempotencyKey.findUnique({
-    where: {
-      apiTokenId_key: {
-        apiTokenId: context.tokenId,
-        key,
-      },
-    },
-    select: {
-      operation: true,
-      response: true,
-      statusCode: true,
-      expiresAt: true,
-    },
-  });
+  await transaction.dbTransaction.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`api-idempotency:${context.tokenId}:${key}`]
+  );
+  await transaction.dbTransaction.query(
+    `DELETE FROM api_idempotency_keys
+     WHERE api_token_id = $1 AND key = $2 AND expires_at <= now()`,
+    [context.tokenId, key]
+  );
+  const rows = (await transaction.dbTransaction.query(
+    `SELECT operation, response, status_code
+     FROM api_idempotency_keys
+     WHERE api_token_id = $1 AND key = $2`,
+    [context.tokenId, key]
+  )) as Array<{
+    operation: string;
+    response: unknown;
+    status_code: number;
+  }>;
+  const stored = rows[0];
   if (!stored) return null;
-  if (stored.expiresAt <= new Date()) {
-    await database.apiIdempotencyKey.delete({
-      where: {
-        apiTokenId_key: {
-          apiTokenId: context.tokenId,
-          key,
-        },
-      },
-    });
-    return null;
-  }
   if (stored.operation !== operation) {
     throw new ApiError(
       409,
@@ -60,28 +51,34 @@ export async function getIdempotentResponse(
       "Idempotency-Key уже использован для другой операции"
     );
   }
-  return stored;
+  return {
+    response: stored.response,
+    statusCode: stored.status_code,
+  };
 }
 
 export async function storeIdempotentResponse(
-  database: IdempotencyDatabase,
+  transaction: ZeroTransaction,
   context: ApiContext,
   input: {
     key: string;
     operation: string;
-    response: Prisma.InputJsonValue;
+    response: unknown;
     statusCode: number;
   }
 ) {
-  await database.apiIdempotencyKey.create({
-    data: {
-      apiTokenId: context.tokenId,
-      key: input.key,
-      operation: input.operation,
-      response: input.response,
-      statusCode: input.statusCode,
-      expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
-    },
-    select: { id: true },
-  });
+  await transaction.dbTransaction.query(
+    `INSERT INTO api_idempotency_keys (
+       id, api_token_id, key, operation, response, status_code, expires_at
+     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
+    [
+      randomUUID(),
+      context.tokenId,
+      input.key,
+      input.operation,
+      JSON.stringify(input.response),
+      input.statusCode,
+      new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+    ]
+  );
 }

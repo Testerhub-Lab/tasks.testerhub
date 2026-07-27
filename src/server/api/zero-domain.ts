@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
-import { getZeroDatabase, getZeroPool } from "@/zero/db";
+import {
+  getZeroDatabase,
+  getZeroPool,
+  withZeroTransaction,
+  type ZeroTransaction,
+} from "@/zero/db";
 import { zeroMutators } from "@/zero/mutators";
 import { zeroQueries } from "@/zero/queries";
 import { issueKey, rankAfter } from "@/zero/stage3";
@@ -202,6 +207,72 @@ function serializeIssue(
   };
 }
 
+async function loadApiIssueDetail(
+  user: ApiActor,
+  row: {
+    issue: { id: string };
+    project: Awaited<
+      ReturnType<typeof requireApiIssueByKey>
+    >["project"];
+  },
+  transaction?: ZeroTransaction
+) {
+  const issueQuery = zeroQueries.issues.byID.fn({
+    args: { issueID: row.issue.id },
+    ctx: { userID: user.id },
+  });
+  const commentsQuery = zeroQueries.comments.byIssue.fn({
+    args: { issueID: row.issue.id },
+    ctx: { userID: user.id },
+  });
+  const linksQuery = zeroQueries.issueWikiLinks.byIssue.fn({
+    args: { issueID: row.issue.id },
+    ctx: { userID: user.id },
+  });
+  const [issue, comments, knowledgeLinks] = transaction
+    ? await Promise.all([
+        transaction.run(issueQuery),
+        transaction.run(commentsQuery),
+        transaction.run(linksQuery),
+      ])
+    : await Promise.all([
+        getZeroDatabase().run(issueQuery),
+        getZeroDatabase().run(commentsQuery),
+        getZeroDatabase().run(linksQuery),
+      ]);
+  if (!issue) {
+    throw new ApiError(404, "issue_not_found", "Задача не найдена");
+  }
+
+  return {
+    ...serializeIssue({ issue, project: row.project }),
+    creator: publicUser(issue.creator),
+    comments: comments.map((comment) => ({
+      id: comment.id,
+      text: comment.body,
+      userId: comment.authorID,
+      authorName: null,
+      createdAt: iso(comment.createdAt),
+      user: publicUser(comment.author),
+    })),
+    activities: [],
+    knowledgeLinks: knowledgeLinks.flatMap((link) =>
+      link.page && !link.page.archivedAt
+        ? [
+            {
+              id: link.id,
+              provider: "NATIVE" as const,
+              documentKey: link.page.id,
+              title: link.page.title,
+              url: null,
+              createdAt: iso(link.createdAt),
+            },
+          ]
+        : []
+    ),
+  };
+}
+
 async function workflowStates(userID: string, workflowID: string) {
   return getZeroDatabase().run(
     zeroQueries.workflowStates.byWorkflow.fn({
@@ -261,23 +332,29 @@ export async function listApiProjects(
   user: ApiActor,
   workspaceID?: string | null
 ) {
-  return (await projectRows(user.id, workspaceID)).map(
-    ({ project, role, workspace }) => ({
-      id: project.id,
-      key: project.key,
-      name: project.name,
-      role: role ? apiRole(role) : "VIEWER",
-      workspace: {
-        id: workspace.id,
-        name: workspace.name,
-        slug: workspace.slug,
-      },
-      knowledge: {
-        provider: project.knowledgeProvider,
-        externalUrl: project.knowledgeExternalURL ?? null,
-      },
-    })
-  );
+  return (await projectRows(user.id, workspaceID)).map(serializeApiProject);
+}
+
+function serializeApiProject({
+  project,
+  role,
+  workspace,
+}: Awaited<ReturnType<typeof projectRows>>[number]) {
+  return {
+    id: project.id,
+    key: project.key,
+    name: project.name,
+    role: role ? apiRole(role) : "VIEWER",
+    workspace: {
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+    },
+    knowledge: {
+      provider: project.knowledgeProvider,
+      externalUrl: project.knowledgeExternalURL ?? null,
+    },
+  };
 }
 
 export async function searchApiIssues(
@@ -318,69 +395,40 @@ export async function searchApiIssues(
 
 export async function getApiIssue(user: ApiActor, key: string) {
   const row = await requireApiIssueByKey(user.id, key);
-  const [comments, knowledgeLinks] = await Promise.all([
-    getZeroDatabase().run(
-      zeroQueries.comments.byIssue.fn({
-        args: { issueID: row.issue.id },
-        ctx: { userID: user.id },
-      })
-    ),
-    getZeroDatabase().run(
-      zeroQueries.issueWikiLinks.byIssue.fn({
-        args: { issueID: row.issue.id },
-        ctx: { userID: user.id },
-      })
-    ),
-  ]);
-  return {
-    ...serializeIssue(row),
-    creator: publicUser(row.issue.creator),
-    comments: comments.map((comment) => ({
-      id: comment.id,
-      text: comment.body,
-      userId: comment.authorID,
-      authorName: null,
-      createdAt: iso(comment.createdAt),
-      user: publicUser(comment.author),
-    })),
-    activities: [],
-    knowledgeLinks: knowledgeLinks.flatMap((link) =>
-      link.page && !link.page.archivedAt
-        ? [
-            {
-              id: link.id,
-              provider: "NATIVE" as const,
-              documentKey: link.page.id,
-              title: link.page.title,
-              url: null,
-              createdAt: iso(link.createdAt),
-            },
-          ]
-        : []
-    ),
-  };
+  return loadApiIssueDetail(user, row);
 }
 
 export async function createApiProject(
   user: ApiActor,
-  input: CreateProjectInput
+  input: CreateProjectInput,
+  transaction?: ZeroTransaction
 ) {
-  const workflows = await getZeroDatabase().run(
-    zeroQueries.workflows.byWorkspace.fn({
-      args: { workspaceID: input.workspaceId },
-      ctx: { userID: user.id },
-    })
-  );
+  const [workflows, workspaces] = await Promise.all([
+    getZeroDatabase().run(
+      zeroQueries.workflows.byWorkspace.fn({
+        args: { workspaceID: input.workspaceId },
+        ctx: { userID: user.id },
+      })
+    ),
+    workspaceRows(user.id),
+  ]);
   const workflow =
     workflows.find((candidate) => candidate.isDefault) ?? workflows[0];
   if (!workflow) {
     throw new ApiError(409, "workflow_missing", "Workspace не содержит workflow");
   }
+  const workspace = workspaces.find(
+    (candidate) => candidate.id === input.workspaceId
+  );
+  const role = await workspaceRole(user.id, input.workspaceId);
+  if (!workspace || !role) {
+    throw new ApiError(403, "forbidden", "Workspace access denied");
+  }
 
   const id = randomUUID();
   try {
-    await getZeroDatabase().transaction((tx) =>
-      zeroMutators.projects.create.fn({
+    return await withZeroTransaction(transaction, async (tx) => {
+      await zeroMutators.projects.create.fn({
         args: {
           id,
           workspaceID: input.workspaceId,
@@ -391,28 +439,32 @@ export async function createApiProject(
         },
         ctx: { userID: user.id },
         tx,
-      })
-    );
+      });
+      const projects = await tx.run(
+        zeroQueries.projects.byWorkspace.fn({
+          args: { workspaceID: input.workspaceId },
+          ctx: { userID: user.id },
+        })
+      );
+      const created = projects.find((project) => project.id === id);
+      if (!created) {
+        throw new ApiError(
+          500,
+          "project_not_found_after_create",
+          "Созданный проект не найден"
+        );
+      }
+      return serializeApiProject({ project: created, role, workspace });
+    });
   } catch (error) {
     asApiError(error);
   }
-
-  const created = (await listApiProjects(user, input.workspaceId)).find(
-    (project) => project.id === id
-  );
-  if (!created) {
-    throw new ApiError(
-      500,
-      "project_not_found_after_create",
-      "Созданный проект не найден"
-    );
-  }
-  return created;
 }
 
 export async function createApiIssue(
   user: ApiActor,
-  input: CreateIssueInput
+  input: CreateIssueInput,
+  transaction?: ZeroTransaction
 ) {
   const project = await requireApiProjectByKey(user.id, input.projectKey);
   const states = await workflowStates(user.id, project.project.workflowID);
@@ -427,7 +479,7 @@ export async function createApiIssue(
   const id = randomUUID();
 
   try {
-    await getZeroDatabase().transaction(async (tx) => {
+    return await withZeroTransaction(transaction, async (tx) => {
       await zeroMutators.issues.create.fn({
         args: {
           id,
@@ -450,38 +502,29 @@ export async function createApiIssue(
         ctx: { userID: user.id },
         tx,
       });
+      return loadApiIssueDetail(
+        user,
+        { issue: { id }, project: project.project },
+        tx
+      );
     });
   } catch (error) {
     asApiError(error);
   }
-
-  const created = await getZeroDatabase().run(
-    zeroQueries.issues.byID.fn({
-      args: { issueID: id },
-      ctx: { userID: user.id },
-    })
-  );
-  if (!created) {
-    throw new ApiError(
-      500,
-      "issue_not_found_after_create",
-      "Созданная задача не найдена"
-    );
-  }
-  return getApiIssue(user, issueKey(project.project.key, created.number));
 }
 
 export async function updateApiIssue(
   user: ApiActor,
   key: string,
-  input: UpdateIssueInput
+  input: UpdateIssueInput,
+  transaction?: ZeroTransaction
 ) {
   const row = await requireApiIssueByKey(user.id, key);
   const states = input.status
     ? await workflowStates(user.id, row.project.workflowID)
     : [];
   try {
-    await getZeroDatabase().transaction(async (tx) => {
+    return await withZeroTransaction(transaction, async (tx) => {
       const fields = {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined
@@ -512,43 +555,53 @@ export async function updateApiIssue(
           tx,
         });
       }
+      return loadApiIssueDetail(user, row, tx);
     });
   } catch (error) {
     asApiError(error);
   }
-  return getApiIssue(user, key);
 }
 
 export async function addApiComment(
   user: ApiActor,
   key: string,
-  input: AddCommentInput
+  input: AddCommentInput,
+  transaction?: ZeroTransaction
 ) {
   const row = await requireApiIssueByKey(user.id, key);
   const id = randomUUID();
   try {
-    await getZeroDatabase().transaction((tx) =>
-      zeroMutators.comments.create.fn({
+    return await withZeroTransaction(transaction, async (tx) => {
+      await zeroMutators.comments.create.fn({
         args: { id, issueID: row.issue.id, body: input.text },
         ctx: { userID: user.id },
         tx,
-      })
-    );
+      });
+      const comments = await tx.run(
+        zeroQueries.comments.byIssue.fn({
+          args: { issueID: row.issue.id },
+          ctx: { userID: user.id },
+        })
+      );
+      const comment = comments.find((candidate) => candidate.id === id);
+      if (!comment) {
+        throw new ApiError(
+          500,
+          "comment_not_found_after_create",
+          "Созданный комментарий не найден"
+        );
+      }
+      return {
+        id: comment.id,
+        taskId: row.issue.id,
+        text: comment.body,
+        userId: comment.authorID,
+        authorName: null,
+        createdAt: iso(comment.createdAt),
+        user: publicUser(comment.author),
+      };
+    });
   } catch (error) {
     asApiError(error);
   }
-
-  return {
-    id,
-    taskId: row.issue.id,
-    text: input.text,
-    userId: user.id,
-    authorName: null,
-    createdAt: new Date().toISOString(),
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
-  };
 }

@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Role } from "@prisma/client";
-import prisma from "@/lib/prisma";
 import { ApiError } from "./errors";
 import {
   hasApiScopes,
@@ -10,12 +8,15 @@ import {
   getApiTokenPrefix,
   verifyApiToken,
 } from "./tokens";
+import {
+  getApiTokenForAuthentication,
+  touchApiToken,
+} from "./token-store";
 
 export type ApiActor = {
   id: string;
-  email: string;
+  email: null;
   name: string | null;
-  role: Role;
 };
 
 export type ApiContext = {
@@ -43,32 +44,14 @@ export async function authenticateApiRequest(
     throw new ApiError(401, "unauthorized", "Требуется Bearer token");
   }
 
-  const token = await prisma.apiToken.findUnique({
-    where: { tokenPrefix },
-    select: {
-      id: true,
-      name: true,
-      tokenHash: true,
-      scopes: true,
-      expiresAt: true,
-      revokedAt: true,
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-        },
-      },
-    },
-  });
+  const token = await getApiTokenForAuthentication(tokenPrefix);
 
   const now = new Date();
   const isUsable =
     token &&
-    !token.revokedAt &&
-    (!token.expiresAt || token.expiresAt > now) &&
-    verifyApiToken(plainToken, token.tokenHash);
+    !token.revoked_at &&
+    (!token.expires_at || token.expires_at > now) &&
+    verifyApiToken(plainToken, token.token_hash);
   if (!isUsable) {
     throw new ApiError(401, "unauthorized", "Токен недействителен или отозван");
   }
@@ -81,17 +64,17 @@ export async function authenticateApiRequest(
     );
   }
 
-  await prisma.apiToken.update({
-    where: { id: token.id },
-    data: { lastUsedAt: now },
-    select: { id: true },
-  });
+  await touchApiToken(token.id, now);
 
   return {
     requestId: request.headers.get("x-request-id") ?? randomUUID(),
     tokenId: token.id,
     tokenName: token.name,
     scopes: token.scopes,
-    user: token.user,
+    user: {
+      id: token.user_id,
+      email: null,
+      name: token.display_name,
+    },
   };
 }

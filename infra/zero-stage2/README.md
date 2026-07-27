@@ -12,7 +12,9 @@ are intentionally excluded:
 
 - `auth_identities` (provider identifiers and password hashes);
 - `sessions` (session token hashes and request metadata);
-- `audit_events` (potentially sensitive change payloads).
+- `audit_events` (potentially sensitive change payloads);
+- `api_tokens`, `api_idempotency_keys` and `api_audit_logs` (REST secrets and
+  security records).
 
 The temporary PULSAR-6 spike table and UI remain available in branch history,
 but are not part of the active Zero schema or publication.
@@ -38,6 +40,10 @@ Zero publication.
   client.
 - Critical workspace/project/workflow/issue changes are appended to
   `audit_events` only by the authoritative server transaction.
+- REST domain writes append external API audit and idempotency records through
+  the underlying Zero PostgreSQL transaction. A failure in any of those steps
+  rolls back the whole command; replay is serialized per token/key with a
+  transaction-scoped advisory lock.
 
 Contract and negative permission tests live next to the Zero implementation in
 `src/zero/*.test.ts`. The real PostgreSQL adapter check can be run against an

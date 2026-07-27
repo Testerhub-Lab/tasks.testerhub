@@ -47,7 +47,8 @@ export async function POST(
       key: idempotencyKey,
       operation: `wiki.page.create:${projectKey.trim().toUpperCase()}`,
       statusCode: 201,
-      execute: () => createApiWikiPage(context.user, projectKey, input),
+      execute: (tx) =>
+        createApiWikiPage(context.user, projectKey, input, tx),
       audit: (page) => ({
         action: "wiki.page.create",
         resourceType: "wiki_page",

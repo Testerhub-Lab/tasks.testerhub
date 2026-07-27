@@ -12,6 +12,84 @@ CREATE TABLE users (
     CHECK (display_name IS NULL OR char_length(display_name) BETWEEN 1 AND 120)
 );
 
+CREATE TABLE api_tokens (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  name text NOT NULL,
+  token_prefix text NOT NULL UNIQUE,
+  token_hash text NOT NULL UNIQUE,
+  scopes text[] NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  CONSTRAINT api_tokens_name_length CHECK (char_length(name) BETWEEN 2 AND 80),
+  CONSTRAINT api_tokens_prefix_format
+    CHECK (token_prefix ~ '^pls_pat_[a-f0-9]{16}$'),
+  CONSTRAINT api_tokens_hash_format CHECK (token_hash ~ '^[a-f0-9]{64}$'),
+  CONSTRAINT api_tokens_scopes
+    CHECK (
+      cardinality(scopes) BETWEEN 1 AND 6
+      AND scopes <@ ARRAY[
+        'projects:read',
+        'projects:write',
+        'issues:read',
+        'issues:write',
+        'wiki:read',
+        'wiki:write'
+      ]::text[]
+    )
+);
+
+CREATE INDEX api_tokens_user_active_idx
+  ON api_tokens (user_id, created_at DESC)
+  WHERE revoked_at IS NULL;
+CREATE INDEX api_tokens_expires_at_idx ON api_tokens (expires_at);
+
+CREATE TABLE api_audit_logs (
+  id uuid PRIMARY KEY,
+  user_id uuid REFERENCES users (id) ON DELETE SET NULL,
+  api_token_id uuid REFERENCES api_tokens (id) ON DELETE SET NULL,
+  action text NOT NULL,
+  resource_type text NOT NULL,
+  resource_id text,
+  request_id text,
+  metadata jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT api_audit_logs_action_length
+    CHECK (char_length(action) BETWEEN 1 AND 120),
+  CONSTRAINT api_audit_logs_resource_type_length
+    CHECK (char_length(resource_type) BETWEEN 1 AND 80)
+);
+
+CREATE INDEX api_audit_logs_user_created_idx
+  ON api_audit_logs (user_id, created_at DESC);
+CREATE INDEX api_audit_logs_token_created_idx
+  ON api_audit_logs (api_token_id, created_at DESC);
+CREATE INDEX api_audit_logs_resource_idx
+  ON api_audit_logs (resource_type, resource_id);
+
+CREATE TABLE api_idempotency_keys (
+  id uuid PRIMARY KEY,
+  api_token_id uuid NOT NULL REFERENCES api_tokens (id) ON DELETE CASCADE,
+  key text NOT NULL,
+  operation text NOT NULL,
+  response jsonb NOT NULL,
+  status_code integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  CONSTRAINT api_idempotency_keys_key_length
+    CHECK (char_length(key) BETWEEN 1 AND 200),
+  CONSTRAINT api_idempotency_keys_operation_length
+    CHECK (char_length(operation) BETWEEN 1 AND 200),
+  CONSTRAINT api_idempotency_keys_status
+    CHECK (status_code BETWEEN 100 AND 599),
+  UNIQUE (api_token_id, key)
+);
+
+CREATE INDEX api_idempotency_keys_expires_at_idx
+  ON api_idempotency_keys (expires_at);
+
 CREATE TABLE auth_identities (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,

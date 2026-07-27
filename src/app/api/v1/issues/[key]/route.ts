@@ -1,11 +1,10 @@
-import prisma from "@/lib/prisma";
-import { recordApiAudit } from "@/server/api/audit";
 import { authenticateApiRequest } from "@/server/api/auth";
 import {
   apiData,
   apiErrorResponse,
   readJsonBody,
 } from "@/server/api/errors";
+import { runAuditedCommand } from "@/server/api/idempotent-command";
 import { updateIssueApiSchema } from "@/server/api/schemas";
 import {
   getApiIssue,
@@ -33,15 +32,17 @@ export async function PATCH(request: Request, { params }: IssueRouteProps) {
     const context = await authenticateApiRequest(request, ["issues:write"]);
     const input = updateIssueApiSchema.parse(await readJsonBody(request));
     const { key } = await params;
-    const issue = await updateApiIssue(context.user, key, input);
-    await recordApiAudit(prisma, context, {
-      action: "issue.update",
-      resourceType: "issue",
-      resourceId: issue.id,
-      metadata: {
-        key: issue.key,
-        fields: Object.keys(input),
-      },
+    const issue = await runAuditedCommand(context, {
+      execute: (tx) => updateApiIssue(context.user, key, input, tx),
+      audit: (updated) => ({
+        action: "issue.update",
+        resourceType: "issue",
+        resourceId: updated.id,
+        metadata: {
+          key: updated.key,
+          fields: Object.keys(input),
+        },
+      }),
     });
     return apiData(issue);
   } catch (error) {

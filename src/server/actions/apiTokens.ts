@@ -2,8 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/server/auth/session";
+import {
+  ApiTokenLimitError,
+  createApiTokenRecord,
+  revokeApiToken,
+} from "@/server/api/token-store";
 import {
   API_SCOPES,
   normalizeApiScopes,
@@ -40,42 +44,32 @@ export async function createApiTokenAction(input: {
     return { ok: false as const, formError: "Требуется авторизация" };
   }
 
-  const activeTokenCount = await prisma.apiToken.count({
-    where: { userId: user.id, revokedAt: null },
-  });
-  if (activeTokenCount >= 20) {
-    return {
-      ok: false as const,
-      formError: "Сначала отзовите один из активных токенов",
-    };
-  }
-
   const generated = generateApiToken();
   const expiresAt = parsed.data.expiresInDays
     ? new Date(Date.now() + parsed.data.expiresInDays * 24 * 60 * 60 * 1000)
     : null;
   const scopes = normalizeApiScopes(parsed.data.scopes);
 
-  const token = await prisma.apiToken.create({
-    data: {
-      userId: user.id,
+  let token;
+  try {
+    token = await createApiTokenRecord({
+      userID: user.id,
+      displayName: user.name,
       name: parsed.data.name,
       tokenPrefix: generated.tokenPrefix,
       tokenHash: generated.tokenHash,
       scopes,
       expiresAt,
-    },
-    select: {
-      id: true,
-      name: true,
-      tokenPrefix: true,
-      scopes: true,
-      createdAt: true,
-      expiresAt: true,
-      lastUsedAt: true,
-      revokedAt: true,
-    },
-  });
+    });
+  } catch (error) {
+    if (error instanceof ApiTokenLimitError) {
+      return {
+        ok: false as const,
+        formError: "Сначала отзовите один из активных токенов",
+      };
+    }
+    throw error;
+  }
 
   revalidatePath("/settings/integrations");
   return {
@@ -102,18 +96,11 @@ export async function revokeApiTokenAction(input: { tokenId: string }) {
     return { ok: false as const, formError: "Требуется авторизация" };
   }
 
-  const result = await prisma.apiToken.updateMany({
-    where: {
-      id: parsed.data.tokenId,
-      userId: user.id,
-      revokedAt: null,
-    },
-    data: { revokedAt: new Date() },
-  });
-  if (result.count === 0) {
+  const revokedAt = await revokeApiToken(user.id, parsed.data.tokenId);
+  if (!revokedAt) {
     return { ok: false as const, formError: "Токен уже отозван" };
   }
 
   revalidatePath("/settings/integrations");
-  return { ok: true as const, revokedAt: new Date().toISOString() };
+  return { ok: true as const, revokedAt: revokedAt.toISOString() };
 }

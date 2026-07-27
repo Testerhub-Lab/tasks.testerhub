@@ -7,6 +7,10 @@ const stage2SQL = readFileSync(
   resolve(process.cwd(), "infra/zero-stage2/schema.sql"),
   "utf8"
 );
+const legacyPrismaSchema = readFileSync(
+  resolve(process.cwd(), "prisma/schema.prisma"),
+  "utf8"
+);
 const publicationSQL = stage2SQL.slice(
   stage2SQL.indexOf("CREATE PUBLICATION pulsar_zero_data")
 );
@@ -43,6 +47,9 @@ describe("Zero publications", () => {
     expect(publicationSQL).not.toMatch(/\bauth_identities\s*\(/);
     expect(publicationSQL).not.toMatch(/\bsessions\s*\(/);
     expect(publicationSQL).not.toMatch(/\baudit_events\s*\(/);
+    expect(publicationSQL).not.toMatch(/\bapi_tokens\s*\(/);
+    expect(publicationSQL).not.toMatch(/\bapi_audit_logs\s*\(/);
+    expect(publicationSQL).not.toMatch(/\bapi_idempotency_keys\s*\(/);
     expect(publicationSQL).not.toMatch(/\bpassword_hash\b/);
     expect(publicationSQL).not.toMatch(/\btoken_hash\b/);
     expect(publicationSQL).not.toMatch(/FOR\s+ALL\s+TABLES/i);
@@ -70,5 +77,14 @@ describe("Zero publications", () => {
     expect(stage2SQL).toMatch(
       /CREATE INDEX issues_description_trgm_idx[\s\S]*?gin_trgm_ops/
     );
+  });
+
+  it("keeps API security records server-only in the new database", () => {
+    expect(stage2SQL).toMatch(/CREATE TABLE api_tokens[\s\S]*?token_hash text/);
+    expect(stage2SQL).toMatch(/CREATE TABLE api_audit_logs/);
+    expect(stage2SQL).toMatch(/CREATE TABLE api_idempotency_keys/);
+    expect(legacyPrismaSchema).not.toMatch(/\bmodel ApiToken\b/);
+    expect(legacyPrismaSchema).not.toMatch(/\bmodel ApiAuditLog\b/);
+    expect(legacyPrismaSchema).not.toMatch(/\bmodel ApiIdempotencyKey\b/);
   });
 });

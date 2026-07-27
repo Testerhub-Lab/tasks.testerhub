@@ -23,6 +23,18 @@ export function getZeroDatabase() {
 }
 
 export type ZeroDatabase = ReturnType<typeof createZeroDatabase>;
+export type ZeroTransaction = Parameters<
+  Parameters<ZeroDatabase["transaction"]>[0]
+>[0];
+
+export function withZeroTransaction<T>(
+  transaction: ZeroTransaction | undefined,
+  callback: (tx: ZeroTransaction) => Promise<T>
+) {
+  return transaction
+    ? callback(transaction)
+    : getZeroDatabase().transaction(callback);
+}
 
 declare module "@rocicorp/zero" {
   interface DefaultTypes {
