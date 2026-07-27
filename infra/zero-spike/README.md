@@ -9,6 +9,8 @@ UI were removed; their implementation remains in branch history at commit
 - `zero-cache` `1.8.0` and the Next.js app bind only to server loopback.
 - Existing cookie auth stays in `pulsar_app`; Stage 2 data stays in
   `pulsar_zero` inside the disposable PostgreSQL container.
+- A pinned MinIO container provides disposable private S3-compatible storage
+  for attachment contract checks. Production FirstVDS S3 is not contacted.
 - Only the explicit `pulsar_zero_data` publication from
   `infra/zero-stage2/schema.sql` is replicated.
 - OpenTelemetry exporters remain disabled under the accepted PULSAR-7 gate.
@@ -23,6 +25,14 @@ Compose project so the clean Stage 2 schema is initialized:
 
 ```bash
 docker compose -p pulsar-zero-stage2 up -d --build
+```
+
+The automated REST/MCP/S3 gate is intended to run inside the built application
+container so the default presigned endpoint `http://s3:9000` remains
+reachable:
+
+```bash
+docker compose -p pulsar-zero-stage2 exec app npm run zero:rest:check
 ```
 
 For a remote VDS, use an SSH tunnel when testing the app and zero-cache:

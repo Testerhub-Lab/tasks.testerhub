@@ -25,14 +25,31 @@ the REST domain then reads the entities through the batched `issues.byIDs`
 named Zero query. Search indexes are database-only and are not part of the
 Zero publication.
 
+Attachment contents stay in a private S3-compatible bucket. The server creates
+five-minute presigned PUT/GET URLs; upload bytes do not pass through Next.js or
+Zero. A PUT first lands under `pending/`, the server verifies its signed
+metadata and actual size with `HEAD`, then performs an S3-side copy under
+`attachments/` before registering only metadata and the object key in
+PostgreSQL/Zero. The public Zero mutator no longer accepts arbitrary object
+keys.
+
+Before production cutover, create a dedicated private bucket and credentials,
+block public access, and apply the provider equivalents of
+[`s3-cors.example.json`](./s3-cors.example.json) and
+[`s3-lifecycle.example.json`](./s3-lifecycle.example.json). The lifecycle rule
+removes abandoned pending objects and incomplete uploads; confirmed objects
+must not match it. Keep `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` only in
+the server environment.
+
 ## Permission boundary
 
 - Every application query is a named query and adds a `workspace_members`
   existence check using the authenticated `ctx.userID`.
 - Legacy/raw queries and CRUD mutations are disabled in the Zero schema.
 - `VIEWER` is read-only; `MEMBER` can change issues, comments, Wiki pages and
-  links, tags, participants and attachment metadata; `ADMIN` manages workflows
-  and projects; only `OWNER` can grant `ADMIN`.
+  links and tags. Attachment metadata can only be registered by the server
+  after an S3 verification; `ADMIN` manages workflows and projects; only
+  `OWNER` can grant `ADMIN`.
 - Wiki queries additionally require an active page in a project whose provider
   is `NATIVE`; revision history and issue links inherit the same boundary.
 - Mutators derive `workspace_id`, actor IDs and issue numbers on the server-side

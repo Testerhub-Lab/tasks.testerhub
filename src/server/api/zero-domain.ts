@@ -229,16 +229,22 @@ async function loadApiIssueDetail(
     args: { issueID: row.issue.id },
     ctx: { userID: user.id },
   });
-  const [issue, comments, knowledgeLinks] = transaction
+  const attachmentsQuery = zeroQueries.attachments.byIssue.fn({
+    args: { issueID: row.issue.id },
+    ctx: { userID: user.id },
+  });
+  const [issue, comments, knowledgeLinks, attachments] = transaction
     ? await Promise.all([
         transaction.run(issueQuery),
         transaction.run(commentsQuery),
         transaction.run(linksQuery),
+        transaction.run(attachmentsQuery),
       ])
     : await Promise.all([
         getZeroDatabase().run(issueQuery),
         getZeroDatabase().run(commentsQuery),
         getZeroDatabase().run(linksQuery),
+        getZeroDatabase().run(attachmentsQuery),
       ]);
   if (!issue) {
     throw new ApiError(404, "issue_not_found", "Задача не найдена");
@@ -270,6 +276,15 @@ async function loadApiIssueDetail(
           ]
         : []
     ),
+    attachments: attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType,
+      sizeBytes: attachment.sizeBytes,
+      uploadedById: attachment.uploadedByID,
+      uploadedBy: publicUser(attachment.uploader),
+      createdAt: iso(attachment.createdAt),
+    })),
   };
 }
 

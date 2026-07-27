@@ -1,0 +1,11 @@
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["https://pulsar.testerhub.ru"],
+      "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["content-type", "content-length", "x-amz-meta-*"],
+      "ExposeHeaders": ["etag"],
+      "MaxAgeSeconds": 300
+    }
+  ]
+}

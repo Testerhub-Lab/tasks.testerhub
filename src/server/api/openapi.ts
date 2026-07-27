@@ -1,3 +1,8 @@
+import {
+  ATTACHMENT_CONTENT_TYPES,
+  MAX_ATTACHMENT_BYTES,
+} from "../attachments/policy";
+
 const issueStatuses = [
   "NEW",
   "TODO",
@@ -131,6 +136,60 @@ export const pulsarOpenApi = {
         },
       },
     },
+    "/issues/{key}/attachments": {
+      get: {
+        operationId: "listIssueAttachments",
+        parameters: [{ $ref: "#/components/parameters/IssueKey" }],
+        responses: {
+          "200": { description: "Accessible attachment metadata" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      post: {
+        operationId: "prepareIssueAttachmentUpload",
+        description:
+          "Creates a short-lived presigned PUT URL. File contents are uploaded directly to private S3-compatible storage.",
+        parameters: [{ $ref: "#/components/parameters/IssueKey" }],
+        requestBody: jsonBody({
+          $ref: "#/components/schemas/PrepareAttachmentUpload",
+        }),
+        responses: {
+          "201": { description: "Presigned upload URL and required headers" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+    "/issues/{key}/attachments/{attachmentId}/confirm": {
+      post: {
+        operationId: "confirmIssueAttachment",
+        description:
+          "Verifies the uploaded object in S3 before registering its metadata in the Zero domain.",
+        parameters: [
+          { $ref: "#/components/parameters/IssueKey" },
+          { $ref: "#/components/parameters/AttachmentID" },
+          { $ref: "#/components/parameters/IdempotencyKey" },
+        ],
+        responses: {
+          "201": { description: "Registered attachment metadata" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "409": { description: "Uploaded object is missing or mismatched" },
+        },
+      },
+    },
+    "/issues/{key}/attachments/{attachmentId}/download-url": {
+      get: {
+        operationId: "getIssueAttachmentDownloadUrl",
+        parameters: [
+          { $ref: "#/components/parameters/IssueKey" },
+          { $ref: "#/components/parameters/AttachmentID" },
+        ],
+        responses: {
+          "200": { description: "Short-lived presigned download URL" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
     "/projects/{projectKey}/wiki/pages": {
       get: {
         operationId: "listWikiPages",
@@ -244,6 +303,12 @@ export const pulsarOpenApi = {
         required: true,
         schema: { type: "string", format: "uuid" },
       },
+      AttachmentID: {
+        name: "attachmentId",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+      },
     },
     schemas: {
       ProjectKey: {
@@ -341,6 +406,23 @@ export const pulsarOpenApi = {
         required: ["pageId"],
         properties: {
           pageId: { type: "string", format: "uuid" },
+        },
+      },
+      PrepareAttachmentUpload: {
+        type: "object",
+        additionalProperties: false,
+        required: ["fileName", "contentType", "sizeBytes"],
+        properties: {
+          fileName: { type: "string", minLength: 1, maxLength: 255 },
+          contentType: {
+            type: "string",
+            enum: ATTACHMENT_CONTENT_TYPES,
+          },
+          sizeBytes: {
+            type: "integer",
+            minimum: 1,
+            maximum: MAX_ATTACHMENT_BYTES,
+          },
         },
       },
     },

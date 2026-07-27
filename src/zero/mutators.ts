@@ -887,30 +887,4 @@ export const zeroMutators = defineMutators({
       }
     ),
   },
-  attachments: {
-    register: defineMutator(
-      z.object({
-        id,
-        issueID: id,
-        objectKey: z.string().trim().min(1).max(1024),
-        fileName: z.string().trim().min(1).max(255),
-        contentType: z.string().trim().min(1).max(255),
-        sizeBytes: z.number().int().min(1).max(2147483647),
-      }),
-      async ({ args, ctx, tx }) => {
-        const issue = await getIssueForWrite(tx, args.issueID, ctx.userID);
-        await tx.mutate.attachment.insert({
-          id: args.id,
-          workspaceID: issue.workspaceID,
-          issueID: issue.id,
-          objectKey: args.objectKey,
-          fileName: args.fileName,
-          contentType: args.contentType,
-          sizeBytes: args.sizeBytes,
-          uploadedByID: ctx.userID,
-          createdAt: Date.now(),
-        });
-      }
-    ),
-  },
 });

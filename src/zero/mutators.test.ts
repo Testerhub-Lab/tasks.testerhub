@@ -107,6 +107,10 @@ const page = {
 };
 
 describe("Zero mutation authorization negative cases", () => {
+  it("does not expose object-key registration as a public Zero mutator", () => {
+    expect("attachments" in zeroMutators).toBe(false);
+  });
+
   it("rejects issue creation outside the caller workspace", async () => {
     const { spies, tx } = makeTransaction([project, undefined]);
 

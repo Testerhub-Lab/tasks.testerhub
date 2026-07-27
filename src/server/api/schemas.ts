@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { attachmentUploadInputSchema } from "@/server/attachments/policy";
 
 export const issueStatusSchema = z.enum([
   "NEW",
@@ -89,3 +90,7 @@ export const updateWikiPageApiSchema = z
 export const linkWikiPageApiSchema = z.object({
   pageId: z.string().uuid(),
 });
+
+export const attachmentIDApiSchema = z.string().uuid();
+
+export const prepareAttachmentUploadApiSchema = attachmentUploadInputSchema;

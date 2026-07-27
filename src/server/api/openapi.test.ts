@@ -20,6 +20,16 @@ describe("Pulsar REST/OpenAPI contract", () => {
       "/issues/{key}/comments": {
         post: { operationId: "addComment" },
       },
+      "/issues/{key}/attachments": {
+        get: { operationId: "listIssueAttachments" },
+        post: { operationId: "prepareIssueAttachmentUpload" },
+      },
+      "/issues/{key}/attachments/{attachmentId}/confirm": {
+        post: { operationId: "confirmIssueAttachment" },
+      },
+      "/issues/{key}/attachments/{attachmentId}/download-url": {
+        get: { operationId: "getIssueAttachmentDownloadUrl" },
+      },
       "/projects/{projectKey}/wiki/pages": {
         get: { operationId: "listWikiPages" },
         post: { operationId: "createWikiPage" },
@@ -57,6 +67,9 @@ describe("Pulsar REST/OpenAPI contract", () => {
       pulsarOpenApi.paths["/projects"].post,
       pulsarOpenApi.paths["/issues"].post,
       pulsarOpenApi.paths["/issues/{key}/comments"].post,
+      pulsarOpenApi.paths[
+        "/issues/{key}/attachments/{attachmentId}/confirm"
+      ].post,
       pulsarOpenApi.paths["/projects/{projectKey}/wiki/pages"].post,
       pulsarOpenApi.paths["/issues/{key}/wiki-links"].post,
     ];

@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
+import {
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import prisma from "../src/lib/prisma";
+import {
+  attachmentObjectKeys,
+  readAttachmentStorageConfig,
+} from "../src/server/attachments/s3";
 import { createApiTokenRecord } from "../src/server/api/token-store";
 import { generateApiToken } from "../src/server/api/tokens";
 import { getZeroDatabase, getZeroPool } from "../src/zero/db";
@@ -9,8 +20,63 @@ import { zeroMutators } from "../src/zero/mutators";
 import { DEFAULT_WORKFLOW_STATES } from "../src/zero/stage3";
 
 const baseURL = process.env.STAGE4_BASE_URL ?? "http://localhost:3000";
+const storageConfig = readAttachmentStorageConfig();
+const s3 = new S3Client({
+  endpoint: storageConfig.endpoint,
+  region: storageConfig.region,
+  forcePathStyle: storageConfig.forcePathStyle,
+  credentials: {
+    accessKeyId: storageConfig.accessKeyID,
+    secretAccessKey: storageConfig.secretAccessKey,
+  },
+});
 
 type ApiEnvelope<T> = { data: T };
+
+async function ensureAttachmentBucket() {
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: storageConfig.bucket }));
+  } catch {
+    await s3.send(new CreateBucketCommand({ Bucket: storageConfig.bucket }));
+  }
+}
+
+async function expectObjectMissing(key: string) {
+  try {
+    await s3.send(
+      new HeadObjectCommand({ Bucket: storageConfig.bucket, Key: key })
+    );
+  } catch (error) {
+    const status =
+      error &&
+      typeof error === "object" &&
+      "$metadata" in error &&
+      error.$metadata &&
+      typeof error.$metadata === "object" &&
+      "httpStatusCode" in error.$metadata
+        ? error.$metadata.httpStatusCode
+        : undefined;
+    if (status === 404) return;
+    throw error;
+  }
+  throw new Error(`Expected S3 object to be absent: ${key}`);
+}
+
+async function putPresigned(
+  intent: { uploadUrl: string; headers: Record<string, string> },
+  content: Uint8Array<ArrayBuffer>
+) {
+  const response = await fetch(intent.uploadUrl, {
+    method: "PUT",
+    headers: intent.headers,
+    body: content,
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Presigned PUT returned ${response.status}: ${await response.text()}`
+    );
+  }
+}
 
 async function api<T>(
   token: string,
@@ -115,7 +181,8 @@ async function checkMcp(
   token: string,
   projectKey: string,
   issueKey: string,
-  pageID: string
+  pageID: string,
+  attachmentID: string
 ) {
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -174,9 +241,17 @@ async function checkMcp(
       name: "get_issue",
       arguments: { key: issueKey },
     });
-    const issue = parseText<{ key?: string }>(result);
-    if (issue.key !== issueKey) {
-      throw new Error("MCP get_issue returned a different issue");
+    const issue = parseText<{
+      key?: string;
+      attachments?: Array<{ id?: string }>;
+    }>(result);
+    if (
+      issue.key !== issueKey ||
+      !issue.attachments?.some(
+        (attachment) => attachment.id === attachmentID
+      )
+    ) {
+      throw new Error("MCP get_issue did not return the expected attachment");
     }
     const searchResult = await client.callTool({
       name: "search_issues",
@@ -251,6 +326,7 @@ async function checkMcp(
 }
 
 async function main() {
+  await ensureAttachmentBucket();
   const owner = await createActor("Owner");
   const viewer = await createActor("Viewer");
   const now = Date.now();
@@ -368,6 +444,129 @@ async function main() {
     throw new Error("REST comment is missing from the Zero query");
   }
 
+  const attachmentContent = new TextEncoder().encode(
+    "Pulsar private attachment"
+  );
+  const uploadIntent = await api<{
+    attachmentId: string;
+    uploadUrl: string;
+    expiresAt: string;
+    headers: Record<string, string>;
+  }>(owner.token, `/api/v1/issues/${issue.key}/attachments`, {
+    method: "POST",
+    body: {
+      fileName: "evidence.txt",
+      contentType: "text/plain",
+      sizeBytes: attachmentContent.byteLength,
+    },
+    expectedStatus: 201,
+  });
+  if (new Date(uploadIntent.expiresAt).getTime() <= Date.now()) {
+    throw new Error("Attachment upload URL is already expired");
+  }
+  await api(viewer.token, `/api/v1/issues/${issue.key}/attachments`, {
+    method: "POST",
+    body: {
+      fileName: "viewer.txt",
+      contentType: "text/plain",
+      sizeBytes: 1,
+    },
+    expectedStatus: 403,
+  });
+  await putPresigned(uploadIntent, attachmentContent);
+  const attachment = await api<{
+    id: string;
+    fileName: string;
+    contentType: string;
+    sizeBytes: number;
+  }>(
+    owner.token,
+    `/api/v1/issues/${issue.key}/attachments/${uploadIntent.attachmentId}/confirm`,
+    {
+      method: "POST",
+      idempotencyKey: "stage4-attachment-confirm",
+      expectedStatus: 201,
+    }
+  );
+  const attachmentReplay = await api<{ id: string }>(
+    owner.token,
+    `/api/v1/issues/${issue.key}/attachments/${uploadIntent.attachmentId}/confirm`,
+    {
+      method: "POST",
+      idempotencyKey: "stage4-attachment-confirm",
+      expectedStatus: 201,
+    }
+  );
+  if (
+    attachment.id !== attachmentReplay.id ||
+    attachment.fileName !== "evidence.txt" ||
+    attachment.contentType !== "text/plain" ||
+    attachment.sizeBytes !== attachmentContent.byteLength
+  ) {
+    throw new Error("Attachment confirmation metadata mismatch");
+  }
+  const attachmentList = await api<Array<{ id: string }>>(
+    owner.token,
+    `/api/v1/issues/${issue.key}/attachments`
+  );
+  if (attachmentList.length !== 1 || attachmentList[0]?.id !== attachment.id) {
+    throw new Error("Confirmed attachment is missing from REST list");
+  }
+  const detailWithAttachment = await api<{
+    attachments: Array<{ id: string }>;
+  }>(owner.token, `/api/v1/issues/${issue.key}`);
+  if (
+    detailWithAttachment.attachments.length !== 1 ||
+    detailWithAttachment.attachments[0]?.id !== attachment.id
+  ) {
+    throw new Error("Confirmed attachment is missing from issue detail");
+  }
+  const download = await api<{
+    attachment: { id: string };
+    downloadUrl: string;
+    expiresAt: string;
+  }>(
+    owner.token,
+    `/api/v1/issues/${issue.key}/attachments/${attachment.id}/download-url`
+  );
+  const downloaded = await fetch(download.downloadUrl);
+  if (
+    !downloaded.ok ||
+    Buffer.compare(
+      Buffer.from(await downloaded.arrayBuffer()),
+      Buffer.from(attachmentContent)
+    ) !== 0
+  ) {
+    throw new Error("Presigned attachment download content mismatch");
+  }
+  const storedAttachment = await getZeroPool().query<{
+    object_key: string;
+  }>(
+    `SELECT object_key
+     FROM attachments
+     WHERE id = $1 AND issue_id = $2`,
+    [attachment.id, issue.id]
+  );
+  const objectKey = storedAttachment.rows[0]?.object_key;
+  if (!objectKey?.startsWith("attachments/workspaces/")) {
+    throw new Error("Attachment object key was not stored in the new domain");
+  }
+  const directURL =
+    `${storageConfig.endpoint.replace(/\/$/, "")}/` +
+    `${encodeURIComponent(storageConfig.bucket)}/${objectKey}`;
+  const unsignedObject = await fetch(directURL);
+  if (unsignedObject.status !== 403) {
+    throw new Error(
+      `Private S3 object returned ${unsignedObject.status} without a signature`
+    );
+  }
+  const attachmentKeys = attachmentObjectKeys({
+    workspaceID: owner.workspaceID,
+    issueID: issue.id,
+    attachmentID: attachment.id,
+  });
+  await expectObjectMissing(attachmentKeys.pending);
+
   const search = await api<Array<{ key: string }>>(
     owner.token,
     `/api/v1/issues?projectKey=${projectKey}&status=IN_PROGRESS&q=exercise%20command`
@@ -424,9 +623,63 @@ async function main() {
     throw new Error("REST issue search hid the caller's own workspace issue");
   }
 
+  const foreignContent = new TextEncoder().encode("foreign workspace file");
+  const foreignIntent = await api<{
+    attachmentId: string;
+    uploadUrl: string;
+    headers: Record<string, string>;
+  }>(viewer.token, `/api/v1/issues/${foreignIssue.key}/attachments`, {
+    method: "POST",
+    body: {
+      fileName: "foreign.txt",
+      contentType: "text/plain",
+      sizeBytes: foreignContent.byteLength,
+    },
+    expectedStatus: 201,
+  });
+  await putPresigned(foreignIntent, foreignContent);
+  await api(
+    viewer.token,
+    `/api/v1/issues/${foreignIssue.key}/attachments/${foreignIntent.attachmentId}/confirm`,
+    {
+      method: "POST",
+      idempotencyKey: "stage4-foreign-attachment",
+      expectedStatus: 201,
+    }
+  );
+  await api(
+    owner.token,
+    `/api/v1/issues/${foreignIssue.key}/attachments/${foreignIntent.attachmentId}/download-url`,
+    { expectedStatus: 404 }
+  );
+
   const rollbackNeedle = `atomic-rollback-${randomUUID().slice(0, 8)}`;
   const rollbackIdempotencyKey = "stage4-atomic-rollback";
+  const attachmentRollbackIdempotencyKey =
+    "stage4-attachment-atomic-rollback";
   const rollbackRequestID = "stage4-forced-audit-failure";
+  const rollbackAttachmentContent = new TextEncoder().encode(
+    "must not become registered"
+  );
+  const rollbackAttachmentIntent = await api<{
+    attachmentId: string;
+    uploadUrl: string;
+    headers: Record<string, string>;
+  }>(owner.token, `/api/v1/issues/${issue.key}/attachments`, {
+    method: "POST",
+    body: {
+      fileName: "rollback.txt",
+      contentType: "text/plain",
+      sizeBytes: rollbackAttachmentContent.byteLength,
+    },
+    expectedStatus: 201,
+  });
+  await putPresigned(rollbackAttachmentIntent, rollbackAttachmentContent);
+  const rollbackAttachmentKeys = attachmentObjectKeys({
+    workspaceID: owner.workspaceID,
+    issueID: issue.id,
+    attachmentID: rollbackAttachmentIntent.attachmentId,
+  });
   await getZeroPool().query(`
     CREATE OR REPLACE FUNCTION stage4_reject_audit() RETURNS trigger
     LANGUAGE plpgsql AS $$
@@ -452,6 +705,16 @@ async function main() {
       requestId: rollbackRequestID,
       expectedStatus: 500,
     });
+    await api(
+      owner.token,
+      `/api/v1/issues/${issue.key}/attachments/${rollbackAttachmentIntent.attachmentId}/confirm`,
+      {
+        method: "POST",
+        idempotencyKey: attachmentRollbackIdempotencyKey,
+        requestId: rollbackRequestID,
+        expectedStatus: 500,
+      }
+    );
   } finally {
     await getZeroPool().query(`
       DROP TRIGGER IF EXISTS stage4_reject_audit ON api_audit_logs;
@@ -468,12 +731,31 @@ async function main() {
   const rolledBackIdempotency = await getZeroPool().query<{ count: string }>(
     `SELECT count(*)::text AS count
      FROM api_idempotency_keys
-     WHERE api_token_id = $1 AND key = $2`,
-    [owner.tokenID, rollbackIdempotencyKey]
+     WHERE api_token_id = $1 AND key = ANY($2::text[])`,
+    [
+      owner.tokenID,
+      [rollbackIdempotencyKey, attachmentRollbackIdempotencyKey],
+    ]
   );
   if (Number(rolledBackIdempotency.rows[0]?.count ?? 0) !== 0) {
     throw new Error("Audit failure left an idempotency record behind");
   }
+  const rolledBackAttachment = await getZeroPool().query<{ count: string }>(
+    `SELECT count(*)::text AS count
+     FROM attachments
+     WHERE id = $1`,
+    [rollbackAttachmentIntent.attachmentId]
+  );
+  if (Number(rolledBackAttachment.rows[0]?.count ?? 0) !== 0) {
+    throw new Error("Audit failure left attachment metadata behind");
+  }
+  await expectObjectMissing(rollbackAttachmentKeys.final);
+  await s3.send(
+    new DeleteObjectCommand({
+      Bucket: storageConfig.bucket,
+      Key: rollbackAttachmentKeys.pending,
+    })
+  );
 
   const wikiBody = {
     title: "Stage 4 Wiki",
@@ -543,7 +825,13 @@ async function main() {
   ) {
     throw new Error("Issue response is missing the new Wiki link");
   }
-  await checkMcp(owner.token, projectKey, issue.key, page.id);
+  await checkMcp(
+    owner.token,
+    projectKey,
+    issue.key,
+    page.id,
+    attachment.id
+  );
 
   await api(viewer.token, `/api/v1/issues/${issue.key}`, {
     method: "PATCH",
@@ -585,8 +873,8 @@ async function main() {
     [owner.tokenID]
   );
   const auditCount = Number(auditResult.rows[0]?.count ?? 0);
-  if (auditCount !== 10) {
-    throw new Error(`Expected 10 API audit records, got ${auditCount}`);
+  if (auditCount !== 11) {
+    throw new Error(`Expected 11 API audit records, got ${auditCount}`);
   }
   const legacySecurityTables = await prisma.$queryRaw<
     Array<{
@@ -613,6 +901,16 @@ async function main() {
       apiAudit: true,
       apiAuditRollbackAtomic: true,
       apiSecuritySingleDatabase: true,
+      attachmentAuditRollbackAtomic: true,
+      attachmentDownloadPresigned: true,
+      attachmentIdempotencyReplay: true,
+      attachmentMcpVisible: true,
+      attachmentMetadataInZero: true,
+      attachmentPendingCleanup: true,
+      attachmentPrivateObject: true,
+      attachmentUploadPresigned: true,
+      attachmentViewerWriteDenied: true,
+      attachmentWorkspaceIsolation: true,
       commentVisible: true,
       idempotencyReplay: true,
       issueSearch: true,
@@ -634,6 +932,7 @@ async function main() {
 }
 
 void main().finally(async () => {
+  s3.destroy();
   await prisma.$disconnect();
   await getZeroPool().end();
 });
