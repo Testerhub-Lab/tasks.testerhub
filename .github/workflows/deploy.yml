@@ -54,10 +54,22 @@ jobs:
             git merge --ff-only origin/main
             test "$(git rev-parse HEAD)" = "${{ github.sha }}"
             install -m 600 /srv/tasks/.env .env
-            export UPLOAD_DATA_DIR=/srv/tasks/data/uploads
-            docker compose -p tasks build --pull web
-            docker compose -p tasks run --rm web npx prisma migrate deploy
-            docker compose -p tasks up -d --remove-orphans
+            test -r /srv/tasks/production.env
+            docker compose \
+              -p pulsar-prod \
+              --env-file /srv/tasks/production.env \
+              -f infra/production/compose.yml \
+              config --quiet
+            docker compose \
+              -p pulsar-prod \
+              --env-file /srv/tasks/production.env \
+              -f infra/production/compose.yml \
+              build --pull web
+            docker compose \
+              -p pulsar-prod \
+              --env-file /srv/tasks/production.env \
+              -f infra/production/compose.yml \
+              up -d --remove-orphans
             docker image prune -f
 
       - name: Notify deploy success

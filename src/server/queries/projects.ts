@@ -7,6 +7,12 @@ import {
   projectRoleAtLeast,
 } from "../auth/access";
 import { ProjectRole } from "@prisma/client";
+import {
+  getZeroProjectByID,
+  getZeroProjectByKey,
+  getZeroProjects,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 const DEFAULT_PROJECT = {
   key: "TH",
   name: "TesterHub",
@@ -27,6 +33,9 @@ export async function getProjects(
   user: AccessUser,
   options?: { includeArchived?: boolean }
 ) {
+  if (usesZeroUiStore()) {
+    return getZeroProjects(workspaceId, user.id, options);
+  }
   const [accessibleProjectIds, workspaceRole] = await Promise.all([
     getAccessibleProjectIds(user, workspaceId, options),
     getWorkspaceRole(user, workspaceId),
@@ -74,6 +83,9 @@ export async function getProjectById(
   user: AccessUser,
   options?: { includeArchived?: boolean }
 ) {
+  if (usesZeroUiStore()) {
+    return getZeroProjectByID(id, workspaceId, user.id, options);
+  }
   const access = await getProjectAccess(user, id, {
     workspaceId,
     includeArchived: options?.includeArchived,
@@ -87,5 +99,23 @@ export async function getProjectById(
       ...(options?.includeArchived ? {} : { archivedAt: null }),
     },
     select: { id: true, name: true, key: true, archivedAt: true },
+  });
+}
+
+export async function getProjectByKey(
+  key: string,
+  workspaceId: string,
+  options?: { includeArchived?: boolean }
+) {
+  if (usesZeroUiStore()) {
+    return getZeroProjectByKey(key, workspaceId, options);
+  }
+  return prisma.project.findFirst({
+    where: {
+      key: key.toUpperCase(),
+      workspaceId,
+      ...(options?.includeArchived ? {} : { archivedAt: null }),
+    },
+    select: { id: true, key: true, name: true, archivedAt: true },
   });
 }

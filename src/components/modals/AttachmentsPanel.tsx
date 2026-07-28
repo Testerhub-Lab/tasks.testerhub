@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export type UploadState = "uploading" | "done" | "error";
+export type UploadState = "queued" | "uploading" | "done" | "error";
 
 export type AttachmentItem = {
   clientId: string;
@@ -12,6 +12,7 @@ export type AttachmentItem = {
   state: UploadState;
   url?: string;
   error?: string;
+  file?: File;
 };
 
 function cn(...parts: Array<string | false | null | undefined>) {
@@ -44,7 +45,9 @@ export default function AttachmentsPanel({ items, onRemove, onOpen }: Props) {
     <div className="mt-4 space-y-2">
       {items.map((a) => {
         const secondary =
-          a.state === "uploading"
+          a.state === "queued"
+            ? "ready to upload"
+            : a.state === "uploading"
             ? "uploading…"
             : a.state === "error"
               ? a.error || "upload failed"

@@ -2,6 +2,13 @@ import { ProjectRole, Role, type WorkspaceRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 export { projectRoleAtLeast } from "./accessPolicy";
 import { projectRoleAtLeast } from "./accessPolicy";
+import {
+  canAssignZeroUserToProject,
+  getZeroAccessibleProjectIDs,
+  getZeroProjectAccess,
+  getZeroWorkspaceRole,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 export type AccessUser = {
   id: string;
@@ -24,6 +31,9 @@ export async function getWorkspaceRole(
   user: AccessUser,
   workspaceId: string
 ): Promise<WorkspaceRole | null> {
+  if (usesZeroUiStore()) {
+    return getZeroWorkspaceRole(user.id, workspaceId);
+  }
   if (user.role === Role.ADMIN) return "ADMIN";
 
   const membership = await prisma.workspaceMember.findUnique({
@@ -44,6 +54,9 @@ export async function getAccessibleProjectIds(
   workspaceId: string,
   options?: { includeArchived?: boolean }
 ): Promise<string[]> {
+  if (usesZeroUiStore()) {
+    return getZeroAccessibleProjectIDs(user.id, workspaceId, options);
+  }
   const workspaceRole = await getWorkspaceRole(user, workspaceId);
   if (!workspaceRole) return [];
 
@@ -73,6 +86,9 @@ export async function getProjectAccess(
     includeArchived?: boolean;
   }
 ): Promise<ProjectAccess | null> {
+  if (usesZeroUiStore()) {
+    return getZeroProjectAccess(user.id, projectId, options);
+  }
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
@@ -132,6 +148,9 @@ export async function canAssignUserToProject(
   userId: string,
   projectId: string
 ): Promise<boolean> {
+  if (usesZeroUiStore()) {
+    return canAssignZeroUserToProject(userId, projectId);
+  }
   const now = new Date();
   const user = await prisma.user.findUnique({
     where: { id: userId },

@@ -3,12 +3,12 @@ import { getProjectById } from "../../server/queries/projects";
 import { getUsersForAssignee } from "../../server/queries/users";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getCurrentUser } from "../../server/auth/session";
-import prisma from "@/lib/prisma";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import IssueDetailsClient from "./IssueDetailsClient";
 import {
   getAccessibleProjectIds,
   getProjectAccess,
+  getWorkspaceRole,
   projectRoleAtLeast,
 } from "@/server/auth/access";
 import { ProjectRole } from "@prisma/client";
@@ -41,16 +41,8 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     includeArchived: true,
   });
   const users = await getUsersForAssignee(workspaceId, accessibleProjectIds);
-  const [membership, projectAccess] = await Promise.all([
-    prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId,
-          userId: user.id,
-        },
-      },
-      select: { role: true },
-    }),
+  const [workspaceRole, projectAccess] = await Promise.all([
+    getWorkspaceRole(user, workspaceId),
     getProjectAccess(user, task.projectId, {
       workspaceId,
       includeArchived: true,
@@ -58,7 +50,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
   ]);
 
   const canDelete =
-    membership?.role === "ADMIN" ||
+    workspaceRole === "ADMIN" ||
     user.role === "ADMIN" ||
     (projectAccess
       ? projectRoleAtLeast(projectAccess.role, ProjectRole.ADMIN) ||

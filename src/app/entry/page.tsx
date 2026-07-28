@@ -5,6 +5,7 @@ import { getWorkspaceBySlug } from "@/server/queries/workspaces";
 import { setCurrentWorkspaceId } from "@/server/auth/workspace";
 import { verifyWorkspaceInvite } from "@/server/auth/invite";
 import { mergeProjectMembership } from "@/server/auth/accessPolicy";
+import { usesZeroUiStore } from "@/server/ui/zero-legacy";
 
 interface EntryPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -42,6 +43,7 @@ const EntryPage = async ({ searchParams }: EntryPageProps) => {
       `/signin?redirect=${encodeURIComponent(`/entry?${returnParams.toString()}`)}`
     );
   }
+  if (usesZeroUiStore()) redirect("/board");
 
   const workspace = await getWorkspaceBySlug(wsSlug);
   if (!workspace) redirect("/board");

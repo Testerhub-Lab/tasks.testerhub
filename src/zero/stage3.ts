@@ -24,16 +24,34 @@ export const DEFAULT_WORKFLOW_STATES: readonly DefaultWorkflowState[] = [
     rank: "00000000000000002048",
   },
   {
+    name: "Hold",
+    category: "STARTED",
+    color: "#a855f7",
+    rank: "00000000000000003072",
+  },
+  {
     name: "In progress",
     category: "STARTED",
     color: "#f59e0b",
-    rank: "00000000000000003072",
+    rank: "00000000000000004096",
+  },
+  {
+    name: "Testing",
+    category: "STARTED",
+    color: "#06b6d4",
+    rank: "00000000000000005120",
   },
   {
     name: "Done",
     category: "COMPLETED",
     color: "#10b981",
-    rank: "00000000000000004096",
+    rank: "00000000000000006144",
+  },
+  {
+    name: "Rejected",
+    category: "CANCELED",
+    color: "#ef4444",
+    rank: "00000000000000007168",
   },
 ];
 

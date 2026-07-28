@@ -1,5 +1,10 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import {
+  getZeroWorkspace,
+  getZeroWorkspacesForUser,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 const slugify = (value: string) =>
   value
@@ -78,6 +83,9 @@ export async function getOrCreatePersonalWorkspace(params: {
 }
 
 export async function getWorkspacesForUser(userId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroWorkspacesForUser(userId);
+  }
   const now = new Date();
   return prisma.workspaceMember.findMany({
     where: {
@@ -106,12 +114,18 @@ export async function getWorkspacesForUser(userId: string) {
 }
 
 export async function getWorkspaceById(id: string) {
+  if (usesZeroUiStore()) {
+    return getZeroWorkspace("id", id);
+  }
   return prisma.workspace.findUnique({
     where: { id },
   });
 }
 
 export async function getWorkspaceBySlug(slug: string) {
+  if (usesZeroUiStore()) {
+    return getZeroWorkspace("slug", slug);
+  }
   return prisma.workspace.findUnique({
     where: { slug },
   });

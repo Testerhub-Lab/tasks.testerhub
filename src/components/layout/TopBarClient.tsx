@@ -137,16 +137,19 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
       if (!result.ok) {
         if (isAuthRequiredError({ formError: result.formError ?? null })) {
           showAuthRequiredToast();
-          return;
+          return result;
         }
         setFormError(result.formError ?? "Не удалось создать тикет.");
-        return;
+        return result;
       }
-      closeModal();
-      router.refresh();
+      return result;
     } catch (error) {
       console.error(error);
       setFormError("Произошла ошибка при создании тикета.");
+      return {
+        ok: false as const,
+        formError: "Произошла ошибка при создании тикета.",
+      };
     } finally {
       setSubmitting(false);
     }

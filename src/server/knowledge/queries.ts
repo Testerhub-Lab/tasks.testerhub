@@ -1,7 +1,19 @@
 import prisma from "@/lib/prisma";
 import { KnowledgeProvider } from "@prisma/client";
+import {
+  getZeroProjectKnowledge,
+  getZeroTaskKnowledgeLinks,
+  getZeroWikiPage,
+  getZeroWikiPageRevisions,
+  getZeroWikiPageTree,
+  searchZeroWikiPages,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 export async function getProjectKnowledge(projectId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroProjectKnowledge(projectId);
+  }
   const stored = await prisma.projectKnowledge.findUnique({
     where: { projectId },
     select: {
@@ -26,6 +38,9 @@ export async function getWikiPageTree(
   projectId: string,
   options?: { includeArchived?: boolean }
 ) {
+  if (usesZeroUiStore()) {
+    return getZeroWikiPageTree(projectId, options);
+  }
   return prisma.wikiPage.findMany({
     where: {
       projectId,
@@ -46,6 +61,9 @@ export async function getWikiPageTree(
 }
 
 export async function getWikiPage(projectId: string, pageId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroWikiPage(projectId, pageId);
+  }
   return prisma.wikiPage.findFirst({
     where: {
       id: pageId,
@@ -71,6 +89,9 @@ export async function getWikiPage(projectId: string, pageId: string) {
 export async function searchWikiPages(projectId: string, query: string) {
   const normalized = query.trim();
   if (!normalized) return [];
+  if (usesZeroUiStore()) {
+    return searchZeroWikiPages(projectId, normalized);
+  }
 
   return prisma.wikiPage.findMany({
     where: {
@@ -93,6 +114,9 @@ export async function searchWikiPages(projectId: string, query: string) {
 }
 
 export async function getWikiPageRevisions(pageId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroWikiPageRevisions(pageId);
+  }
   return prisma.wikiPageRevision.findMany({
     where: { pageId },
     select: {
@@ -108,6 +132,9 @@ export async function getWikiPageRevisions(pageId: string) {
 }
 
 export async function getTaskKnowledgeLinks(taskId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroTaskKnowledgeLinks(taskId);
+  }
   return prisma.knowledgeLink.findMany({
     where: { taskId },
     select: {

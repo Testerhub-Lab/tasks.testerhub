@@ -7,6 +7,16 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/server/auth/session";
 import { hasProjectRole } from "@/server/auth/access";
 import { createWikiSlug } from "./slug";
+import { usesZeroUiStore } from "@/server/ui/zero-legacy";
+import {
+  addZeroTaskKnowledgeLink,
+  createZeroWikiPageForUI,
+  removeZeroTaskKnowledgeLink,
+  restoreZeroWikiRevision,
+  setZeroWikiPageArchived,
+  updateZeroProjectKnowledge,
+  updateZeroWikiPageForUI,
+} from "@/server/ui/zero-wiki-actions";
 
 const providerSchema = z
   .object({
@@ -126,6 +136,21 @@ export async function updateProjectKnowledgeAction(input: {
     return { ok: false as const, formError: "Недостаточно прав" };
   }
 
+  if (usesZeroUiStore()) {
+    try {
+      const project = await updateZeroProjectKnowledge({
+        userID: context.user.id,
+        projectID: parsed.data.projectId,
+        provider: parsed.data.provider,
+        externalURL: parsed.data.externalUrl ?? null,
+      });
+      revalidateWiki(project.key);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Не удалось обновить Wiki" };
+    }
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: parsed.data.projectId },
     select: { id: true, key: true },
@@ -165,7 +190,33 @@ export async function createWikiPageAction(input: {
     parsed.data.projectId,
     ProjectRole.MEMBER
   );
-  if (!context || !(await requireNativeWiki(parsed.data.projectId))) {
+  if (!context) {
+    return { ok: false as const, formError: "Wiki недоступна для редактирования" };
+  }
+
+  if (usesZeroUiStore()) {
+    try {
+      const created = await createZeroWikiPageForUI({
+        user: context.user,
+        projectID: parsed.data.projectId,
+        parentID: parsed.data.parentId ?? null,
+        title: parsed.data.title,
+      });
+      revalidateWiki(created.project.key, created.id);
+      return {
+        ok: true as const,
+        pageId: created.id,
+        projectKey: created.project.key,
+      };
+    } catch {
+      return {
+        ok: false as const,
+        formError: "Wiki недоступна для редактирования",
+      };
+    }
+  }
+
+  if (!(await requireNativeWiki(parsed.data.projectId))) {
     return { ok: false as const, formError: "Wiki недоступна для редактирования" };
   }
 
@@ -235,6 +286,25 @@ export async function updateWikiPageAction(input: {
     return { ok: false as const, formError: "Проверьте содержимое страницы" };
   }
 
+  if (usesZeroUiStore()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
+    try {
+      const updated = await updateZeroWikiPageForUI({
+        user,
+        pageID: parsed.data.pageId,
+        title: parsed.data.title,
+        contentMarkdown: parsed.data.contentMarkdown,
+      });
+      revalidateWiki(updated.project.key, updated.id);
+      return { ok: true as const, version: updated.version };
+    } catch {
+      return { ok: false as const, formError: "Не удалось сохранить страницу" };
+    }
+  }
+
   const page = await prisma.wikiPage.findUnique({
     where: { id: parsed.data.pageId },
     select: {
@@ -295,6 +365,24 @@ export async function setWikiPageArchivedAction(input: {
   const parsed = pageStateSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, formError: "Неверные данные" };
 
+  if (usesZeroUiStore()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
+    try {
+      const page = await setZeroWikiPageArchived({
+        userID: user.id,
+        pageID: parsed.data.pageId,
+        archived: parsed.data.archived,
+      });
+      revalidateWiki(page.projectKey, parsed.data.pageId);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Не удалось обновить страницу" };
+    }
+  }
+
   const page = await prisma.wikiPage.findUnique({
     where: { id: parsed.data.pageId },
     select: {
@@ -346,6 +434,24 @@ export async function restoreWikiRevisionAction(input: {
 }) {
   const parsed = restoreRevisionSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, formError: "Неверные данные" };
+
+  if (usesZeroUiStore()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
+    try {
+      const restored = await restoreZeroWikiRevision({
+        user,
+        pageID: parsed.data.pageId,
+        revisionID: parsed.data.revisionId,
+      });
+      revalidateWiki(restored.projectKey, parsed.data.pageId);
+      return { ok: true as const, version: restored.version };
+    } catch {
+      return { ok: false as const, formError: "Не удалось восстановить версию" };
+    }
+  }
 
   const revision = await prisma.wikiPageRevision.findFirst({
     where: { id: parsed.data.revisionId, pageId: parsed.data.pageId },
@@ -416,6 +522,24 @@ export async function addTaskKnowledgeLinkAction(input: {
   const parsed = linkSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, formError: "Неверные данные" };
 
+  if (usesZeroUiStore()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
+    try {
+      const link = await addZeroTaskKnowledgeLink({
+        user,
+        taskID: parsed.data.taskId,
+        pageID: parsed.data.pageId,
+      });
+      revalidatePath(`/tasks/${link.issueKey}`);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Документ недоступен" };
+    }
+  }
+
   const [task, page] = await Promise.all([
     prisma.task.findUnique({
       where: { id: parsed.data.taskId },
@@ -472,6 +596,23 @@ export async function addTaskKnowledgeLinkAction(input: {
 export async function removeTaskKnowledgeLinkAction(input: { linkId: string }) {
   const parsed = removeLinkSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, formError: "Неверные данные" };
+
+  if (usesZeroUiStore()) {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { ok: false as const, formError: "Требуется авторизация" };
+    }
+    try {
+      const removed = await removeZeroTaskKnowledgeLink({
+        userID: user.id,
+        linkID: parsed.data.linkId,
+      });
+      if (removed) revalidatePath(`/tasks/${removed.issueKey}`);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+  }
 
   const link = await prisma.knowledgeLink.findUnique({
     where: { id: parsed.data.linkId },

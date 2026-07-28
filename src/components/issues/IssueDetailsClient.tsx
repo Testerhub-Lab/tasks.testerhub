@@ -13,6 +13,16 @@ import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import { useRouter } from "next/navigation";
 import TaskKnowledgePanel from "@/components/wiki/TaskKnowledgePanel";
 
+function attachmentLabel(url: string) {
+  const encoded = /[?&]filename=([^&]+)/.exec(url)?.[1];
+  if (!encoded) return url.split("/").pop();
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
 const parseDetails = (raw?: string | null) => {
   const result: {
     type?: string | null;
@@ -632,7 +642,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {file.split("/").pop()}
+                        {attachmentLabel(file)}
                       </a>
                     </li>
                   ))}

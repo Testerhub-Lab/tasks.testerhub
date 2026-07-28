@@ -5,7 +5,6 @@ import Card from "@/components/ui/Card";
 import WikiCreatePageForm from "@/components/wiki/WikiCreatePageForm";
 import WikiArchivedPages from "@/components/wiki/WikiArchivedPages";
 import WikiTree from "@/components/wiki/WikiTree";
-import prisma from "@/lib/prisma";
 import {
   getProjectAccess,
   projectRoleAtLeast,
@@ -17,6 +16,7 @@ import {
   getWikiPageTree,
   searchWikiPages,
 } from "@/server/knowledge/queries";
+import { getProjectByKey } from "@/server/queries/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +46,7 @@ export default async function ProjectWikiPage({
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin");
 
-  const project = await prisma.project.findFirst({
-    where: { key: projectKey, workspaceId, archivedAt: null },
-    select: { id: true, key: true, name: true },
-  });
+  const project = await getProjectByKey(projectKey, workspaceId);
   if (!project) notFound();
 
   const access = await getProjectAccess(user, project.id, { workspaceId });

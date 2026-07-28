@@ -7,6 +7,10 @@ import { getAccessibleProjectIds } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getKnowledgeHomeHref } from "@/server/knowledge/providerPolicy";
+import {
+  getZeroWikiProjectCards,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 export const dynamic = "force-dynamic";
 
@@ -22,18 +26,22 @@ export default async function WikiPage() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/wiki");
 
-  const projectIds = await getAccessibleProjectIds(user, workspaceId);
-  const projects = await prisma.project.findMany({
-    where: { id: { in: projectIds }, workspaceId, archivedAt: null },
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      knowledge: { select: { provider: true, externalUrl: true } },
-      _count: { select: { wikiPages: { where: { archivedAt: null } } } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const projects = usesZeroUiStore()
+    ? await getZeroWikiProjectCards(workspaceId, user.id)
+    : await (async () => {
+        const projectIds = await getAccessibleProjectIds(user, workspaceId);
+        return prisma.project.findMany({
+          where: { id: { in: projectIds }, workspaceId, archivedAt: null },
+          select: {
+            id: true,
+            key: true,
+            name: true,
+            knowledge: { select: { provider: true, externalUrl: true } },
+            _count: { select: { wikiPages: { where: { archivedAt: null } } } },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+      })();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

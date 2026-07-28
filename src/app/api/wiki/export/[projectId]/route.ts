@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hasProjectRole } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
+import {
+  getZeroProjectByID,
+  getZeroWikiPage,
+  getZeroWikiPageTree,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 type ExportRouteProps = {
   params: Promise<{ projectId: string }>;
@@ -22,24 +28,48 @@ export async function GET(_request: Request, { params }: ExportRouteProps) {
   });
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      key: true,
-      name: true,
-      wikiPages: {
-        where: { archivedAt: null },
+  const project = usesZeroUiStore()
+    ? await (async () => {
+        const base = await getZeroProjectByID(
+          projectId,
+          access.workspaceId,
+          user.id,
+          { includeArchived: true }
+        );
+        if (!base) return null;
+        const pages = await getZeroWikiPageTree(projectId);
+        const wikiPages = await Promise.all(
+          pages.map(async (page) => {
+            const detail = await getZeroWikiPage(projectId, page.id);
+            return {
+              id: page.id,
+              parentId: page.parentId,
+              title: page.title,
+              contentMarkdown: detail?.contentMarkdown ?? "",
+              sortOrder: page.sortOrder,
+            };
+          })
+        );
+        return { key: base.key, name: base.name, wikiPages };
+      })()
+    : await prisma.project.findUnique({
+        where: { id: projectId },
         select: {
-          id: true,
-          parentId: true,
-          title: true,
-          contentMarkdown: true,
-          sortOrder: true,
+          key: true,
+          name: true,
+          wikiPages: {
+            where: { archivedAt: null },
+            select: {
+              id: true,
+              parentId: true,
+              title: true,
+              contentMarkdown: true,
+              sortOrder: true,
+            },
+            orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+          },
         },
-        orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
-      },
-    },
-  });
+      });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const sections: string[] = [

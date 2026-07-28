@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "zero:cutover:check": "tsx scripts/zero-cutover-rehearsal.ts",
+    "zero:production:cutover": "tsx scripts/zero-production-cutover.ts",
     "zero:permissions:check": "tsx scripts/zero-stage2-permissions-check.ts",
     "zero:rest:check": "tsx scripts/zero-stage4-rest-check.ts",
     "mcp:dev": "npm --workspace @testerhub/pulsar-mcp run dev",

@@ -8,6 +8,10 @@ import ProjectAccessClient from "@/components/workspace/ProjectAccessClient";
 import ProjectKnowledgeSettingsClient from "@/components/workspace/ProjectKnowledgeSettingsClient";
 import { getWorkspaceRole } from "@/server/auth/access";
 import { redirect } from "next/navigation";
+import {
+  getZeroWorkspaceSettings,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 const WorkspaceSettingsPage = async () => {
   const user = await getCurrentUser();
@@ -15,10 +19,15 @@ const WorkspaceSettingsPage = async () => {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/settings/workspace");
 
-  const workspace = await prisma.workspace.findUnique({
-    where: { id: workspaceId },
-    select: { id: true, name: true },
-  });
+  const zeroSettings = usesZeroUiStore()
+    ? await getZeroWorkspaceSettings(workspaceId, user.id)
+    : null;
+  const workspace = zeroSettings
+    ? zeroSettings.workspace
+    : await prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { id: true, name: true },
+      });
 
   if (!workspace) {
     return (
@@ -31,30 +40,37 @@ const WorkspaceSettingsPage = async () => {
   const workspaceRole = await getWorkspaceRole(user, workspaceId);
   const canEditWorkspace = workspaceRole === "ADMIN";
   const accessCheckTime = new Date();
-  const managedProjects = await prisma.project.findMany({
-    where: {
-      workspaceId,
-      ...(canEditWorkspace
-        ? {}
-        : {
-            members: {
-              some: {
-                userId: user.id,
-                role: "ADMIN",
-                OR: [{ expiresAt: null }, { expiresAt: { gt: accessCheckTime } }],
-              },
-            },
-          }),
-    },
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      archivedAt: true,
-      knowledge: { select: { provider: true, externalUrl: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const managedProjects = zeroSettings
+    ? canEditWorkspace
+      ? zeroSettings.projects
+      : []
+    : await prisma.project.findMany({
+        where: {
+          workspaceId,
+          ...(canEditWorkspace
+            ? {}
+            : {
+                members: {
+                  some: {
+                    userId: user.id,
+                    role: "ADMIN",
+                    OR: [
+                      { expiresAt: null },
+                      { expiresAt: { gt: accessCheckTime } },
+                    ],
+                  },
+                },
+              }),
+        },
+        select: {
+          id: true,
+          key: true,
+          name: true,
+          archivedAt: true,
+          knowledge: { select: { provider: true, externalUrl: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
 
   if (!canEditWorkspace && managedProjects.length === 0) {
     return (
@@ -65,7 +81,9 @@ const WorkspaceSettingsPage = async () => {
   }
 
   const [members, projectMembers] = await Promise.all([
-    canEditWorkspace
+    zeroSettings
+      ? Promise.resolve(canEditWorkspace ? zeroSettings.members : [])
+      : canEditWorkspace
       ? prisma.workspaceMember.findMany({
           where: { workspaceId },
           select: {
@@ -76,18 +94,22 @@ const WorkspaceSettingsPage = async () => {
           },
           orderBy: { createdAt: "asc" },
         })
-      : Promise.resolve([]),
-    prisma.projectMember.findMany({
-      where: { projectId: { in: managedProjects.map((project) => project.id) } },
-      select: {
-        id: true,
-        projectId: true,
-        role: true,
-        expiresAt: true,
-        user: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
+        : Promise.resolve([]),
+    zeroSettings
+      ? Promise.resolve(zeroSettings.projectMembers)
+      : prisma.projectMember.findMany({
+          where: {
+            projectId: { in: managedProjects.map((project) => project.id) },
+          },
+          select: {
+            id: true,
+            projectId: true,
+            role: true,
+            expiresAt: true,
+            user: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        }),
   ]);
 
   return (

@@ -35,73 +35,80 @@ const PRIORITY_OPTIONS: Array<{ value: PriorityType; label: string }> = [
   { value: "CRITICAL", label: "Critical" },
 ];
 
-type UploadMetaItem = {
-  clientId: string;
-  name: string;
-  size: number;
-  type: string;
-};
-
-type UploadResultItem = UploadMetaItem & {
-  url: string;
-  storedName: string;
-};
-
-type UploadApiOk = { ok: true; files: UploadResultItem[] };
-type UploadApiErr = { ok: false; error: string };
-
-function isUploadOk(x: unknown): x is UploadApiOk {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  return o.ok === true && Array.isArray(o.files);
-}
-
-function isUploadErr(x: unknown): x is UploadApiErr {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  return o.ok === false && typeof o.error === "string";
-}
-
 async function uploadMany(
   items: Array<{ clientId: string; file: File }>,
-  projectId: string
+  issueKey: string
 ): Promise<Map<string, string>> {
-  const fd = new FormData();
-
-  const meta: UploadMetaItem[] = items.map(({ clientId, file }) => ({
-    clientId,
-    name: file.name,
-    size: file.size,
-    type: file.type || "application/octet-stream",
-  }));
-
-  for (const it of items) {
-    fd.append("files", it.file, it.file.name); // ✅ твой API ждёт именно "files"
-  }
-
-  fd.append("meta", JSON.stringify(meta)); // ✅ массив, длина совпадает с files
-  fd.append("projectId", projectId);
-
-  const res = await fetch("/api/uploads", { method: "POST", body: fd });
-  const json: unknown = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    if (isUploadErr(json)) throw new Error(json.error);
-    throw new Error("Upload failed");
-  }
-
-  if (!isUploadOk(json)) {
-    if (isUploadErr(json)) throw new Error(json.error);
-    throw new Error("Upload failed: unexpected response");
-  }
-
   const map = new Map<string, string>();
-  for (const f of json.files) {
-    if (typeof f.clientId === "string" && typeof f.url === "string") {
-      map.set(f.clientId, f.url);
+  for (const { clientId, file } of items) {
+    const contentType = file.type || "application/octet-stream";
+    const prepareResponse = await fetch(
+      `/api/ui/issues/${encodeURIComponent(issueKey)}/attachments`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType,
+          sizeBytes: file.size,
+        }),
+      }
+    );
+    const prepared = (await prepareResponse.json().catch(() => null)) as {
+      ok?: boolean;
+      attachmentId?: string;
+      uploadUrl?: string;
+      headers?: Record<string, string>;
+      error?: string | { message?: string };
+    } | null;
+    if (
+      !prepareResponse.ok ||
+      !prepared?.attachmentId ||
+      !prepared.uploadUrl
+    ) {
+      const message =
+        typeof prepared?.error === "string"
+          ? prepared.error
+          : prepared?.error?.message;
+      throw new Error(message || "Upload preparation failed");
     }
-  }
 
+    const uploadResponse = await fetch(prepared.uploadUrl, {
+      method: "PUT",
+      headers: prepared.headers,
+      body: file,
+    });
+    if (!uploadResponse.ok) {
+      throw new Error(`S3 upload failed (${uploadResponse.status})`);
+    }
+
+    const confirmResponse = await fetch(
+      `/api/ui/issues/${encodeURIComponent(
+        issueKey
+      )}/attachments/${encodeURIComponent(prepared.attachmentId)}/confirm`,
+      { method: "POST" }
+    );
+    if (!confirmResponse.ok) {
+      const confirmation = (await confirmResponse
+        .json()
+        .catch(() => null)) as {
+        error?: string | { message?: string };
+      } | null;
+      const message =
+        typeof confirmation?.error === "string"
+          ? confirmation.error
+          : confirmation?.error?.message;
+      throw new Error(message || "Upload confirmation failed");
+    }
+    map.set(
+      clientId,
+      `/api/ui/issues/${encodeURIComponent(
+        issueKey
+      )}/attachments/${encodeURIComponent(
+        prepared.attachmentId
+      )}/download?filename=${encodeURIComponent(file.name)}`
+    );
+  }
   return map;
 }
 
@@ -137,7 +144,9 @@ function makeClientId(): string {
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit?: (data: TaskInput) => Promise<void> | void;
+  onSubmit?: (
+    data: TaskInput
+  ) => Promise<Awaited<ReturnType<typeof createTaskAction>>>;
   loading?: boolean;
   errorMessage?: string | null;
   projects: ProjectOption[];
@@ -227,45 +236,19 @@ export default function CreateTaskModal({
 
   const addFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    if (!effectiveProjectId) {
-      toast.error("Select project before uploading files");
-      return;
-    }
-  
     const queued = files.map((file) => ({ clientId: makeClientId(), file }));
-  
-    // показываем их сразу в UI
     setAttachments((prev) => [
       ...queued.map(({ clientId, file }) => ({
         clientId,
         name: file.name,
         size: file.size,
         type: file.type || "application/octet-stream",
-        state: "uploading" as const,
+        state: "queued" as const,
+        file,
       })),
       ...prev,
     ]);
-  
-    try {
-      const urlByClientId = await uploadMany(queued, effectiveProjectId);
-  
-      setAttachments((prev) =>
-        prev.map((it) => {
-          if (it.state !== "uploading") return it;
-          const url = urlByClientId.get(it.clientId);
-          if (!url) return { ...it, state: "error", error: "Upload: missing url" };
-          return { ...it, state: "done", url };
-        })
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
-      toast.error("Upload failed", msg);
-  
-      setAttachments((prev) =>
-        prev.map((it) => (it.state === "uploading" ? { ...it, state: "error", error: msg } : it))
-      );
-    }
-  }, [effectiveProjectId]);
+  }, []);
 
   const onFileInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,10 +290,6 @@ export default function CreateTaskModal({
     // чтобы можно было создать одной строкой title
     const effectiveRequesterName = requesterName.trim() || "Guest";
 
-    const attachmentUrls = attachments
-      .filter((a) => a.state === "done" && typeof a.url === "string" && a.url)
-      .map((a) => a.url as string);
-
     const payload: TaskInput = {
       projectId: pid,
       type,
@@ -318,7 +297,7 @@ export default function CreateTaskModal({
       description: description?.trim() ? description : undefined,
       priority,
       tags: tagsText?.trim() ? tagsText : undefined,
-      attachments: attachmentUrls,
+      attachments: [],
       requesterName: effectiveRequesterName,
       assigneeId: assigneeId || undefined,
     };
@@ -326,15 +305,9 @@ export default function CreateTaskModal({
     try {
       setSubmitting(true);
 
-      if (onSubmit) {
-        await onSubmit(payload);
-        toast.success("Issue created");
-        close();
-        router.refresh();
-        return;
-      }
-
-      const res = await createTaskAction(payload);
+      const res = onSubmit
+        ? await onSubmit(payload)
+        : await createTaskAction(payload);
 
       if (!res.ok) {
         const msg =
@@ -349,6 +322,29 @@ export default function CreateTaskModal({
           toast.error("Issue not created", msg || "Не удалось создать задачу.");
         }
         return;
+      }
+
+      const queued = attachments.flatMap((attachment) =>
+        attachment.file
+          ? [{ clientId: attachment.clientId, file: attachment.file }]
+          : []
+      );
+      if (queued.length > 0) {
+        setAttachments((prev) =>
+          prev.map((attachment) =>
+            attachment.file
+              ? { ...attachment, state: "uploading" as const }
+              : attachment
+          )
+        );
+        try {
+          await uploadMany(queued, res.key);
+        } catch (error) {
+          toast.error(
+            "Issue created, attachments failed",
+            error instanceof Error ? error.message : "Upload failed"
+          );
+        }
       }
 
       toast.success("Issue created", res.key);

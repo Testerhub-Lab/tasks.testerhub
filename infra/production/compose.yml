@@ -20,6 +20,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../zero-stage2/schema.sql:/docker-entrypoint-initdb.d/002-zero-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar"]
       interval: 5s
@@ -45,7 +46,9 @@ services:
       - ${PULSAR_APP_ENV_FILE:?Set PULSAR_APP_ENV_FILE}
     environment:
       DATABASE_URL: postgresql://pulsar_app:${PULSAR_APP_DB_PASSWORD}@postgres:5432/pulsar
-      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_UPSTREAM_DB: postgresql://pulsar_app:${PULSAR_APP_DB_PASSWORD}@postgres:5432/pulsar
+      PULSAR_AUTH_STORE: zero
+      NEXT_PUBLIC_ZERO_CACHE_URL: ${PULSAR_ZERO_PUBLIC_URL:-https://pulsar.testerhub.ru/zero-cache}
     ports:
       - "127.0.0.1:${APP_PORT:-3012}:3000"
     volumes:
@@ -64,8 +67,60 @@ services:
         max-size: 10m
         max-file: "5"
 
+  zero-cache:
+    image: rocicorp/zero:1.8.0
+    environment:
+      NODE_ENV: production
+      ZERO_APP_ID: pulsar_production
+      ZERO_APP_PUBLICATIONS: pulsar_zero_data
+      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_CVR_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_CHANGE_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?Set ZERO_ADMIN_PASSWORD}
+      ZERO_QUERY_URL: http://web:3000/api/zero/query
+      ZERO_MUTATE_URL: http://web:3000/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ""
+      OTEL_METRICS_EXPORTER: ""
+      OTEL_LOGS_EXPORTER: ""
+      OTEL_TRACES_EXPORTER: ""
+    ports:
+      - "127.0.0.1:${ZERO_CACHE_PORT:-4848}:4848"
+    volumes:
+      - zero-cache-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4848/keepalive"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 2m
+    stop_grace_period: 10m
+    restart: unless-stopped
+    networks:
+      - edge
+      - data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
 volumes:
   postgres-data:
+  zero-cache-data:
 
 networks:
   edge:

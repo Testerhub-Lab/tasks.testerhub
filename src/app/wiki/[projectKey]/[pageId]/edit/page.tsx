@@ -3,7 +3,6 @@ import { KnowledgeProvider, ProjectRole } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import Card from "@/components/ui/Card";
 import WikiMarkdownEditor from "@/components/wiki/WikiMarkdownEditor";
-import prisma from "@/lib/prisma";
 import { hasProjectRole } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
@@ -11,6 +10,7 @@ import {
   getProjectKnowledge,
   getWikiPage,
 } from "@/server/knowledge/queries";
+import { getProjectByKey } from "@/server/queries/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +31,7 @@ export default async function EditWikiPage({ params }: EditWikiPageProps) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin");
 
-  const project = await prisma.project.findFirst({
-    where: { key: projectKey, workspaceId, archivedAt: null },
-    select: { id: true, key: true, name: true },
-  });
+  const project = await getProjectByKey(projectKey, workspaceId);
   if (!project) notFound();
 
   const access = await hasProjectRole(user, project.id, ProjectRole.MEMBER, {

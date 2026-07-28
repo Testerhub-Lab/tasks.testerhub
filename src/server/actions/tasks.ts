@@ -22,15 +22,24 @@ import {
   type TaskInput,
   type TaskPriority,
 } from "../validators/task";
+import { usesZeroUiStore } from "@/server/ui/zero-legacy";
+import {
+  addZeroCommentForUI,
+  archiveZeroTaskForUI,
+  createZeroTaskForUI,
+  getZeroTaskDeletionPermission,
+  restoreZeroTaskForUI,
+  updateZeroTaskForUI,
+} from "@/server/ui/zero-actions";
 
 const updateStatusSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   status: taskStatusSchema,
 });
 
 const updateFieldsSchema = z
   .object({
-    id: z.string().cuid(),
+    id: z.string().min(1),
     status: taskStatusSchema.optional(),
     priority: taskPrioritySchema.optional(),
     title: z.string().min(1).max(120).optional(),
@@ -50,13 +59,13 @@ const updateFieldsSchema = z
   );
 
 const addCommentSchema = z.object({
-  taskId: z.string().cuid(),
+  taskId: z.string().min(1),
   text: z.string().min(1).max(2000),
   authorName: z.string().max(120).optional(),
 });
 
 const taskDeleteSchema = z.object({
-  taskId: z.string().cuid(),
+  taskId: z.string().min(1),
 });
 
 function buildDescription(base: string | null | undefined, extra: string[]) {
@@ -85,6 +94,36 @@ async function canManageTaskDeletion(params: {
   currentUser: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
   workspaceId: string;
 }) {
+  if (usesZeroUiStore()) {
+    const task = await getZeroTaskDeletionPermission({
+      userID: params.currentUser.id,
+      workspaceID: params.workspaceId,
+      issueID: params.taskId,
+    });
+    const access = await getProjectAccess(
+      params.currentUser,
+      task.projectId,
+      {
+        workspaceId: params.workspaceId,
+        includeArchived: true,
+      }
+    );
+    if (!access) {
+      return { ok: false as const, formError: "Недоступно" };
+    }
+    const isCreator = task.creatorId === params.currentUser.id;
+    const canManageProject = projectRoleAtLeast(
+      access.role,
+      ProjectRole.ADMIN
+    );
+    const creatorCanDelete =
+      isCreator && projectRoleAtLeast(access.role, ProjectRole.MEMBER);
+    if (!creatorCanDelete && !canManageProject) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+    return { ok: true as const, task };
+  }
+
   const task = await prisma.task.findFirst({
     where: { id: params.taskId },
     select: {
@@ -145,6 +184,72 @@ export async function createTaskAction(data: TaskInput) {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
+    const extraBlocks = [
+      validated.steps ? `Шаги:\n${validated.steps}` : "",
+      validated.expected ? `Ожидаемое:\n${validated.expected}` : "",
+      validated.actual ? `Фактическое:\n${validated.actual}` : "",
+      validated.environment ? `Окружение:\n${validated.environment}` : "",
+    ].filter(Boolean);
+    const finalDescription = buildDescription(
+      validated.description,
+      extraBlocks
+    );
+
+    if (usesZeroUiStore()) {
+      if (validated.attachments.length > 0) {
+        return {
+          ok: false as const,
+          formError:
+            "Добавьте вложения после создания задачи — они загружаются в приватное S3.",
+        };
+      }
+      if (
+        validated.assigneeId &&
+        !(await canAssignUserToProject(
+          validated.assigneeId,
+          validated.projectId
+        ))
+      ) {
+        return {
+          ok: false as const,
+          formError: "Исполнитель не имеет доступа к проекту",
+        };
+      }
+      const created = await createZeroTaskForUI({
+        user: authUser,
+        workspaceID: workspaceId,
+        projectID: validated.projectId,
+        title: validated.title,
+        description: finalDescription,
+        type: validated.type,
+        priority: validated.priority,
+        tags: validated.tags,
+        assigneeID: validated.assigneeId ?? null,
+      });
+      await broadcastTaskEvent(created.projectId, workspaceId, {
+        type: "task_created",
+        payload: {
+          task: {
+            id: created.id,
+            projectId: created.projectId,
+            key: created.key,
+            title: created.title,
+            description: created.description,
+            type: created.type,
+            priority: created.priority,
+            status: created.status,
+            assigneeId: created.assigneeId,
+            requesterName: created.requesterName,
+            createdAt: created.createdAt.toISOString(),
+          },
+        },
+      });
+      revalidatePath("/board");
+      revalidatePath("/backlog");
+      revalidatePath("/issues");
+      return { ok: true as const, id: created.id, key: created.key };
+    }
+
     const project = await prisma.project.findFirst({
       where: { id: validated.projectId, workspaceId },
       select: {
@@ -191,16 +296,6 @@ export async function createTaskAction(data: TaskInput) {
     }
 
     const effectiveReporterId = authUser.id;
-
-    // Пока нет отдельных колонок steps/expected/actual/environment — складываем в description
-    const extraBlocks = [
-      validated.steps ? `Шаги:\n${validated.steps}` : "",
-      validated.expected ? `Ожидаемое:\n${validated.expected}` : "",
-      validated.actual ? `Фактическое:\n${validated.actual}` : "",
-      validated.environment ? `Окружение:\n${validated.environment}` : "",
-    ].filter(Boolean);
-
-    const finalDescription = buildDescription(validated.description, extraBlocks);
 
     const txResult = await prisma.$transaction(async (tx) => {
       const updatedProject = await tx.project.update({
@@ -324,6 +419,38 @@ export async function updateTaskStatusAction(data: {
     if (!workspaceId) {
       return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
     }
+
+    if (usesZeroUiStore()) {
+      const { task } = await updateZeroTaskForUI({
+        user: authUser,
+        workspaceID: workspaceId,
+        issueID: validatedData.id,
+        status: validatedData.status,
+      });
+      await broadcastTaskEvent(task.projectId, workspaceId, {
+        type: "task_updated",
+        payload: {
+          task: {
+            id: task.id,
+            projectId: task.projectId,
+            key: task.key,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            priority: task.priority,
+            status: task.status,
+            assigneeId: task.assigneeId,
+            requesterName: task.requesterName,
+            createdAt: task.createdAt.toISOString(),
+          },
+        },
+      });
+      revalidatePath("/board");
+      revalidatePath("/backlog");
+      revalidatePath("/issues");
+      return { ok: true as const };
+    }
+
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id, isDeleted: false },
       select: {
@@ -433,6 +560,61 @@ export async function updateTaskFieldsAction(data: {
     if (!workspaceId) {
       return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
     }
+
+    if (usesZeroUiStore()) {
+      if (
+        validatedData.assigneeId &&
+        !(await canAssignUserToProject(
+          validatedData.assigneeId,
+          (
+            await getZeroTaskDeletionPermission({
+              userID: authUser.id,
+              workspaceID: workspaceId,
+              issueID: validatedData.id,
+            })
+          ).projectId
+        ))
+      ) {
+        return {
+          ok: false as const,
+          formError: "Исполнитель не имеет доступа к проекту",
+        };
+      }
+      const { task } = await updateZeroTaskForUI({
+        user: authUser,
+        workspaceID: workspaceId,
+        issueID: validatedData.id,
+        status: validatedData.status,
+        priority: validatedData.priority,
+        title: validatedData.title,
+        description: validatedData.description,
+        assigneeID: validatedData.assigneeId,
+      });
+      await broadcastTaskEvent(task.projectId, workspaceId, {
+        type: "task_updated",
+        payload: {
+          task: {
+            id: task.id,
+            projectId: task.projectId,
+            key: task.key,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            priority: task.priority,
+            status: task.status,
+            assigneeId: task.assigneeId,
+            requesterName: task.requesterName,
+            createdAt: task.createdAt.toISOString(),
+          },
+        },
+      });
+      revalidatePath(`/tasks/${task.key}`);
+      revalidatePath("/board");
+      revalidatePath("/backlog");
+      revalidatePath("/issues");
+      return { ok: true as const };
+    }
+
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.id, isDeleted: false },
       select: {
@@ -563,6 +745,40 @@ export async function addCommentAction(data: {
     if (!workspaceId) {
       return { ok: false as const, formError: "Требуется авторизация", code: "AUTH_REQUIRED" };
     }
+
+    if (usesZeroUiStore()) {
+      const createdComment = await addZeroCommentForUI({
+        user: authUser,
+        workspaceID: workspaceId,
+        issueID: validatedData.taskId,
+        text: validatedData.text,
+      });
+      const task = await getZeroTaskDeletionPermission({
+        userID: authUser.id,
+        workspaceID: workspaceId,
+        issueID: validatedData.taskId,
+      });
+      await broadcastTaskEvent(task.projectId, workspaceId, {
+        type: "comment_added",
+        payload: {
+          projectId: task.projectId,
+          comment: {
+            id: createdComment.id,
+            taskId: createdComment.taskId,
+            text: createdComment.text,
+            userId: createdComment.userId,
+            authorName: createdComment.authorName,
+            createdAt: new Date(createdComment.createdAt).toISOString(),
+          },
+        },
+      });
+      revalidatePath(`/tasks/${task.key}`);
+      revalidatePath("/board");
+      revalidatePath("/backlog");
+      revalidatePath("/issues");
+      return { ok: true as const };
+    }
+
     const taskProject = await prisma.task.findFirst({
       where: { id: validatedData.taskId, isDeleted: false },
       select: {
@@ -658,14 +874,21 @@ export async function deleteTaskAction(taskId: string) {
     if (!permission.ok) return permission;
     if (permission.task.isDeleted) return { ok: true as const };
 
-    await prisma.task.update({
-      where: { id: permission.task.id },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-      },
-      select: { id: true },
-    });
+    if (usesZeroUiStore()) {
+      await archiveZeroTaskForUI({
+        userID: authUser.id,
+        issueID: permission.task.id,
+      });
+    } else {
+      await prisma.task.update({
+        where: { id: permission.task.id },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+        select: { id: true },
+      });
+    }
 
     await broadcastTaskEvent(permission.task.projectId, workspaceId, {
       type: "task_deleted",
@@ -711,26 +934,33 @@ export async function restoreTaskAction(taskId: string) {
     if (!permission.ok) return permission;
     if (!permission.task.isDeleted) return { ok: true as const };
 
-    const restored = await prisma.task.update({
-      where: { id: permission.task.id },
-      data: {
-        isDeleted: false,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        projectId: true,
-        key: true,
-        title: true,
-        description: true,
-        type: true,
-        priority: true,
-        status: true,
-        assigneeId: true,
-        requesterName: true,
-        createdAt: true,
-      },
-    });
+    const restored = usesZeroUiStore()
+      ? await restoreZeroTaskForUI({
+          userID: authUser.id,
+          workspaceID: workspaceId,
+          issueID: permission.task.id,
+          projectID: permission.task.projectId,
+        })
+      : await prisma.task.update({
+          where: { id: permission.task.id },
+          data: {
+            isDeleted: false,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            projectId: true,
+            key: true,
+            title: true,
+            description: true,
+            type: true,
+            priority: true,
+            status: true,
+            assigneeId: true,
+            requesterName: true,
+            createdAt: true,
+          },
+        });
 
     await broadcastTaskEvent(restored.projectId, workspaceId, {
       type: "task_restored",

@@ -200,7 +200,7 @@ function CreateWorkspace({
             Create your Zero workspace
           </h2>
           <p className="mt-1 text-sm text-white/55">
-            The default workflow and its four states are created atomically.
+            The default workflow and its states are created atomically.
           </p>
         </div>
         <input

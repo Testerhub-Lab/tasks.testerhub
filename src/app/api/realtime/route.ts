@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { sseManager } from "@/lib/sse";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getCurrentUser } from "@/server/auth/session";
@@ -48,18 +47,9 @@ export async function GET(request: Request) {
     });
   }
 
-  const project = await prisma.project.findFirst({
-    where: { id: boardId, workspaceId, archivedAt: null },
-    select: { id: true },
-  });
-
-  if (!project) {
-    return NextResponse.json({ ok: false, error: "Board not found" }, { status: 404 });
-  }
-
-  const access = await getProjectAccess(authUser, project.id, { workspaceId });
+  const access = await getProjectAccess(authUser, boardId, { workspaceId });
   if (!access) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: "Board not found" }, { status: 404 });
   }
 
   const stream = sseManager.connect(boardId, request.signal);

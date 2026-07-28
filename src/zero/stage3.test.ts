@@ -12,7 +12,10 @@ describe("Zero Stage 3 helpers", () => {
       "BACKLOG",
       "UNSTARTED",
       "STARTED",
+      "STARTED",
+      "STARTED",
       "COMPLETED",
+      "CANCELED",
     ]);
     expect(
       DEFAULT_WORKFLOW_STATES.map((state) => state.rank).toSorted()

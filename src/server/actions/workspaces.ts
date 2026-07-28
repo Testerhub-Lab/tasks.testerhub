@@ -8,6 +8,15 @@ import { setCurrentWorkspaceId } from "../auth/workspace";
 import { buildWorkspaceInviteLink } from "../auth/invite";
 import { ProjectRole } from "@prisma/client";
 import { getWorkspaceRole, hasProjectRole } from "../auth/access";
+import { hasZeroWorkspaceMembership } from "../auth/zero-store";
+import { usesZeroUiStore } from "@/server/ui/zero-legacy";
+import {
+  createZeroWorkspaceProject,
+  removeZeroWorkspaceMember,
+  setZeroProjectArchived,
+  updateZeroWorkspace,
+  updateZeroWorkspaceMemberRole,
+} from "@/server/ui/zero-workspace-actions";
 
 async function canManageWorkspace(
   user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
@@ -32,6 +41,14 @@ async function canManageProject(
 export async function setWorkspaceAction(workspaceId: string) {
   const user = await getCurrentUser();
   if (!user) return { ok: false as const };
+
+  if (usesZeroUiStore()) {
+    if (!(await hasZeroWorkspaceMembership(user.id, workspaceId))) {
+      return { ok: false as const };
+    }
+    await setCurrentWorkspaceId(workspaceId);
+    return { ok: true as const };
+  }
 
   const membership = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: user.id } },
@@ -73,11 +90,19 @@ export async function updateWorkspaceAction(input: {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
-    await prisma.workspace.update({
-      where: { id: validated.workspaceId },
-      data: { name: validated.name.trim() },
-      select: { id: true },
-    });
+    if (usesZeroUiStore()) {
+      await updateZeroWorkspace({
+        actorID: user.id,
+        workspaceID: validated.workspaceId,
+        name: validated.name.trim(),
+      });
+    } else {
+      await prisma.workspace.update({
+        where: { id: validated.workspaceId },
+        data: { name: validated.name.trim() },
+        select: { id: true },
+      });
+    }
 
     revalidatePath("/");
     revalidatePath("/board");
@@ -111,6 +136,14 @@ export async function createWorkspaceInviteAction(input: {
     const validated = inviteLinkSchema.parse(input);
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    if (usesZeroUiStore()) {
+      return {
+        ok: false as const,
+        formError:
+          "В Zero доступ выдаётся на уровне workspace; приглашения по проекту отключены.",
+      };
+    }
 
     if (
       !(await canManageProject(
@@ -198,6 +231,13 @@ export async function revokeWorkspaceInviteAction(input: {
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
 
+    if (usesZeroUiStore()) {
+      return {
+        ok: false as const,
+        formError: "В Zero нет отдельных проектных приглашений.",
+      };
+    }
+
     const invite = await prisma.workspaceInvite.findFirst({
       where: {
         id: validated.inviteId,
@@ -264,6 +304,20 @@ export async function createWorkspaceProjectAction(input: {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
+    if (usesZeroUiStore()) {
+      await createZeroWorkspaceProject({
+        user,
+        workspaceID: validated.workspaceId,
+        key: validated.key,
+        name: validated.name,
+      });
+      revalidatePath("/settings/workspace");
+      revalidatePath("/board");
+      revalidatePath("/issues");
+      revalidatePath("/backlog");
+      return { ok: true as const };
+    }
+
     const existing = await prisma.project.findUnique({
       where: { key: validated.key },
       select: { id: true },
@@ -321,6 +375,20 @@ export async function setProjectArchivedAction(input: {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
+    if (usesZeroUiStore()) {
+      await setZeroProjectArchived({
+        actorID: user.id,
+        workspaceID: validated.workspaceId,
+        projectID: validated.projectId,
+        archived: validated.archived,
+      });
+      revalidatePath("/settings/workspace");
+      revalidatePath("/board");
+      revalidatePath("/issues");
+      revalidatePath("/backlog");
+      return { ok: true as const };
+    }
+
     const project = await prisma.project.findFirst({
       where: { id: validated.projectId, workspaceId: validated.workspaceId },
       select: { id: true },
@@ -369,6 +437,20 @@ export async function updateWorkspaceMemberRoleAction(input: {
       return { ok: false as const, formError: "Недостаточно прав" };
     }
 
+    if (usesZeroUiStore()) {
+      if (validated.memberId === user.id && validated.role !== "ADMIN") {
+        return { ok: false as const, formError: "Нельзя понизить себя" };
+      }
+      await updateZeroWorkspaceMemberRole({
+        actorID: user.id,
+        workspaceID: validated.workspaceId,
+        memberUserID: validated.memberId,
+        role: validated.role,
+      });
+      revalidatePath("/settings/workspace");
+      return { ok: true as const };
+    }
+
     const target = await prisma.workspaceMember.findUnique({
       where: { id: validated.memberId },
       select: { userId: true, role: true, workspaceId: true },
@@ -415,6 +497,19 @@ export async function removeWorkspaceMemberAction(input: {
 
     if (!(await canManageWorkspace(user, validated.workspaceId))) {
       return { ok: false as const, formError: "Недостаточно прав" };
+    }
+
+    if (usesZeroUiStore()) {
+      if (validated.memberId === user.id) {
+        return { ok: false as const, formError: "Нельзя удалить себя" };
+      }
+      await removeZeroWorkspaceMember({
+        actorID: user.id,
+        workspaceID: validated.workspaceId,
+        memberUserID: validated.memberId,
+      });
+      revalidatePath("/settings/workspace");
+      return { ok: true as const };
     }
 
     const target = await prisma.workspaceMember.findUnique({
@@ -472,6 +567,13 @@ export async function updateProjectMemberRoleAction(input: {
     const validated = updateProjectMemberRoleSchema.parse(input);
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    if (usesZeroUiStore()) {
+      return {
+        ok: false as const,
+        formError: "В Zero роль участника задаётся на уровне workspace.",
+      };
+    }
 
     const target = await prisma.projectMember.findUnique({
       where: { id: validated.projectMemberId },
@@ -532,6 +634,13 @@ export async function updateProjectMemberExpiryAction(input: {
     const validated = updateProjectMemberExpirySchema.parse(input);
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    if (usesZeroUiStore()) {
+      return {
+        ok: false as const,
+        formError: "В Zero временный доступ к отдельному проекту не используется.",
+      };
+    }
 
     const target = await prisma.projectMember.findUnique({
       where: { id: validated.projectMemberId },
@@ -594,6 +703,13 @@ export async function removeProjectMemberAction(input: {
     const validated = removeProjectMemberSchema.parse(input);
     const user = await getCurrentUser();
     if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+    if (usesZeroUiStore()) {
+      return {
+        ok: false as const,
+        formError: "В Zero доступ удаляется на уровне workspace.",
+      };
+    }
 
     const target = await prisma.projectMember.findUnique({
       where: { id: validated.projectMemberId },

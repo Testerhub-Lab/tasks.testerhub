@@ -1,6 +1,15 @@
 import prisma from "../../lib/prisma";
 import { Status, type Prisma } from "@prisma/client";
 import type { IssueFilters } from "../validators/issueFilters";
+import {
+  getZeroAllTasks,
+  getZeroComments,
+  getZeroDeletedTasks,
+  getZeroLatestTasks,
+  getZeroTask,
+  getZeroTasks,
+  usesZeroUiStore,
+} from "@/server/ui/zero-legacy";
 
 // Board никогда не показывает NEW
 const BOARD_STATUSES = [
@@ -98,6 +107,13 @@ export async function getTasks(
   currentUserId?: string | null,
   accessibleProjectIds: string[] = []
 ): Promise<TaskListItem[]> {
+  if (usesZeroUiStore()) {
+    return getZeroTasks(
+      filters,
+      currentUserId,
+      accessibleProjectIds
+    ) as Promise<TaskListItem[]>;
+  }
   return prisma.task.findMany({
     where: buildTaskWhere(filters, currentUserId, accessibleProjectIds),
     include: {
@@ -113,6 +129,12 @@ export async function getLatestTasks(
   accessibleProjectIds: string[],
   limit = 10
 ): Promise<TaskListItem[]> {
+  if (usesZeroUiStore()) {
+    return getZeroLatestTasks(
+      accessibleProjectIds,
+      limit
+    ) as Promise<TaskListItem[]>;
+  }
   return prisma.task.findMany({
     where: { isDeleted: false, projectId: { in: accessibleProjectIds } },
     include: {
@@ -128,6 +150,9 @@ export async function getLatestTasks(
 export async function getAllTasks(
   accessibleProjectIds: string[]
 ): Promise<TaskListItem[]> {
+  if (usesZeroUiStore()) {
+    return getZeroAllTasks(accessibleProjectIds) as Promise<TaskListItem[]>;
+  }
   return prisma.task.findMany({
     where: { isDeleted: false, projectId: { in: accessibleProjectIds } },
     include: {
@@ -143,6 +168,9 @@ export async function getBacklogUnreadCount(
   since?: Date | null,
   accessibleProjectIds: string[] = []
 ) {
+  if (usesZeroUiStore()) {
+    return 0;
+  }
   const sinceDate = since ?? new Date(0);
   return prisma.task.count({
     where: {
@@ -159,6 +187,13 @@ export async function getTaskById(
   id: string,
   accessibleProjectIds: string[]
 ): Promise<TaskWithProjectAndReporter | null> {
+  if (usesZeroUiStore()) {
+    return getZeroTask(
+      "id",
+      id,
+      accessibleProjectIds
+    ) as Promise<TaskWithProjectAndReporter | null>;
+  }
   return prisma.task.findFirst({
     include: {
       project: true,
@@ -173,6 +208,13 @@ export async function getTaskByKey(
   key: string,
   accessibleProjectIds: string[]
 ): Promise<TaskWithProjectAndReporter | null> {
+  if (usesZeroUiStore()) {
+    return getZeroTask(
+      "key",
+      key,
+      accessibleProjectIds
+    ) as Promise<TaskWithProjectAndReporter | null>;
+  }
   return prisma.task.findFirst({
     include: {
       project: true,
@@ -184,6 +226,9 @@ export async function getTaskByKey(
 }
 
 export async function getTaskActivitiesByTaskId(taskId: string) {
+  if (usesZeroUiStore()) {
+    return [];
+  }
   return prisma.taskActivity.findMany({
     where: { taskId, task: { isDeleted: false } },
     include: {
@@ -194,6 +239,9 @@ export async function getTaskActivitiesByTaskId(taskId: string) {
 }
 
 export async function getCommentsByTaskId(taskId: string) {
+  if (usesZeroUiStore()) {
+    return getZeroComments(taskId);
+  }
   return prisma.comment.findMany({
     where: { taskId, task: { isDeleted: false } },
     orderBy: { createdAt: "asc" },
@@ -218,6 +266,11 @@ export async function getCommentsByTaskId(taskId: string) {
 export async function getDeletedTasks(
   accessibleProjectIds: string[]
 ): Promise<TaskListItem[]> {
+  if (usesZeroUiStore()) {
+    return getZeroDeletedTasks(
+      accessibleProjectIds
+    ) as Promise<TaskListItem[]>;
+  }
   return prisma.task.findMany({
     where: {
       isDeleted: true,
