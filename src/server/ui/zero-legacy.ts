@@ -6,6 +6,7 @@ import {
   type WorkspaceRole,
 } from "@prisma/client";
 import type { IssueFilters } from "../validators/issueFilters";
+import type { IssuePaginationInput } from "../validators/issueFilters";
 import { usesZeroAuthStore } from "../auth/zero-store";
 import { getZeroPool } from "../../zero/db";
 
@@ -476,6 +477,95 @@ async function loadZeroTaskRows(
   return result.rows;
 }
 
+const zeroStatusSQL = `CASE
+  WHEN lower(trim(state.name)) IN ('backlog', 'new') THEN 'NEW'
+  WHEN lower(trim(state.name)) = 'todo' THEN 'TODO'
+  WHEN lower(trim(state.name)) = 'hold' THEN 'HOLD'
+  WHEN lower(trim(state.name)) = 'in progress' THEN 'IN_PROGRESS'
+  WHEN lower(trim(state.name)) = 'testing' THEN 'TESTING'
+  WHEN lower(trim(state.name)) = 'done' THEN 'DONE'
+  WHEN lower(trim(state.name)) IN ('rejected', 'canceled', 'cancelled') THEN 'REJECT'
+  WHEN state.category = 'BACKLOG' THEN 'NEW'
+  WHEN state.category = 'UNSTARTED' THEN 'TODO'
+  WHEN state.category = 'STARTED' THEN 'IN_PROGRESS'
+  WHEN state.category = 'COMPLETED' THEN 'DONE'
+  WHEN state.category = 'CANCELED' THEN 'REJECT'
+END`;
+
+function buildZeroTaskFilterWhere(
+  filters: IssueFilters,
+  currentUserID: string | null | undefined,
+  accessibleProjectIDs: string[],
+  archived: boolean
+) {
+  const values: unknown[] = [accessibleProjectIDs, archived];
+  const where = [
+    "issue.project_id = ANY($1::uuid[])",
+    "($2::boolean = (issue.archived_at IS NOT NULL))",
+    "project.archived_at IS NULL",
+  ];
+
+  const addValue = (value: unknown) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+
+  if (filters.q) {
+    const placeholder = addValue(`%${filters.q}%`);
+    where.push(`(
+      issue.title ILIKE ${placeholder}
+      OR COALESCE(issue.description, '') ILIKE ${placeholder}
+      OR (project.key || '-' || issue.number::text) ILIKE ${placeholder}
+    )`);
+  }
+
+  if (filters.view === "backlog") {
+    where.push(`(${zeroStatusSQL}) = 'NEW'`);
+  } else if (filters.view === "board") {
+    where.push(`(${zeroStatusSQL}) = ANY(${
+      addValue([Status.TODO, Status.IN_PROGRESS, Status.TESTING, Status.DONE])
+    }::text[])`);
+  } else if (filters.status?.length) {
+    where.push(`(${zeroStatusSQL}) = ANY(${addValue(filters.status)}::text[])`);
+  }
+
+  if (filters.priority?.length) {
+    where.push(`issue.priority::text = ANY(${addValue(filters.priority)}::text[])`);
+  }
+
+  if (filters.tags?.length) {
+    where.push(`EXISTS (
+      SELECT 1
+      FROM issue_tags AS filtered_issue_tag
+      JOIN tags AS filtered_tag ON filtered_tag.id = filtered_issue_tag.tag_id
+      WHERE
+        filtered_issue_tag.issue_id = issue.id
+        AND filtered_tag.archived_at IS NULL
+        AND filtered_tag.name = ANY(${addValue(filters.tags)}::text[])
+    )`);
+  }
+
+  if (filters.projectId) {
+    if (!accessibleProjectIDs.includes(filters.projectId)) {
+      where.push("false");
+    } else {
+      where.push(`issue.project_id = ${addValue(filters.projectId)}::uuid`);
+    }
+  }
+
+  if (filters.assignee === "me") {
+    if (currentUserID) {
+      where.push(`assignee.id = ${addValue(currentUserID)}::uuid`);
+    } else {
+      where.push("false");
+    }
+  } else if (filters.assignee) {
+    where.push(`assignee.id = ${addValue(filters.assignee)}::uuid`);
+  }
+
+  return { clause: where.join("\n       AND "), values };
+}
+
 function mapZeroTask(row: ZeroTaskRow) {
   const status = zeroStateToLegacyStatus({
     name: row.state_name,
@@ -613,6 +703,158 @@ export async function getZeroTasks(
   return rows
     .map(mapZeroTask)
     .filter((task) => matchesZeroTaskFilters(task, filters, currentUserID));
+}
+
+export async function getZeroPaginatedTasks(
+  filters: IssueFilters,
+  pagination: IssuePaginationInput,
+  currentUserID: string | null | undefined,
+  accessibleProjectIDs: string[]
+) {
+  if (accessibleProjectIDs.length === 0) {
+    return {
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: pagination.pageSize,
+      totalPages: 1,
+    };
+  }
+
+  const where = buildZeroTaskFilterWhere(
+    filters,
+    currentUserID,
+    accessibleProjectIDs,
+    false
+  );
+  const countResult = await getZeroPool().query<{ total_count: string }>(
+    `SELECT count(*)::text AS total_count
+     FROM issues AS issue
+     JOIN projects AS project ON project.id = issue.project_id
+     JOIN workflow_states AS state ON state.id = issue.state_id
+     LEFT JOIN LATERAL (
+       SELECT actor.id
+       FROM issue_participants AS participant
+       JOIN users AS actor ON actor.id = participant.user_id
+       WHERE participant.issue_id = issue.id AND participant.role = 'ASSIGNEE'
+       ORDER BY participant.created_at, actor.id
+       LIMIT 1
+     ) AS assignee ON true
+     WHERE ${where.clause}`,
+    where.values
+  );
+  const totalCount = Number(countResult.rows[0]?.total_count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
+  const page = Math.min(Math.max(1, pagination.page), totalPages);
+  const queryValues = [
+    ...where.values,
+    pagination.pageSize,
+    (page - 1) * pagination.pageSize,
+  ];
+  const limitParam = `$${queryValues.length - 1}`;
+  const offsetParam = `$${queryValues.length}`;
+
+  const result = await getZeroPool().query<ZeroTaskRow>(
+    `SELECT
+       issue.id,
+       issue.workspace_id,
+       issue.project_id,
+       project.key AS project_key,
+       project.name AS project_name,
+       project.workflow_id AS project_workflow_id,
+       project.next_issue_number AS project_next_issue_number,
+       project.created_at AS project_created_at,
+       project.archived_at AS project_archived_at,
+       issue.number,
+       issue.title,
+       issue.description,
+       issue.type,
+       issue.priority,
+       state.name AS state_name,
+       state.category AS state_category,
+       issue.creator_id,
+       creator.display_name AS creator_name,
+       creator_identity.provider_subject AS creator_email,
+       issue.reporter_id,
+       reporter.display_name AS reporter_name,
+       reporter_identity.provider_subject AS reporter_email,
+       assignee.id AS assignee_id,
+       assignee.display_name AS assignee_name,
+       assignee_identity.provider_subject AS assignee_email,
+       ARRAY(
+         SELECT tag.name
+         FROM issue_tags AS issue_tag
+         JOIN tags AS tag ON tag.id = issue_tag.tag_id
+         WHERE issue_tag.issue_id = issue.id AND tag.archived_at IS NULL
+         ORDER BY tag.name
+       ) AS tags,
+       COALESCE(
+         (
+           SELECT jsonb_agg(
+             jsonb_build_object(
+               'id', attachment.id,
+               'fileName', attachment.file_name
+             )
+             ORDER BY attachment.created_at, attachment.id
+           )
+           FROM attachments AS attachment
+           WHERE
+             attachment.issue_id = issue.id
+             AND attachment.archived_at IS NULL
+         ),
+         '[]'::jsonb
+       ) AS attachment_items,
+       issue.created_at,
+       issue.updated_at,
+       issue.archived_at
+     FROM issues AS issue
+     JOIN projects AS project ON project.id = issue.project_id
+     JOIN workflow_states AS state ON state.id = issue.state_id
+     JOIN users AS creator ON creator.id = issue.creator_id
+     JOIN users AS reporter ON reporter.id = issue.reporter_id
+     LEFT JOIN LATERAL (
+       SELECT provider_subject
+       FROM auth_identities
+       WHERE user_id = creator.id AND provider = 'password'
+       ORDER BY created_at
+       LIMIT 1
+     ) AS creator_identity ON true
+     LEFT JOIN LATERAL (
+       SELECT provider_subject
+       FROM auth_identities
+       WHERE user_id = reporter.id AND provider = 'password'
+       ORDER BY created_at
+       LIMIT 1
+     ) AS reporter_identity ON true
+     LEFT JOIN LATERAL (
+       SELECT actor.id, actor.display_name
+       FROM issue_participants AS participant
+       JOIN users AS actor ON actor.id = participant.user_id
+       WHERE participant.issue_id = issue.id AND participant.role = 'ASSIGNEE'
+       ORDER BY participant.created_at, actor.id
+       LIMIT 1
+     ) AS assignee ON true
+     LEFT JOIN LATERAL (
+       SELECT provider_subject
+       FROM auth_identities
+       WHERE user_id = assignee.id AND provider = 'password'
+       ORDER BY created_at
+       LIMIT 1
+     ) AS assignee_identity ON true
+     WHERE ${where.clause}
+     ORDER BY issue.created_at DESC, issue.id DESC
+     LIMIT ${limitParam}::int
+     OFFSET ${offsetParam}::int`,
+    queryValues
+  );
+
+  return {
+    items: result.rows.map(mapZeroTask),
+    totalCount,
+    page,
+    pageSize: pagination.pageSize,
+    totalPages,
+  };
 }
 
 export async function getZeroLatestTasks(

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
+import IssuePagination from "../../components/issues/IssuePagination";
 import BacklogSeen from "../../components/backlog/BacklogSeen";
-import { getTasks } from "../../server/queries/tasks";
+import { getPaginatedTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
@@ -10,6 +11,7 @@ import { getAccessibleProjectIds } from "../../server/auth/access";
 import { redirect } from "next/navigation";
 import {
   hasActiveFilters,
+  parsePaginationParams,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import BacklogRowClient from "../../components/issues/BacklogRowClient";
@@ -22,6 +24,7 @@ interface BacklogPageProps {
 const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
+  const paginationInput = parsePaginationParams(resolvedSearchParams);
 
   type Filters = ReturnType<typeof parseSearchParams>;
 
@@ -39,7 +42,13 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/backlog");
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
-  const tasks = await getTasks(queryFilters, user.id, accessibleProjectIds);
+  const paginated = await getPaginatedTasks(
+    queryFilters,
+    paginationInput,
+    user.id,
+    accessibleProjectIds
+  );
+  const tasks = paginated.items;
 
 
   const projects = await getProjects(workspaceId, user);
@@ -81,23 +90,33 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {tasks.map((t) => (
-            <BacklogRowClient
-              key={t.id}
-              id={t.id}
-              title={t.title}
-              issueKey={t.key}
-              type={t.type}
-              priority={t.priority}
-              status={t.status}
-              createdAt={t.createdAt}
-              reporter={t.reporter}
-              requesterName={t.requesterName}
-              href={`/tasks/${t.key ?? t.id}`}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {tasks.map((t) => (
+              <BacklogRowClient
+                key={t.id}
+                id={t.id}
+                title={t.title}
+                issueKey={t.key}
+                type={t.type}
+                priority={t.priority}
+                status={t.status}
+                createdAt={t.createdAt}
+                reporter={t.reporter}
+                requesterName={t.requesterName}
+                href={`/tasks/${t.key ?? t.id}`}
+              />
+            ))}
+          </div>
+          <IssuePagination
+            basePath="/backlog"
+            page={paginated.page}
+            pageSize={paginated.pageSize}
+            totalCount={paginated.totalCount}
+            totalPages={paginated.totalPages}
+            itemCount={tasks.length}
+          />
+        </>
       )}
     </div>
   );

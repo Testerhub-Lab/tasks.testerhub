@@ -35,6 +35,26 @@ export type IssueFilters = z.infer<typeof issueFiltersSchema>;
 export type IssueFilterStatus = TaskStatus;
 export type IssueFilterPriority = TaskPriority;
 
+export const PAGE_SIZE_OPTIONS = [10, 15, 20, 50] as const;
+export const DEFAULT_PAGE_SIZE = 20;
+
+export type IssuePageSize = (typeof PAGE_SIZE_OPTIONS)[number];
+
+export type IssuePaginationInput = {
+  page: number;
+  pageSize: IssuePageSize;
+};
+
+const firstParamValue = (value?: string | string[] | null) =>
+  Array.isArray(value) ? value[0] : value;
+
+const positiveIntegerParam = (value?: string | string[] | null) => {
+  const text = firstParamValue(value);
+  if (!text) return null;
+  const parsed = Number(text);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
 export const parseSearchParams = (
   searchParams: Record<string, string | string[] | undefined>
 ): IssueFilters => {
@@ -104,4 +124,21 @@ export const hasActiveFilters = (filters: IssueFilters) => {
       filters.projectId
       || filters.assignee
   );
+};
+
+export const parsePaginationParams = (
+  searchParams: Record<string, string | string[] | undefined>
+): IssuePaginationInput => {
+  const requestedPage = positiveIntegerParam(searchParams.page);
+  const requestedPageSize = positiveIntegerParam(searchParams.pageSize);
+  const pageSize = PAGE_SIZE_OPTIONS.includes(
+    requestedPageSize as IssuePageSize
+  )
+    ? (requestedPageSize as IssuePageSize)
+    : DEFAULT_PAGE_SIZE;
+
+  return {
+    page: requestedPage ?? 1,
+    pageSize,
+  };
 };

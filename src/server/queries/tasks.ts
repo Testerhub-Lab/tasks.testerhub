@@ -1,11 +1,16 @@
 import prisma from "../../lib/prisma";
 import { Status, type Prisma } from "@prisma/client";
-import type { IssueFilters } from "../validators/issueFilters";
+import type {
+  IssueFilters,
+  IssuePageSize,
+  IssuePaginationInput,
+} from "../validators/issueFilters";
 import {
   getZeroAllTasks,
   getZeroComments,
   getZeroDeletedTasks,
   getZeroLatestTasks,
+  getZeroPaginatedTasks,
   getZeroTask,
   getZeroTasks,
   usesZeroUiStore,
@@ -38,6 +43,14 @@ export type TaskWithProjectAndReporter = Prisma.TaskGetPayload<{
     assignee: { select: { id: true; name: true; email: true } };
   };
 }>;
+
+export type PaginatedTasks = {
+  items: TaskListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: IssuePageSize;
+  totalPages: number;
+};
 
 export const buildTaskWhere = (
   filters: IssueFilters,
@@ -123,6 +136,48 @@ export async function getTasks(
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function getPaginatedTasks(
+  filters: IssueFilters,
+  pagination: IssuePaginationInput,
+  currentUserId?: string | null,
+  accessibleProjectIds: string[] = []
+): Promise<PaginatedTasks> {
+  const requestedPage = Math.max(1, pagination.page);
+
+  if (usesZeroUiStore()) {
+    return getZeroPaginatedTasks(
+      filters,
+      pagination,
+      currentUserId,
+      accessibleProjectIds
+    ) as Promise<PaginatedTasks>;
+  }
+
+  const where = buildTaskWhere(filters, currentUserId, accessibleProjectIds);
+  const totalCount = await prisma.task.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const items = await prisma.task.findMany({
+    where,
+    include: {
+      project: true,
+      reporter: { select: { id: true, name: true, email: true } },
+      assignee: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * pagination.pageSize,
+    take: pagination.pageSize,
+  });
+
+  return {
+    items,
+    totalCount,
+    page,
+    pageSize: pagination.pageSize,
+    totalPages,
+  };
 }
 
 export async function getLatestTasks(

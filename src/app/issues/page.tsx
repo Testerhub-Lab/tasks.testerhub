@@ -1,8 +1,9 @@
 import Link from "next/link";
 import IssueRow from "../../components/issues/IssueRow";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
+import IssuePagination from "../../components/issues/IssuePagination";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
-import { getTasks } from "../../server/queries/tasks";
+import { getPaginatedTasks } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
@@ -10,6 +11,7 @@ import { getAccessibleProjectIds } from "../../server/auth/access";
 import { redirect } from "next/navigation";
 import {
   hasActiveFilters,
+  parsePaginationParams,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import Card from "../../components/ui/Card";
@@ -21,13 +23,20 @@ interface IssuesPageProps {
 const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
+  const paginationInput = parsePaginationParams(resolvedSearchParams);
 
   const user = await getCurrentUser();
   if (!user) redirect("/signin?redirect=/issues");
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/issues");
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
-  const tasks = await getTasks(filters, user.id, accessibleProjectIds);
+  const paginated = await getPaginatedTasks(
+    filters,
+    paginationInput,
+    user.id,
+    accessibleProjectIds
+  );
+  const tasks = paginated.items;
   const projects = await getProjects(workspaceId, user);
   const isFiltered = hasActiveFilters(filters);
 
@@ -67,24 +76,34 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
           </div>
         </Card>
       ) : (
-        <Card variant="surface" className="overflow-hidden rounded-2xl p-0">
-          {tasks.map((task) => (
-            <IssueRow
-              key={task.id}
-              id={task.id}
-              title={task.title}
-              issueKey={task.key}
-              type={task.type}
-              priority={task.priority}     // <-- напрямую Prisma enum
-              status={task.status}         // <-- напрямую Prisma enum
-              description={task.description}
-              createdAt={task.createdAt}
-              reporter={task.reporter}
-              requesterName={task.requesterName}
-              href={`/tasks/${task.key ?? task.id}`}
-            />
-          ))}
-        </Card>
+        <>
+          <Card variant="surface" className="overflow-hidden rounded-2xl p-0">
+            {tasks.map((task) => (
+              <IssueRow
+                key={task.id}
+                id={task.id}
+                title={task.title}
+                issueKey={task.key}
+                type={task.type}
+                priority={task.priority}     // <-- напрямую Prisma enum
+                status={task.status}         // <-- напрямую Prisma enum
+                description={task.description}
+                createdAt={task.createdAt}
+                reporter={task.reporter}
+                requesterName={task.requesterName}
+                href={`/tasks/${task.key ?? task.id}`}
+              />
+            ))}
+          </Card>
+          <IssuePagination
+            basePath="/issues"
+            page={paginated.page}
+            pageSize={paginated.pageSize}
+            totalCount={paginated.totalCount}
+            totalPages={paginated.totalPages}
+            itemCount={tasks.length}
+          />
+        </>
       )}
     </div>
   );

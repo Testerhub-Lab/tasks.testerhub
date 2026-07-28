@@ -128,6 +128,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
       debounceRef.current = setTimeout(() => {
         const params = getLatestParams();
+        params.delete("page");
 
         const applyArray = (key: string, values?: string[]) => {
           if (!values || values.length === 0) {
@@ -169,7 +170,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const clearFilters = () => {
     startTransition(() => {
-      router.replace(basePath, { scroll: false });
+      const params = getLatestParams();
+      const pageSize = params.get("pageSize");
+      const query = pageSize ? `?pageSize=${encodeURIComponent(pageSize)}` : "";
+      router.replace(`${basePath}${query}`, { scroll: false });
     });
   };
 
