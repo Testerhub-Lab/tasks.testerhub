@@ -19,8 +19,9 @@ services:
     shm_size: 256mb
     volumes:
       - postgres-data:/var/lib/postgresql
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/init/001-app-role.sh:/docker-entrypoint-initdb.d/001-app-role.sh:ro
       - ../zero-stage2/schema.sql:/docker-entrypoint-initdb.d/002-zero-schema.sql:ro
+      - ./postgres/init/003-app-grants.sql:/docker-entrypoint-initdb.d/003-app-grants.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar"]
       interval: 5s
