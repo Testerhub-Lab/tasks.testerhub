@@ -108,3 +108,33 @@ On 2026-07-28 the production importer was also rehearsed against a restored
 production snapshot. Dry-run rollback and committed import both preserved the
 expected counts: 2 users, 3 non-empty workspaces, 3 projects, 23 issues,
 20 comments, 3 Wiki pages, 21 revisions, 18 issue/Wiki links, and 1 API token.
+
+## Completed production cutover — 2026-07-28
+
+Production now runs the `pulsar-prod` Compose project with PostgreSQL 18.4,
+the Zero-backed web application, and Zero Cache 1.8.0. Nginx exposes Zero under
+`/zero-cache/`; the application remains on the existing domain and port, and
+the UI design was not changed.
+
+The accepted final legacy backup is:
+
+- server: `/home/deploy/pulsar-cutover-backups/pulsar-legacy-final-20260728T115510Z.dump`;
+- off-server: `C:\Users\strat\Documents\Pulsar Backups\2026-07-28\pulsar-legacy-final-20260728T115510Z.dump`;
+- SHA-256: `9de99ec3c441605e335abc2e2bf65b89a88ca727b7b2bdf0bdc5420a655fd264`.
+
+A disposable PostgreSQL 14 restore verified 2 users, 4 legacy workspaces,
+3 projects, 23 issues, 20 comments, 3 Wiki pages, 21 revisions, 18 Wiki links,
+and 1 API token. The production import intentionally omitted the empty legacy
+workspace and preserved all other counts. The migrated API token continued to
+work through REST and the stdio MCP server.
+
+Production smoke covered password login/session, issues, Wiki, settings, trash,
+REST, MCP, public Zero keepalive, active logical replication with zero-byte WAL
+lag, and a real FirstVDS S3 CORS → PUT → confirm → list → download round trip.
+The S3 smoke attachment is recorded on `PULSAR-17`.
+
+The stopped `tasks-web-1` container and the legacy PostgreSQL database remain
+available as the rollback source during stabilization. Do not remove either
+until the stabilization window is explicitly closed. The generated
+administrator credential remains only in
+`/home/deploy/.config/pulsar/cutover-admin.env` with mode 600.
