@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOARD_COLUMN_LIMIT_DEFAULT,
+  BOARD_COLUMN_LIMIT_MAX,
   DEFAULT_PAGE_SIZE,
+  parseBoardColumnLimitParams,
   parsePaginationParams,
 } from "./issueFilters";
 
@@ -26,6 +29,33 @@ describe("issue pagination search params", () => {
     expect(parsePaginationParams({ page: "0", pageSize: "100" })).toEqual({
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE,
+    });
+  });
+});
+
+describe("board column limit search params", () => {
+  it("uses the default limit for every board column", () => {
+    expect(parseBoardColumnLimitParams({})).toEqual({
+      TODO: BOARD_COLUMN_LIMIT_DEFAULT,
+      IN_PROGRESS: BOARD_COLUMN_LIMIT_DEFAULT,
+      TESTING: BOARD_COLUMN_LIMIT_DEFAULT,
+      DONE: BOARD_COLUMN_LIMIT_DEFAULT,
+    });
+  });
+
+  it("reads independent column limits and clamps them to the supported range", () => {
+    expect(
+      parseBoardColumnLimitParams({
+        todoLimit: "40",
+        inProgressLimit: "10",
+        testingLimit: "500",
+        doneLimit: "abc",
+      })
+    ).toEqual({
+      TODO: 40,
+      IN_PROGRESS: BOARD_COLUMN_LIMIT_DEFAULT,
+      TESTING: BOARD_COLUMN_LIMIT_MAX,
+      DONE: BOARD_COLUMN_LIMIT_DEFAULT,
     });
   });
 });

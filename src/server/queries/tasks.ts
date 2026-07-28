@@ -1,6 +1,8 @@
 import prisma from "../../lib/prisma";
 import { Status, type Prisma } from "@prisma/client";
 import type {
+  BoardColumnLimits,
+  BoardColumnStatus,
   IssueFilters,
   IssuePageSize,
   IssuePaginationInput,
@@ -10,6 +12,7 @@ import {
   getZeroComments,
   getZeroDeletedTasks,
   getZeroLatestTasks,
+  getZeroBoardTaskColumns,
   getZeroPaginatedTasks,
   getZeroTask,
   getZeroTasks,
@@ -18,11 +21,11 @@ import {
 
 // Board никогда не показывает NEW
 const BOARD_STATUSES = [
-  Status.TODO,
-  Status.IN_PROGRESS,
-  Status.TESTING,
-  Status.DONE,
-] as const;
+  "TODO",
+  "IN_PROGRESS",
+  "TESTING",
+  "DONE",
+] as const satisfies readonly BoardColumnStatus[];
 
 export type TaskWithProject = Prisma.TaskGetPayload<{
   include: { project: true };
@@ -50,6 +53,14 @@ export type PaginatedTasks = {
   page: number;
   pageSize: IssuePageSize;
   totalPages: number;
+};
+
+export type BoardTaskColumn = {
+  status: BoardColumnStatus;
+  items: TaskListItem[];
+  totalCount: number;
+  limit: number;
+  hasMore: boolean;
 };
 
 export const buildTaskWhere = (
@@ -178,6 +189,63 @@ export async function getPaginatedTasks(
     pageSize: pagination.pageSize,
     totalPages,
   };
+}
+
+export async function getBoardTaskColumns(
+  filters: IssueFilters,
+  limits: BoardColumnLimits,
+  currentUserId?: string | null,
+  accessibleProjectIds: string[] = []
+): Promise<BoardTaskColumn[]> {
+  const queryFilters: IssueFilters = {
+    ...filters,
+    view: "board",
+  };
+
+  if (usesZeroUiStore()) {
+    return getZeroBoardTaskColumns(
+      queryFilters,
+      limits,
+      currentUserId,
+      accessibleProjectIds
+    ) as Promise<BoardTaskColumn[]>;
+  }
+
+  const baseWhere = buildTaskWhere(
+    queryFilters,
+    currentUserId,
+    accessibleProjectIds
+  );
+
+  return Promise.all(
+    BOARD_STATUSES.map(async (status) => {
+      const where: Prisma.TaskWhereInput = {
+        ...baseWhere,
+        status,
+      };
+      const [totalCount, items] = await Promise.all([
+        prisma.task.count({ where }),
+        prisma.task.findMany({
+          where,
+          include: {
+            project: true,
+            reporter: { select: { id: true, name: true, email: true } },
+            assignee: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: limits[status],
+        }),
+      ]);
+
+      return {
+        status,
+        items,
+        totalCount,
+        limit: limits[status],
+        hasMore: totalCount > items.length,
+      };
+    })
+  );
 }
 
 export async function getLatestTasks(

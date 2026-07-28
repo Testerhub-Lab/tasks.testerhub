@@ -2,7 +2,7 @@ import Link from "next/link";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import BoardClient from "../../components/board/BoardClient";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
-import { getTasks } from "../../server/queries/tasks";
+import { getBoardTaskColumns } from "../../server/queries/tasks";
 import { getProjects } from "../../server/queries/projects";
 import { getUsersForAssignee } from "../../server/queries/users";
 import { getCurrentUser } from "../../server/auth/session";
@@ -10,17 +10,41 @@ import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
 import { redirect } from "next/navigation";
 import {
+  BOARD_COLUMN_LIMIT_DEFAULT,
+  BOARD_COLUMN_LIMIT_MAX,
+  BOARD_COLUMN_LIMIT_PARAM,
   hasActiveFilters,
+  parseBoardColumnLimitParams,
   parseSearchParams,
+  type BoardColumnStatus,
 } from "../../server/validators/issueFilters";
 
 interface BoardPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+function boardColumnLimitHref(
+  searchParams: Record<string, string | string[] | undefined>,
+  status: BoardColumnStatus,
+  nextLimit: number
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (value) {
+      params.set(key, value);
+    }
+  }
+  params.set(BOARD_COLUMN_LIMIT_PARAM[status], String(nextLimit));
+  const query = params.toString();
+  return query ? `/board?${query}` : "/board";
+}
+
 const BoardPage = async ({ searchParams }: BoardPageProps) => {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchParams(resolvedSearchParams);
+  const boardColumnLimits = parseBoardColumnLimitParams(resolvedSearchParams);
 
   type Filters = ReturnType<typeof parseSearchParams>;
 
@@ -34,10 +58,16 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/board");
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
-  const [tasks, users] = await Promise.all([
-    getTasks(queryFilters, user.id, accessibleProjectIds),
+  const [boardColumns, users] = await Promise.all([
+    getBoardTaskColumns(
+      queryFilters,
+      boardColumnLimits,
+      user.id,
+      accessibleProjectIds
+    ),
     getUsersForAssignee(workspaceId, accessibleProjectIds),
   ]);
+  const tasks = boardColumns.flatMap((column) => column.items);
   const projects = await getProjects(workspaceId, user);
   const isFiltered = hasActiveFilters(filters);
 
@@ -78,6 +108,22 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
       ) : (
         <BoardClient
           tasks={tasks}
+          columns={boardColumns.map((column) => ({
+            status: column.status,
+            totalCount: column.totalCount,
+            hasMore: column.hasMore,
+            loadMoreHref:
+              column.hasMore && column.limit < BOARD_COLUMN_LIMIT_MAX
+              ? boardColumnLimitHref(
+                  resolvedSearchParams,
+                  column.status,
+                  Math.min(
+                    column.limit + BOARD_COLUMN_LIMIT_DEFAULT,
+                    BOARD_COLUMN_LIMIT_MAX
+                  )
+                )
+              : null,
+          }))}
           users={users}
           boardId={filters.projectId ?? null}
           editableProjectIds={projects

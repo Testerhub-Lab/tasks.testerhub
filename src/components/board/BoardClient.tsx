@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -22,6 +23,7 @@ import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import type { RealtimeEvent } from "@/types/realtime";
 
 type Status = TaskStatus;
+type BoardColumnStatus = "TODO" | "IN_PROGRESS" | "TESTING" | "DONE";
 
 type BoardTask = {
   id: string;
@@ -45,8 +47,16 @@ const columns: { status: Status; title: string }[] = [
   { status: "DONE", title: "Done" },
 ];
 
+type BoardColumnMeta = {
+  status: BoardColumnStatus;
+  totalCount: number;
+  hasMore: boolean;
+  loadMoreHref: string | null;
+};
+
 interface BoardClientProps {
   tasks: BoardTask[];
+  columns: BoardColumnMeta[];
   users: UserOption[];
   boardId?: string | null;
   editableProjectIds?: string[];
@@ -54,6 +64,7 @@ interface BoardClientProps {
 
 const BoardClient: React.FC<BoardClientProps> = ({
   tasks,
+  columns: columnMeta,
   users,
   boardId = null,
   editableProjectIds = [],
@@ -259,6 +270,10 @@ const BoardClient: React.FC<BoardClientProps> = ({
     for (const t of items) map[t.status]?.push(t);
     return map;
   }, [items]);
+  const columnMetaByStatus = useMemo(
+    () => new Map(columnMeta.map((column) => [column.status, column])),
+    [columnMeta]
+  );
 
   const dndSignature = useMemo(
     () =>
@@ -368,7 +383,10 @@ const BoardClient: React.FC<BoardClientProps> = ({
           key={column.status}
           status={column.status}
           title={column.title}
-          count={grouped[column.status]?.length ?? 0}
+          count={
+            columnMetaByStatus.get(column.status as BoardColumnStatus)
+              ?.totalCount ?? grouped[column.status]?.length ?? 0
+          }
           disabled={!isMounted}
         >
           {grouped[column.status]?.map((task) =>
@@ -404,6 +422,22 @@ const BoardClient: React.FC<BoardClientProps> = ({
               />
             )
           )}
+          {(() => {
+            const meta = columnMetaByStatus.get(
+              column.status as BoardColumnStatus
+            );
+            if (!meta?.hasMore || !meta.loadMoreHref) return null;
+            const loadedCount = grouped[column.status]?.length ?? 0;
+            return (
+              <Link
+                href={meta.loadMoreHref}
+                scroll={false}
+                className="block rounded-md border border-white/10 px-3 py-2 text-center text-[11px] text-white/60 transition-colors hover:bg-white/5 hover:text-white/80"
+              >
+                Load more · {loadedCount} of {meta.totalCount}
+              </Link>
+            );
+          })()}
         </BoardColumn>
       ))}
     </div>

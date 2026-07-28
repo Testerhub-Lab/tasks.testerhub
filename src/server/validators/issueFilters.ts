@@ -37,12 +37,30 @@ export type IssueFilterPriority = TaskPriority;
 
 export const PAGE_SIZE_OPTIONS = [10, 15, 20, 50] as const;
 export const DEFAULT_PAGE_SIZE = 20;
+export const BOARD_COLUMN_STATUSES = [
+  "TODO",
+  "IN_PROGRESS",
+  "TESTING",
+  "DONE",
+] as const;
+export const BOARD_COLUMN_LIMIT_DEFAULT = 20;
+export const BOARD_COLUMN_LIMIT_MAX = 50;
 
 export type IssuePageSize = (typeof PAGE_SIZE_OPTIONS)[number];
+export type BoardColumnStatus = (typeof BOARD_COLUMN_STATUSES)[number];
 
 export type IssuePaginationInput = {
   page: number;
   pageSize: IssuePageSize;
+};
+
+export type BoardColumnLimits = Record<BoardColumnStatus, number>;
+
+export const BOARD_COLUMN_LIMIT_PARAM: Record<BoardColumnStatus, string> = {
+  TODO: "todoLimit",
+  IN_PROGRESS: "inProgressLimit",
+  TESTING: "testingLimit",
+  DONE: "doneLimit",
 };
 
 const firstParamValue = (value?: string | string[] | null) =>
@@ -141,4 +159,22 @@ export const parsePaginationParams = (
     page: requestedPage ?? 1,
     pageSize,
   };
+};
+
+export const parseBoardColumnLimitParams = (
+  searchParams: Record<string, string | string[] | undefined>
+): BoardColumnLimits => {
+  const limits = {} as BoardColumnLimits;
+  for (const status of BOARD_COLUMN_STATUSES) {
+    const requested = positiveIntegerParam(
+      searchParams[BOARD_COLUMN_LIMIT_PARAM[status]]
+    );
+    limits[status] = requested
+      ? Math.min(
+          Math.max(requested, BOARD_COLUMN_LIMIT_DEFAULT),
+          BOARD_COLUMN_LIMIT_MAX
+        )
+      : BOARD_COLUMN_LIMIT_DEFAULT;
+  }
+  return limits;
 };
