@@ -32,6 +32,7 @@ services:
       - postgres-data:/var/lib/postgresql
       - ./init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
       - ../zero-stage2/schema.sql:/docker-entrypoint-initdb.d/002-stage2-schema.sql:ro
+      - ../zero-cutover/verify-legacy-backup.sh:/opt/pulsar/verify-legacy-backup.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pulsar_zero -d pulsar_zero"]
       interval: 5s

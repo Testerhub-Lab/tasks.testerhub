@@ -23,6 +23,8 @@ The production-gate evidence and restrictions are recorded in
 [PRODUCTION_GATE.md](./PRODUCTION_GATE.md). The application model and
 permission boundary are described in
 [../zero-stage2/README.md](../zero-stage2/README.md).
+The isolated Stage 5 rehearsal and its GO/NO-GO checklist are described in
+[../zero-cutover/README.md](../zero-cutover/README.md).
 
 Copy `.env.example` to `.env`, replace every placeholder, then run with a fresh
 Compose project so the clean Stage 2 schema is initialized:
