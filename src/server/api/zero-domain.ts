@@ -5,11 +5,11 @@ import {
   getZeroPool,
   withZeroTransaction,
   type ZeroTransaction,
-} from "@/zero/db";
-import { zeroMutators } from "@/zero/mutators";
-import { zeroQueries } from "@/zero/queries";
-import { issueKey, rankAfter } from "@/zero/stage3";
-import type { WorkflowCategory, WorkspaceRole } from "@/zero/schema";
+} from "../../zero/db";
+import { zeroMutators } from "../../zero/mutators";
+import { zeroQueries } from "../../zero/queries";
+import { issueKey, rankAfter } from "../../zero/stage3";
+import type { WorkflowCategory, WorkspaceRole } from "../../zero/schema";
 import type { ApiActor } from "./auth";
 import { ApiError } from "./errors";
 import { findIssueCandidateIDs } from "./issue-search";
@@ -26,6 +26,7 @@ type CreateIssueInput = z.infer<typeof createIssueApiSchema>;
 type UpdateIssueInput = z.infer<typeof updateIssueApiSchema>;
 type AddCommentInput = z.infer<typeof addCommentApiSchema>;
 type ApiIssueStatus = z.infer<typeof issueStatusSchema>;
+type QueryResultRows<T> = { rows: T[] } | Iterable<T>;
 
 const statusCategory: Record<ApiIssueStatus, WorkflowCategory> = {
   NEW: "BACKLOG",
@@ -80,6 +81,11 @@ function publicUser(
 
 function iso(value: number) {
   return new Date(value).toISOString();
+}
+
+function firstQueryRow<T>(result: QueryResultRows<T>) {
+  if ("rows" in result) return result.rows[0];
+  return [...result][0];
 }
 
 function asApiError(error: unknown): never {
@@ -148,6 +154,45 @@ export async function requireApiProjectByKey(
     throw new ApiError(404, "project_not_found", "Проект не найден");
   }
   return match;
+}
+
+export async function nextIssueRankForState(
+  tx: ZeroTransaction,
+  input: { projectID: string; stateID: string }
+) {
+  if (tx.location === "server") {
+    await tx.dbTransaction.query(
+      `SELECT id
+       FROM projects
+       WHERE id = $1
+       FOR UPDATE`,
+      [input.projectID]
+    );
+    const result = await tx.dbTransaction.query(
+      `SELECT rank
+       FROM issues
+       WHERE project_id = $1
+         AND state_id = $2
+         AND archived_at IS NULL
+       ORDER BY rank DESC
+       LIMIT 1`,
+      [input.projectID, input.stateID]
+    );
+    const row = firstQueryRow(result as QueryResultRows<{ rank: string }>);
+    return rankAfter(row?.rank ? [row.rank] : []);
+  }
+
+  const result = await getZeroPool().query<{ rank: string }>(
+    `SELECT rank
+     FROM issues
+     WHERE project_id = $1
+       AND state_id = $2
+       AND archived_at IS NULL
+     ORDER BY rank DESC
+     LIMIT 1`,
+    [input.projectID, input.stateID]
+  );
+  return rankAfter(result.rows[0]?.rank ? [result.rows[0].rank] : []);
 }
 
 export async function requireApiIssueByKey(userID: string, key: string) {
@@ -484,17 +529,14 @@ export async function createApiIssue(
   const project = await requireApiProjectByKey(user.id, input.projectKey);
   const states = await workflowStates(user.id, project.project.workflowID);
   const state = stateForStatus(states, "NEW");
-  const issues = await getZeroDatabase().run(
-    zeroQueries.issues.byProject.fn({
-      args: { projectID: project.project.id },
-      ctx: { userID: user.id },
-    })
-  );
-  const stateIssues = issues.filter((issue) => issue.stateID === state.id);
   const id = randomUUID();
 
   try {
     return await withZeroTransaction(transaction, async (tx) => {
+      const rank = await nextIssueRankForState(tx, {
+        projectID: project.project.id,
+        stateID: state.id,
+      });
       await zeroMutators.issues.create.fn({
         args: {
           id,
@@ -504,7 +546,7 @@ export async function createApiIssue(
           description: input.description,
           type: input.type,
           priority: input.priority,
-          rank: rankAfter(stateIssues.map((issue) => issue.rank)),
+          rank,
         },
         ctx: { userID: user.id },
         tx,
