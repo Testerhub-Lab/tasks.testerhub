@@ -47,6 +47,7 @@ services:
     environment:
       DATABASE_URL: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_app
       ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${POSTGRES_PASSWORD}@postgres:5432/pulsar_zero
+      PULSAR_AUTH_STORE: zero
       NEXT_PUBLIC_ZERO_CACHE_URL: ${NEXT_PUBLIC_ZERO_CACHE_URL:-http://localhost:4848}
       COOKIE_SAMESITE: lax
       S3_ENDPOINT: http://s3:9000

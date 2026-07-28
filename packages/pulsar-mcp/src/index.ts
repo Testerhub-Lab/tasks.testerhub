@@ -6,6 +6,7 @@ import {
   createPulsarClientFromEnv,
   PulsarApiError,
 } from "./client.js";
+import { resourceIDSchema } from "./schemas.js";
 
 const client = createPulsarClientFromEnv();
 
@@ -110,7 +111,7 @@ server.registerTool(
     description:
       "Create a project in a workspace using its default workflow.",
     inputSchema: z.object({
-      workspaceId: z.uuid(),
+      workspaceId: resourceIDSchema,
       key: z
         .string()
         .min(2)
@@ -322,7 +323,7 @@ server.registerTool(
     description:
       "Read one Wiki page with Markdown, version metadata and revision history.",
     inputSchema: z.object({
-      pageId: z.uuid(),
+      pageId: resourceIDSchema,
     }),
     annotations: readAnnotations,
   },
@@ -342,7 +343,7 @@ server.registerTool(
       projectKey: z.string().min(2).max(10),
       title: z.string().min(1).max(160),
       contentMarkdown: z.string().max(200_000).default(""),
-      parentId: z.uuid().nullable().optional(),
+      parentId: resourceIDSchema.nullable().optional(),
     }),
     annotations: writeAnnotations,
   },
@@ -366,7 +367,7 @@ server.registerTool(
     description:
       "Update Markdown or title and create a new revision. Pass expectedVersion after reading the page to prevent overwrites.",
     inputSchema: z.object({
-      pageId: z.uuid(),
+      pageId: resourceIDSchema,
       title: z.string().min(1).max(160).optional(),
       contentMarkdown: z.string().max(200_000).optional(),
       expectedVersion: z.number().int().positive().optional(),
@@ -390,7 +391,7 @@ server.registerTool(
       "Attach a native Wiki page to an issue in the same project.",
     inputSchema: z.object({
       issueKey: z.string().min(3),
-      pageId: z.uuid(),
+      pageId: resourceIDSchema,
     }),
     annotations: {
       ...writeAnnotations,

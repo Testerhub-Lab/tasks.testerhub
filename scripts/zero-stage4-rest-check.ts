@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
@@ -16,7 +16,6 @@ import {
 import { createApiTokenRecord } from "../src/server/api/token-store";
 import { generateApiToken } from "../src/server/api/tokens";
 import { getZeroDatabase, getZeroPool } from "../src/zero/db";
-import { zeroMutators } from "../src/zero/mutators";
 import { DEFAULT_WORKFLOW_STATES } from "../src/zero/stage3";
 
 const baseURL = process.env.STAGE4_BASE_URL ?? "http://localhost:3000";
@@ -121,37 +120,165 @@ async function api<T>(
   return ("data" in payload ? payload.data : payload) as T;
 }
 
-async function createActor(label: string) {
-  const suffix = randomUUID();
-  const user = await prisma.user.create({
-    data: {
-      email: `${label}-${suffix}@stage4.invalid`,
-      name: `Stage 4 ${label}`,
+function responseCookies(response: Response) {
+  return response.headers
+    .getSetCookie()
+    .map((value) => value.split(";", 1)[0])
+    .join("; ");
+}
+
+function cookieValue(cookieHeader: string, name: string) {
+  for (const pair of cookieHeader.split(";")) {
+    const [key, ...value] = pair.trim().split("=");
+    if (key === name) return value.join("=");
+  }
+  return null;
+}
+
+async function authRequest(
+  path: string,
+  input: {
+    body?: unknown;
+    cookie?: string;
+    expectedStatus?: number;
+  } = {}
+) {
+  const response = await fetch(`${baseURL}${path}`, {
+    method: input.body === undefined ? "GET" : "POST",
+    headers: {
+      Accept: "application/json",
+      ...(input.body === undefined
+        ? {}
+        : { "Content-Type": "application/json" }),
+      ...(input.cookie ? { Cookie: input.cookie } : {}),
     },
-    select: { id: true, email: true, name: true },
+    body:
+      input.body === undefined ? undefined : JSON.stringify(input.body),
   });
+  const payload = (await response.json()) as {
+    ok?: boolean;
+    user?: { id?: string; email?: string; name?: string | null };
+  };
+  const expectedStatus = input.expectedStatus ?? 200;
+  if (response.status !== expectedStatus) {
+    throw new Error(
+      `${path}: expected ${expectedStatus}, got ${response.status} ${JSON.stringify(
+        payload
+      )}`
+    );
+  }
+  return { response, payload };
+}
+
+async function registerActor(label: string) {
+  const suffix = randomUUID();
+  const email = `${label}-${suffix}@stage4.invalid`.toLowerCase();
+  const password = `Stage4-${suffix}`;
+  const name = `Stage 4 ${label}`;
+  const registered = await authRequest("/api/auth/register", {
+    body: { email, password, name },
+  });
+  const registeredCookies = responseCookies(registered.response);
+  const workspaceID = cookieValue(registeredCookies, "th_workspace");
+  const registeredToken = cookieValue(registeredCookies, "th_session");
+  if (!workspaceID || !registeredToken) {
+    throw new Error("Register did not return session and workspace cookies");
+  }
+
+  const me = await authRequest("/api/auth/me", {
+    cookie: registeredCookies,
+  });
+  if (me.payload.user?.email !== email || !me.payload.user.id) {
+    throw new Error("Registered Zero session did not resolve the actor");
+  }
+  const userID = me.payload.user.id;
+
+  await authRequest("/api/auth/register", {
+    body: { email, password, name },
+    expectedStatus: 409,
+  });
+  await authRequest("/api/auth/login", {
+    body: { email, password: `${password}-wrong` },
+    expectedStatus: 401,
+  });
+
+  await authRequest("/api/auth/logout", {
+    body: {},
+    cookie: registeredCookies,
+  });
+  await authRequest("/api/auth/me", {
+    cookie: registeredCookies,
+    expectedStatus: 401,
+  });
+
+  const loggedIn = await authRequest("/api/auth/login", {
+    body: { email, password },
+  });
+  const loginCookies = responseCookies(loggedIn.response);
+  const loginToken = cookieValue(loginCookies, "th_session");
+  if (!loginToken || cookieValue(loginCookies, "th_workspace") !== workspaceID) {
+    throw new Error("Login did not restore the Zero workspace cookie");
+  }
+
+  await getZeroPool().query(
+    `UPDATE sessions
+     SET expires_at = now() - interval '1 second'
+     WHERE token_hash = $1`,
+    [createHash("sha256").update(loginToken).digest("hex")]
+  );
+  await authRequest("/api/auth/me", {
+    cookie: loginCookies,
+    expectedStatus: 401,
+  });
+
+  const activeLogin = await authRequest("/api/auth/login", {
+    body: { email, password },
+  });
+  const activeCookies = responseCookies(activeLogin.response);
+  if (!cookieValue(activeCookies, "th_session")) {
+    throw new Error("Final login did not create an active session");
+  }
+
+  const authRows = await getZeroPool().query<{
+    identities: string;
+    workspaces: string;
+    workflows: string;
+    states: string;
+  }>(
+    `SELECT
+       (SELECT count(*)::text FROM auth_identities
+        WHERE user_id = $1 AND provider = 'password') AS identities,
+       (SELECT count(*)::text FROM workspace_members
+        WHERE user_id = $1 AND role = 'OWNER') AS workspaces,
+       (SELECT count(*)::text FROM workflows
+        WHERE workspace_id = $2 AND is_default) AS workflows,
+       (SELECT count(*)::text FROM workflow_states
+        WHERE workspace_id = $2) AS states`,
+    [userID, workspaceID]
+  );
+  const auth = authRows.rows[0];
+  if (
+    auth?.identities !== "1" ||
+    auth.workspaces !== "1" ||
+    auth.workflows !== "1" ||
+    Number(auth.states) !== DEFAULT_WORKFLOW_STATES.length
+  ) {
+    throw new Error(`Zero auth bootstrap mismatch: ${JSON.stringify(auth)}`);
+  }
+
+  return {
+    id: userID,
+    email,
+    name,
+    workspaceID,
+    cookie: activeCookies,
+  };
+}
+
+async function createActor(label: string) {
+  const user = await registerActor(label);
   const generated = generateApiToken();
 
-  const workspaceID = randomUUID();
-  const workflowID = randomUUID();
-  await getZeroDatabase().transaction((tx) =>
-    zeroMutators.workspaces.create.fn({
-      args: {
-        id: workspaceID,
-        name: `Stage 4 ${label}`,
-        slug: `stage-4-${label.toLowerCase()}-${suffix.slice(0, 8)}`,
-        displayName: user.name ?? label,
-        workflowID,
-        workflowName: "Default",
-        workflowStates: DEFAULT_WORKFLOW_STATES.map((state) => ({
-          ...state,
-          id: randomUUID(),
-        })),
-      },
-      ctx: { userID: user.id },
-      tx,
-    })
-  );
   const apiToken = await createApiTokenRecord({
     userID: user.id,
     displayName: user.name,
@@ -173,7 +300,6 @@ async function createActor(label: string) {
     ...user,
     token: generated.plainToken,
     tokenID: apiToken.id,
-    workspaceID,
   };
 }
 
@@ -895,12 +1021,31 @@ async function main() {
   ) {
     throw new Error("Legacy application database still has API security tables");
   }
+  const legacyAuthRows = await prisma.$queryRaw<
+    Array<{ users: bigint; sessions: bigint }>
+  >`
+    SELECT
+      (SELECT count(*) FROM "User") AS users,
+      (SELECT count(*) FROM "Session") AS sessions
+  `;
+  if (
+    Number(legacyAuthRows[0]?.users ?? 0) !== 0 ||
+    Number(legacyAuthRows[0]?.sessions ?? 0) !== 0
+  ) {
+    throw new Error("Zero auth gate wrote to the legacy application database");
+  }
 
   console.log(
     JSON.stringify({
       apiAudit: true,
       apiAuditRollbackAtomic: true,
       apiSecuritySingleDatabase: true,
+      authDuplicateDenied: true,
+      authLegacyDatabaseUntouched: true,
+      authLogin: true,
+      authLogoutRevokesSession: true,
+      authPersonalWorkspaceAtomic: true,
+      authSessionExpiry: true,
       attachmentAuditRollbackAtomic: true,
       attachmentDownloadPresigned: true,
       attachmentIdempotencyReplay: true,

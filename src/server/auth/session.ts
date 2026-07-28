@@ -2,6 +2,12 @@ import { cookies, headers } from "next/headers";
 import { createHash, randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { type Role } from "@prisma/client";
+import {
+  createZeroSessionRecord,
+  getZeroSessionUser,
+  revokeZeroSession,
+  usesZeroAuthStore,
+} from "./zero-store";
 
 const COOKIE_NAME = "th_session";
 const AUTH_BLOCKED_COOKIE = "th_auth_blocked";
@@ -82,16 +88,26 @@ export async function createSessionRecord(userId: string, meta: SessionMeta = {}
   const tokenHash = hashToken(token);
   const expiresAt = buildExpiresAt();
 
-  await prisma.session.create({
-    data: {
-      userId,
+  if (usesZeroAuthStore()) {
+    await createZeroSessionRecord({
+      userID: userId,
       tokenHash,
       expiresAt,
-      userAgent: meta.userAgent ?? null,
-      ip: meta.ip ?? null,
-    },
-    select: { id: true },
-  });
+      userAgent: meta.userAgent,
+      ip: meta.ip,
+    });
+  } else {
+    await prisma.session.create({
+      data: {
+        userId,
+        tokenHash,
+        expiresAt,
+        userAgent: meta.userAgent ?? null,
+        ip: meta.ip ?? null,
+      },
+      select: { id: true },
+    });
+  }
 
   return { token, expiresAt };
 }
@@ -108,26 +124,39 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const tokenHash = hashToken(token);
     const now = new Date();
 
-    const session = await prisma.session.findFirst({
-      where: {
-        tokenHash,
-        revokedAt: null,
-        expiresAt: { gt: now },
-      },
-      select: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-            testerHubId: true,
+    if (usesZeroAuthStore()) {
+      const user = await getZeroSessionUser(tokenHash, now);
+      if (user) {
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.displayName,
+          role: "USER",
+          testerHubId: null,
+        };
+      }
+    } else {
+      const session = await prisma.session.findFirst({
+        where: {
+          tokenHash,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        select: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              testerHubId: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (session?.user) return session.user;
+      if (session?.user) return session.user;
+    }
   }
 
   const authBlocked = jar.get(AUTH_BLOCKED_COOKIE)?.value;
@@ -145,10 +174,14 @@ export async function clearSession() {
   const token = jar.get(COOKIE_NAME)?.value;
   if (token) {
     const tokenHash = hashToken(token);
-    await prisma.session.updateMany({
-      where: { tokenHash, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    if (usesZeroAuthStore()) {
+      await revokeZeroSession(tokenHash);
+    } else {
+      await prisma.session.updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
   }
 
   jar.set(COOKIE_NAME, "", {

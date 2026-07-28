@@ -7,8 +7,12 @@ UI were removed; their implementation remains in branch history at commit
 
 - PostgreSQL `18.4` is isolated in a named volume and has no published port.
 - `zero-cache` `1.8.0` and the Next.js app bind only to server loopback.
-- Existing cookie auth stays in `pulsar_app`; Stage 2 data stays in
+- Legacy Prisma tables stay in `pulsar_app`; Stage 2 data stays in
   `pulsar_zero` inside the disposable PostgreSQL container.
+- The isolated app sets `PULSAR_AUTH_STORE=zero`: password identities,
+  session hashes and personal-workspace bootstrap are exercised in
+  `pulsar_zero`. The default remains `legacy` outside this contour until the
+  rehearsed production cutover.
 - A pinned MinIO container provides disposable private S3-compatible storage
   for attachment contract checks. Production FirstVDS S3 is not contacted.
 - Only the explicit `pulsar_zero_data` publication from
@@ -34,6 +38,11 @@ reachable:
 ```bash
 docker compose -p pulsar-zero-stage2 exec app npm run zero:rest:check
 ```
+
+The same gate exercises fresh Zero-backed registration, duplicate rejection,
+login, wrong-password rejection, `me`, logout/revocation and session expiry. It
+also verifies that the legacy `pulsar_app` receives no auth rows and that
+`auth_identities`/`sessions` remain outside the Zero publication.
 
 For a remote VDS, use an SSH tunnel when testing the app and zero-cache:
 

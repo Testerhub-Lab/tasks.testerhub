@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "./session";
 import { getOrCreatePersonalWorkspace } from "../queries/workspaces";
+import {
+  getOrCreateZeroPersonalWorkspace,
+  hasZeroWorkspaceMembership,
+  usesZeroAuthStore,
+} from "./zero-store";
 
 const WORKSPACE_COOKIE = "th_workspace";
 
@@ -16,6 +21,19 @@ export async function getCurrentWorkspaceId(): Promise<string | null> {
   const user = await getCurrentUser();
 
   if (!user) return null;
+
+  if (usesZeroAuthStore()) {
+    if (
+      cookieId &&
+      (await hasZeroWorkspaceMembership(user.id, cookieId))
+    ) {
+      return cookieId;
+    }
+    return getOrCreateZeroPersonalWorkspace({
+      userID: user.id,
+      displayName: user.name,
+    });
+  }
 
   if (cookieId) {
     const membership = await prisma.workspaceMember.findUnique({

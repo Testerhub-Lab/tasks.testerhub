@@ -8,6 +8,11 @@ import {
   getRequestMeta,
   getSessionCookieOptions,
 } from "@/server/auth/session";
+import {
+  registerZeroPasswordUser,
+  usesZeroAuthStore,
+  ZeroAuthIdentityConflictError,
+} from "@/server/auth/zero-store";
 
 export const runtime = "nodejs";
 
@@ -28,53 +33,79 @@ export async function POST(request: Request) {
   const name = parsed.data.name?.trim() || null;
   const passwordHash = await hashPassword(parsed.data.password);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const existing = await tx.user.findUnique({
-      where: { email },
-      select: { id: true, passwordHash: true },
-    });
+  let user: { id: string };
+  let workspaceID: string;
 
-    if (existing?.passwordHash) {
-      return null;
+  if (usesZeroAuthStore()) {
+    try {
+      const registered = await registerZeroPasswordUser({
+        email,
+        passwordHash,
+        displayName: name,
+      });
+      user = { id: registered.id };
+      workspaceID = registered.workspaceID;
+    } catch (error) {
+      if (error instanceof ZeroAuthIdentityConflictError) {
+        return NextResponse.json(
+          { ok: false, error: "Пользователь с таким email уже существует." },
+          { status: 409 }
+        );
+      }
+      throw error;
     }
+  } else {
+    const legacyUser = await prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { email },
+        select: { id: true, passwordHash: true },
+      });
 
-    if (existing) {
-      return tx.user.update({
-        where: { id: existing.id },
+      if (existing?.passwordHash) {
+        return null;
+      }
+
+      if (existing) {
+        return tx.user.update({
+          where: { id: existing.id },
+          data: {
+            passwordHash,
+            name: name ?? undefined,
+          },
+          select: { id: true },
+        });
+      }
+
+      return tx.user.create({
         data: {
+          email,
+          name,
           passwordHash,
-          name: name ?? undefined,
         },
         select: { id: true },
       });
+    });
+
+    if (!legacyUser) {
+      return NextResponse.json(
+        { ok: false, error: "Пользователь с таким email уже существует." },
+        { status: 409 }
+      );
     }
 
-    return tx.user.create({
-      data: {
-        email,
-        name,
-        passwordHash,
-      },
-      select: { id: true },
-    });
-  });
-
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: "Пользователь с таким email уже существует." },
-      { status: 409 }
-    );
+    user = legacyUser;
+    workspaceID = (
+      await getOrCreatePersonalWorkspace({
+        userId: user.id,
+        name: name ? `${name}'s Workspace` : null,
+      })
+    ).id;
   }
-
-  const personalWorkspace = await getOrCreatePersonalWorkspace({
-    userId: user.id,
-    name: name ? `${name}'s Workspace` : null,
-  });
 
   const { token, expiresAt } = await createSessionRecord(user.id, await getRequestMeta());
   const res = NextResponse.json({ ok: true });
   res.cookies.set("th_session", token, getSessionCookieOptions(expiresAt));
-  res.cookies.set("th_workspace", personalWorkspace.id, {
+  res.cookies.set("th_workspace", workspaceID, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

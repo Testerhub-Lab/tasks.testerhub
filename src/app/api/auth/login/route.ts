@@ -8,6 +8,11 @@ import {
   getRequestMeta,
   getSessionCookieOptions,
 } from "@/server/auth/session";
+import {
+  getOrCreateZeroPersonalWorkspace,
+  getZeroPasswordUser,
+  usesZeroAuthStore,
+} from "@/server/auth/zero-store";
 
 export const runtime = "nodejs";
 
@@ -24,10 +29,22 @@ export async function POST(request: Request) {
   }
 
   const email = parsed.data.email.trim().toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, passwordHash: true },
-  });
+  const zeroUser = usesZeroAuthStore()
+    ? await getZeroPasswordUser(email)
+    : null;
+  const legacyUser = usesZeroAuthStore()
+    ? null
+    : await prisma.user.findUnique({
+        where: { email },
+        select: { id: true, passwordHash: true, name: true },
+      });
+  const user = zeroUser
+    ? {
+        id: zeroUser.id,
+        passwordHash: zeroUser.passwordHash,
+        name: zeroUser.displayName,
+      }
+    : legacyUser;
 
   if (!user?.passwordHash) {
     return NextResponse.json({ ok: false, error: "Неверный email или пароль." }, { status: 401 });
@@ -38,19 +55,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Неверный email или пароль." }, { status: 401 });
   }
 
-  const profile = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { name: true },
-  });
-  const personalWorkspace = await getOrCreatePersonalWorkspace({
-    userId: user.id,
-    name: profile?.name ? `${profile.name}'s Workspace` : null,
-  });
+  const workspaceID = usesZeroAuthStore()
+    ? await getOrCreateZeroPersonalWorkspace({
+        userID: user.id,
+        displayName: user.name,
+      })
+    : (
+        await getOrCreatePersonalWorkspace({
+          userId: user.id,
+          name: user.name ? `${user.name}'s Workspace` : null,
+        })
+      ).id;
 
   const { token, expiresAt } = await createSessionRecord(user.id, await getRequestMeta());
   const res = NextResponse.json({ ok: true });
   res.cookies.set("th_session", token, getSessionCookieOptions(expiresAt));
-  res.cookies.set("th_workspace", personalWorkspace.id, {
+  res.cookies.set("th_workspace", workspaceID, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

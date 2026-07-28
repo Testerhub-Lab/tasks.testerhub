@@ -33,6 +33,14 @@ metadata and actual size with `HEAD`, then performs an S3-side copy under
 PostgreSQL/Zero. The public Zero mutator no longer accepts arbitrary object
 keys.
 
+Email/password identities and session records use the server-only
+`auth_identities` and `sessions` tables when `PULSAR_AUTH_STORE=zero`.
+Registration creates the user, password identity, owner membership, personal
+workspace and default workflow in one PostgreSQL transaction. Login preserves
+the existing `th_session` and `th_workspace` cookie contract; logout revokes
+the stored session hash. The switch is opt-in until the rehearsed production
+cutover, so merging the code does not redirect current production auth.
+
 Before production cutover, create a dedicated private bucket and credentials,
 block public access, and apply the provider equivalents of
 [`s3-cors.example.json`](./s3-cors.example.json) and
@@ -46,6 +54,8 @@ the server environment.
 - Every application query is a named query and adds a `workspace_members`
   existence check using the authenticated `ctx.userID`.
 - Legacy/raw queries and CRUD mutations are disabled in the Zero schema.
+- Password hashes, session hashes, request IP/user-agent metadata and API token
+  secrets are server-only and absent from the Zero schema/publication.
 - `VIEWER` is read-only; `MEMBER` can change issues, comments, Wiki pages and
   links and tags. Attachment metadata can only be registered by the server
   after an S3 verification; `ADMIN` manages workflows and projects; only
