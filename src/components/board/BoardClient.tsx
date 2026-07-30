@@ -40,12 +40,19 @@ type BoardTask = {
   requesterName: string | null;
 };
 
-const columns: { status: Status; title: string }[] = [
+const columns: { status: BoardColumnStatus; title: string }[] = [
   { status: "TODO", title: "Todo" },
   { status: "IN_PROGRESS", title: "In progress" },
   { status: "TESTING", title: "Testing" },
   { status: "DONE", title: "Done" },
 ];
+
+const hiddenColumnTone: Record<BoardColumnStatus, string> = {
+  TODO: "border-white/35",
+  IN_PROGRESS: "border-amber-400",
+  TESTING: "border-cyan-400",
+  DONE: "border-emerald-400",
+};
 
 type BoardColumnMeta = {
   status: BoardColumnStatus;
@@ -81,6 +88,9 @@ const BoardClient: React.FC<BoardClientProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savingAssignee, setSavingAssignee] = useState<string | null>(null);
   const [dndSyncKey, setDndSyncKey] = useState(0);
+  const [revealedEmptyStatuses, setRevealedEmptyStatuses] = useState<
+    BoardColumnStatus[]
+  >([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -274,6 +284,52 @@ const BoardClient: React.FC<BoardClientProps> = ({
     () => new Map(columnMeta.map((column) => [column.status, column])),
     [columnMeta]
   );
+  const columnView = useMemo(
+    () =>
+      columns.map((column) => {
+        const loadedCount = grouped[column.status]?.length ?? 0;
+        const totalCount =
+          columnMetaByStatus.get(column.status)?.totalCount ?? loadedCount;
+        return {
+          ...column,
+          count: Math.max(totalCount, loadedCount),
+        };
+      }),
+    [columnMetaByStatus, grouped]
+  );
+  const visibleColumns = useMemo(
+    () =>
+      columnView.filter(
+        (column) =>
+          isDragging ||
+          column.count > 0 ||
+          revealedEmptyStatuses.includes(column.status)
+      ),
+    [columnView, isDragging, revealedEmptyStatuses]
+  );
+  const hiddenColumns = useMemo(
+    () =>
+      isDragging
+        ? []
+        : columnView.filter(
+            (column) =>
+              column.count === 0 &&
+              !revealedEmptyStatuses.includes(column.status)
+          ),
+    [columnView, isDragging, revealedEmptyStatuses]
+  );
+
+  const revealEmptyColumn = React.useCallback((status: BoardColumnStatus) => {
+    setRevealedEmptyStatuses((current) =>
+      current.includes(status) ? current : [...current, status]
+    );
+  }, []);
+
+  const hideEmptyColumn = React.useCallback((status: BoardColumnStatus) => {
+    setRevealedEmptyStatuses((current) =>
+      current.filter((item) => item !== status)
+    );
+  }, []);
 
   const dndSignature = useMemo(
     () =>
@@ -377,69 +433,107 @@ const BoardClient: React.FC<BoardClientProps> = ({
   };
 
   const columnsMarkup = (
-    <div className="grid gap-2 lg:grid-cols-4">
-      {columns.map((column) => (
-        <BoardColumn
-          key={column.status}
-          status={column.status}
-          title={column.title}
-          count={
-            columnMetaByStatus.get(column.status as BoardColumnStatus)
-              ?.totalCount ?? grouped[column.status]?.length ?? 0
-          }
-          disabled={!isMounted}
-        >
-          {grouped[column.status]?.map((task) =>
-            isMounted ? (
-              <DraggableIssueCard
-                key={task.id}
-                task={task}
-                isSaving={savingMove?.id === task.id}
-                users={users}
-                onAssigneeChange={handleAssigneeChange}
-                isSavingAssignee={savingAssignee === task.id}
-                canEdit={editableProjectIdSet.has(task.projectId)}
-              />
-            ) : (
-              <IssueCard
-                key={task.id}
-                issueKey={task.key ?? undefined}
-                title={task.title}
-                type={task.type ?? null}
-                description={task.description}
-                priority={task.priority}
-                status={task.status}
-                createdAt={task.createdAt ?? null}
-                assignee={task.assignee}
-                reporter={task.reporter}
-                requesterName={task.requesterName}
-                users={users}
-                onAssigneeChange={(assigneeId) =>
-                  handleAssigneeChange(task.id, assigneeId)
-                }
-                isSavingAssignee={savingAssignee === task.id}
-                canEdit={editableProjectIdSet.has(task.projectId)}
-              />
-            )
-          )}
-          {(() => {
-            const meta = columnMetaByStatus.get(
-              column.status as BoardColumnStatus
-            );
-            if (!meta?.hasMore || !meta.loadMoreHref) return null;
-            const loadedCount = grouped[column.status]?.length ?? 0;
-            return (
-              <Link
-                href={meta.loadMoreHref}
-                scroll={false}
-                className="block rounded-md border border-white/10 px-3 py-2 text-center text-[11px] text-white/60 transition-colors hover:bg-white/5 hover:text-white/80"
-              >
-                Load more · {loadedCount} of {meta.totalCount}
-              </Link>
-            );
-          })()}
-        </BoardColumn>
+    <div className="flex items-start gap-3 overflow-x-auto pb-3">
+      {visibleColumns.map((column) => (
+        <div key={column.status} className="w-[328px] shrink-0">
+          <BoardColumn
+            status={column.status}
+            title={column.title}
+            count={column.count}
+            disabled={!isMounted}
+            onHide={
+              !isDragging &&
+              column.count === 0 &&
+              revealedEmptyStatuses.includes(column.status)
+                ? () => hideEmptyColumn(column.status)
+                : undefined
+            }
+          >
+            {grouped[column.status]?.map((task) =>
+              isMounted ? (
+                <DraggableIssueCard
+                  key={task.id}
+                  task={task}
+                  isSaving={savingMove?.id === task.id}
+                  users={users}
+                  onAssigneeChange={handleAssigneeChange}
+                  isSavingAssignee={savingAssignee === task.id}
+                  canEdit={editableProjectIdSet.has(task.projectId)}
+                />
+              ) : (
+                <IssueCard
+                  key={task.id}
+                  issueKey={task.key ?? undefined}
+                  title={task.title}
+                  type={task.type ?? null}
+                  description={task.description}
+                  priority={task.priority}
+                  status={task.status}
+                  createdAt={task.createdAt ?? null}
+                  assignee={task.assignee}
+                  reporter={task.reporter}
+                  requesterName={task.requesterName}
+                  users={users}
+                  onAssigneeChange={(assigneeId) =>
+                    handleAssigneeChange(task.id, assigneeId)
+                  }
+                  isSavingAssignee={savingAssignee === task.id}
+                  canEdit={editableProjectIdSet.has(task.projectId)}
+                />
+              )
+            )}
+            {(() => {
+              const meta = columnMetaByStatus.get(column.status);
+              if (!meta?.hasMore || !meta.loadMoreHref) return null;
+              const loadedCount = grouped[column.status]?.length ?? 0;
+              return (
+                <Link
+                  href={meta.loadMoreHref}
+                  scroll={false}
+                  className="block rounded-md border border-white/10 px-3 py-2 text-center text-[11px] text-white/60 transition-colors hover:bg-white/5 hover:text-white/80"
+                >
+                  Load more · {loadedCount} of {meta.totalCount}
+                </Link>
+              );
+            })()}
+          </BoardColumn>
+        </div>
       ))}
+
+      {hiddenColumns.length > 0 ? (
+        <aside className="w-[220px] shrink-0 px-1 py-2">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium text-white/55">
+              Hidden columns
+            </span>
+            <span className="text-[11px] text-white/30">
+              {hiddenColumns.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {hiddenColumns.map((column) => (
+              <button
+                key={column.status}
+                type="button"
+                onClick={() => revealEmptyColumn(column.status)}
+                className="flex h-10 w-full items-center gap-2 rounded-md border border-white/[0.07] bg-white/[0.025] px-3 text-left text-xs text-white/70 transition-colors hover:border-white/10 hover:bg-white/[0.045] hover:text-white/90"
+                title={`Show ${column.title} column`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-3 w-3 rounded-full border-2 ${
+                    hiddenColumnTone[column.status]
+                  }`}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {column.title}
+                </span>
+                <span className="text-[11px] text-white/30">0</span>
+              </button>
+            ))}
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 

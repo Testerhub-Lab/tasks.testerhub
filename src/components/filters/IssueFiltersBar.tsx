@@ -49,7 +49,7 @@ interface IssueFiltersBarProps {
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
   density?: "default" | "compact";
-  variant?: "panel" | "toolbar";
+  variant?: "panel" | "toolbar" | "popover";
   showProjectFilter?: "always" | "mobile" | "never";
 }
 
@@ -110,6 +110,8 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const [isOpen, setOpen] = useState(false);
   const [, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const isPopover = variant === "popover";
 
   const currentFilters = useMemo(() => {
     const raw: Record<string, string> = {};
@@ -170,6 +172,25 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!isPopover || !isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && !rootRef.current?.contains(target)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, isPopover]);
+
   const clearFilters = () => {
     startTransition(() => {
       const params = getLatestParams();
@@ -185,7 +206,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     showProjectFilter === "mobile" ? "lg:hidden" : "";
   const isCompact = mode === "compact";
   const isDense = density === "compact";
-  const isToolbar = variant === "toolbar";
+  const isToolbar = variant === "toolbar" || isPopover;
   const controlHeight = isDense ? "h-8" : "h-9";
   const controlRadius = isDense ? "rounded-sm" : "rounded-md";
   const controlText = isDense ? "text-xs" : "text-sm";
@@ -311,7 +332,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   return (
     <div
+      ref={rootRef}
       className={[
+        isPopover ? "relative z-30" : "",
         isToolbar ? "" : wrapperRadius,
         isToolbar ? "" : wrapperPad,
         isToolbar ? "" : "border border-white/5",
@@ -429,13 +452,25 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
       </div>
 
       <div
-        className={`overflow-hidden transition-all duration-200 ${
-          isOpen ? "mt-3 max-h-[420px] opacity-100 pointer-events-auto" : "max-h-0 opacity-0 pointer-events-none"
-        } ${
-          isToolbar && isOpen
-            ? "rounded-md border border-white/8 bg-[rgba(255,255,255,0.025)] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.16)]"
-            : ""
-        }`}
+        className={
+          isPopover
+            ? [
+                "absolute right-0 top-full z-50 mt-2",
+                "w-[620px] max-w-[calc(100vw-2rem)]",
+                "rounded-md border border-white/10 bg-slate-950/95 p-3",
+                "shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl",
+                isOpen ? "block" : "hidden",
+              ].join(" ")
+            : `overflow-hidden transition-all duration-200 ${
+                isOpen
+                  ? "mt-3 max-h-[420px] opacity-100 pointer-events-auto"
+                  : "max-h-0 opacity-0 pointer-events-none"
+              } ${
+                isToolbar && isOpen
+                  ? "rounded-md border border-white/8 bg-[rgba(255,255,255,0.025)] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.16)]"
+                  : ""
+              }`
+        }
       >
         <div className="grid grid-cols-12 gap-4">
           {/* STATUS */}

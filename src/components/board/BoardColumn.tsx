@@ -10,7 +10,15 @@ interface BoardColumnProps {
   count: number;
   children: React.ReactNode;
   disabled?: boolean;
+  onHide?: () => void;
 }
+
+const statusTone: Partial<Record<TaskStatus, string>> = {
+  TODO: "border-white/35",
+  IN_PROGRESS: "border-amber-400",
+  TESTING: "border-cyan-400",
+  DONE: "border-emerald-400",
+};
 
 const BoardColumn: React.FC<BoardColumnProps> = ({
   status,
@@ -18,6 +26,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
   count,
   children,
   disabled = false,
+  onHide,
 }) => {
   const { isOver, setNodeRef } = useDroppable({ id: status, disabled });
 
@@ -25,37 +34,53 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
     <section
       ref={setNodeRef}
       className={[
-        // плоско, без рамок, ближе к Linear
-        "rounded-[8px] p-2.5",
-        "border border-white/5 bg-white/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+        "rounded-[6px] bg-white/[0.012] p-2",
         "transition-colors duration-150",
-        isOver ? "bg-cyan-500/[0.06]" : "",
+        count === 0 ? "min-h-[88px]" : "",
+        isOver ? "bg-cyan-500/[0.07] ring-1 ring-inset ring-cyan-400/20" : "",
       ].join(" ")}
     >
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex min-h-7 items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-white/75 truncate">
+          <span
+            aria-hidden="true"
+            className={`h-3 w-3 shrink-0 rounded-full border-2 ${
+              statusTone[status] ?? "border-white/35"
+            }`}
+          />
+          <h2 className="truncate text-xs font-semibold text-white/80">
             {title}
           </h2>
-          <span className="rounded-[6px] bg-white/[0.10] px-1.5 py-0.5 text-[10px] text-white/60">
+          <span className="text-[11px] text-white/45">
             {count}
           </span>
         </div>
 
-        {isOver ? (
+        {onHide ? (
+          <button
+            type="button"
+            onClick={onHide}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-sm text-white/35 transition-colors hover:bg-white/5 hover:text-white/70"
+            aria-label={`Hide ${title} column`}
+            title="Hide empty column"
+          >
+            ×
+          </button>
+        ) : isOver ? (
           <span className="rounded-[999px] bg-cyan-500/[0.12] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan-100/90">
             Drop
           </span>
         ) : null}
       </div>
 
-      {/* разделитель вместо рамки */}
-      <div className="mb-2 h-px bg-white/10" />
+      <div className="mb-2 h-px bg-white/[0.07]" />
 
       <div className="space-y-2">{children}</div>
 
       {count === 0 ? (
-        <div className="mt-2 text-[11px] text-white/30">Empty</div>
+        <div className="mt-2 text-[11px] text-white/25">
+          {isOver ? "Drop issue here" : "No issues"}
+        </div>
       ) : null}
     </section>
   );

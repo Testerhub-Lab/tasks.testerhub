@@ -68,19 +68,28 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
     getUsersForAssignee(workspaceId, accessibleProjectIds),
   ]);
   const tasks = boardColumns.flatMap((column) => column.items);
+  const totalIssues = boardColumns.reduce(
+    (sum, column) => sum + column.totalCount,
+    0
+  );
   const projects = await getProjects(workspaceId, user);
   const isFiltered = hasActiveFilters(filters);
 
   return (
     <div className="space-y-3">
-      <IssueFiltersBar
-        projects={projects}
-        initialFilters={filters}
-        basePath="/board"
-        density="compact"
-        variant="toolbar"
-        showProjectFilter="mobile"
-      />
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <p className="text-xs font-medium text-white/55">
+          {totalIssues} {totalIssues === 1 ? "issue" : "issues"}
+        </p>
+        <IssueFiltersBar
+          projects={projects}
+          initialFilters={filters}
+          basePath="/board"
+          density="compact"
+          variant="popover"
+          showProjectFilter="mobile"
+        />
+      </div>
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">
           <p className="text-lg text-white">
