@@ -115,7 +115,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
               />
             ) : null}
             {issueKey ? (
-              <span className="truncate whitespace-nowrap font-mono text-[10px] font-medium text-white/42">
+              <span className="truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/42">
                 {issueKey}
               </span>
             ) : null}
@@ -219,7 +219,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
         </div>
 
         <h3
-          className="line-clamp-2 break-words text-[13px] font-medium leading-[18px] text-white/90"
+          className="line-clamp-2 break-words text-sm font-medium leading-5 text-white/90"
           title={title}
         >
           {title}

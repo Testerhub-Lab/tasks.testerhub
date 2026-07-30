@@ -350,10 +350,9 @@ body.is-dragging * {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  min-width: 28px;
-  max-width: 64px;
+  width: 38px;
   height: 20px;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);

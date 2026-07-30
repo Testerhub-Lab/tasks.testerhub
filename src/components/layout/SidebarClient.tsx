@@ -227,7 +227,9 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
                 title={`${project.key} — ${project.name}`}
               >
-                <span className="sidebar__project-key">{project.key}</span>
+                <span className="sidebar__project-key">
+                  {project.key.slice(0, 4).toUpperCase()}
+                </span>
                 <span className="sidebar__project-name">{project.name}</span>
               </Link>
             );
