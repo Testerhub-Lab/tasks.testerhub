@@ -78,6 +78,7 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
         initialFilters={filters}
         basePath="/board"
         density="compact"
+        variant="toolbar"
         showProjectFilter="mobile"
       />
       {tasks.length === 0 ? (

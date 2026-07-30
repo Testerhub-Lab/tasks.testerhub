@@ -49,6 +49,7 @@ interface IssueFiltersBarProps {
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
   density?: "default" | "compact";
+  variant?: "panel" | "toolbar";
   showProjectFilter?: "always" | "mobile" | "never";
 }
 
@@ -99,6 +100,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   hideFiltersButton,
   mode = "default",
   density = "default",
+  variant = "panel",
   showProjectFilter = "always",
 }) => {
   const router = useRouter();
@@ -183,6 +185,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     showProjectFilter === "mobile" ? "lg:hidden" : "";
   const isCompact = mode === "compact";
   const isDense = density === "compact";
+  const isToolbar = variant === "toolbar";
   const controlHeight = isDense ? "h-8" : "h-9";
   const controlRadius = isDense ? "rounded-sm" : "rounded-md";
   const controlText = isDense ? "text-xs" : "text-sm";
@@ -192,6 +195,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const rowGap = isDense ? "gap-2" : "gap-3";
 
   const hasActive =
+    (isToolbar && !!filters.q) ||
     (filters.status?.length ?? 0) > 0 ||
     (filters.priority?.length ?? 0) > 0 ||
     (filters.tags?.length ?? 0) > 0 ||
@@ -199,6 +203,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     !!filters.assignee;
 
   const activeCount =
+    (isToolbar && filters.q ? 1 : 0) +
     (filters.status?.length ?? 0) +
     (filters.priority?.length ?? 0) +
     (filters.tags?.length ?? 0) +
@@ -227,6 +232,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const clearAssignee = () => {
     updateParams({ ...filters, assignee: undefined });
+  };
+
+  const clearQuery = () => {
+    updateParams({ ...filters, q: undefined });
   };
 
   const addTag = () => {
@@ -303,15 +312,18 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   return (
     <div
       className={[
-        wrapperRadius,
-        wrapperPad,
-        "border border-white/5",
-        "bg-[rgba(255,255,255,0.015)]",
+        isToolbar ? "" : wrapperRadius,
+        isToolbar ? "" : wrapperPad,
+        isToolbar ? "" : "border border-white/5",
+        isToolbar ? "" : "bg-[rgba(255,255,255,0.015)]",
       ].join(" ")}
     >
       <div
-        className={`flex flex-wrap items-center justify-between ${rowGap} cursor-pointer`}
+        className={`flex flex-wrap items-center justify-between ${rowGap} ${
+          isToolbar ? "min-h-7" : "cursor-pointer"
+        }`}
         onClick={(event) => {
+          if (isToolbar) return;
           const target = event.target as HTMLElement | null;
           if (target?.closest("button,a,input,select,textarea")) return;
           setOpen((prev) => !prev);
@@ -322,7 +334,14 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             <FilterChip
               selected={isOpen}
               onClick={() => setOpen((prev) => !prev)}
-              className={chipSize}
+              className={[
+                chipSize,
+                isToolbar
+                  ? isOpen
+                    ? "border border-cyan-400/30 bg-cyan-400/10 text-white"
+                    : "border border-white/10 bg-white/[0.035] hover:border-white/15 hover:bg-white/[0.06]"
+                  : "",
+              ].join(" ")}
             >
               <span className="inline-flex items-center gap-1.5" title="Filters">
                 <svg
@@ -337,17 +356,24 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                     strokeLinecap="round"
                   />
                 </svg>
+                <span>Filter</span>
                 {hasActive ? (
                   <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
                     {activeCount}
                   </span>
                 ) : null}
               </span>
-              <span className="ml-2 text-white/45">{isOpen ? "▴" : "▾"}</span>
+              <span className="ml-1 text-white/45">{isOpen ? "▴" : "▾"}</span>
             </FilterChip>
           ) : null}
 
           <div className="flex flex-wrap gap-2 overflow-hidden">
+            {isToolbar && filters.q ? (
+              <RemovableChip onRemove={clearQuery} title="Remove search">
+                Search: {filters.q}
+              </RemovableChip>
+            ) : null}
+
             {(filters.status ?? []).map((s) => (
               <RemovableChip
                 key={s}
@@ -405,6 +431,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
       <div
         className={`overflow-hidden transition-all duration-200 ${
           isOpen ? "mt-3 max-h-[420px] opacity-100 pointer-events-auto" : "max-h-0 opacity-0 pointer-events-none"
+        } ${
+          isToolbar && isOpen
+            ? "rounded-md border border-white/8 bg-[rgba(255,255,255,0.025)] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.16)]"
+            : ""
         }`}
       >
         <div className="grid grid-cols-12 gap-4">
@@ -441,7 +471,11 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           </div>
 
           {/* PRIORITY */}
-          <div className="col-span-12 lg:col-span-4 lg:hidden">
+          <div
+            className={`col-span-12 lg:col-span-4 ${
+              isToolbar ? "" : "lg:hidden"
+            }`}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-[var(--color-text-secondary)]">Priority</span>
 
