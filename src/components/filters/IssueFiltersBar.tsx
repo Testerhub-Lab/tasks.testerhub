@@ -53,6 +53,74 @@ interface IssueFiltersBarProps {
   showProjectFilter?: "always" | "mobile" | "never";
 }
 
+type PopoverView = "root" | "status" | "priority" | "tags" | "project";
+
+const POPOVER_TITLE: Record<PopoverView, string> = {
+  root: "Filters",
+  status: "Status",
+  priority: "Priority",
+  tags: "Labels",
+  project: "Project",
+};
+
+const FilterMenuRow = ({
+  label,
+  value,
+  onClick,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  onClick: () => void;
+  className?: string;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex h-10 w-full items-center gap-3 rounded-sm px-2.5 text-left text-xs text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white ${className}`}
+  >
+    <span className="min-w-0 flex-1 truncate">{label}</span>
+    <span className="max-w-[150px] truncate text-[11px] text-white/40">
+      {value}
+    </span>
+    <span aria-hidden="true" className="text-white/30">
+      ›
+    </span>
+  </button>
+);
+
+const FilterOptionRow = ({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-xs transition-colors ${
+      selected
+        ? "bg-white/[0.065] text-white"
+        : "text-white/70 hover:bg-white/[0.045] hover:text-white"
+    }`}
+  >
+    <span
+      aria-hidden="true"
+      className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border text-[10px] ${
+        selected
+          ? "border-cyan-400/45 bg-cyan-400/10 text-cyan-100"
+          : "border-white/15 text-transparent"
+      }`}
+    >
+      ✓
+    </span>
+    <span className="min-w-0 flex-1 truncate">{label}</span>
+  </button>
+);
+
 const RemovableChip = ({
   children,
   onRemove,
@@ -108,6 +176,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const [tagInput, setTagInput] = useState("");
   const [isOpen, setOpen] = useState(false);
+  const [popoverView, setPopoverView] = useState<PopoverView>("root");
   const [, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -191,6 +260,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     };
   }, [isOpen, isPopover]);
 
+  React.useEffect(() => {
+    if (isPopover && !isOpen) setPopoverView("root");
+  }, [isOpen, isPopover]);
+
   const clearFilters = () => {
     startTransition(() => {
       const params = getLatestParams();
@@ -237,8 +310,24 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     updateParams({ ...filters, status: next.length ? next : undefined });
   };
 
+  const toggleStatus = (status: Status) => {
+    const current = filters.status ?? [];
+    const next = current.includes(status)
+      ? current.filter((item) => item !== status)
+      : [...current, status];
+    updateParams({ ...filters, status: next.length ? next : undefined });
+  };
+
   const removePriority = (priority: Priority) => {
     const next = (filters.priority ?? []).filter((p) => p !== priority);
+    updateParams({ ...filters, priority: next.length ? next : undefined });
+  };
+
+  const togglePriority = (priority: Priority) => {
+    const current = filters.priority ?? [];
+    const next = current.includes(priority)
+      ? current.filter((item) => item !== priority)
+      : [...current, priority];
     updateParams({ ...filters, priority: next.length ? next : undefined });
   };
 
@@ -329,6 +418,173 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const statusValues = (filters.status ?? []) as unknown as string[];
   const priorityValues = (filters.priority ?? []) as unknown as string[];
+  const statusSummary =
+    filters.status?.length === 1
+      ? STATUS_LABEL[filters.status[0] as Status]
+      : filters.status?.length
+        ? `${filters.status.length} selected`
+        : "Any";
+  const prioritySummary =
+    filters.priority?.length === 1
+      ? PRIORITY_LABEL[filters.priority[0] as Priority]
+      : filters.priority?.length
+        ? `${filters.priority.length} selected`
+        : "Any";
+  const tagsSummary = filters.tags?.length
+    ? `${filters.tags.length} selected`
+    : "Any";
+
+  const popoverContent = (
+    <>
+      <div className="flex h-10 items-center gap-2 border-b border-white/[0.07] px-2">
+        {popoverView !== "root" ? (
+          <button
+            type="button"
+            onClick={() => setPopoverView("root")}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-base text-white/50 transition-colors hover:bg-white/5 hover:text-white/85"
+            aria-label="Back to filters"
+          >
+            ‹
+          </button>
+        ) : null}
+        <span className="text-xs font-semibold text-white/80">
+          {POPOVER_TITLE[popoverView]}
+        </span>
+      </div>
+
+      {popoverView === "root" ? (
+        <div className="p-1">
+          <FilterMenuRow
+            label="Status"
+            value={statusSummary}
+            onClick={() => setPopoverView("status")}
+          />
+          <FilterMenuRow
+            label="Priority"
+            value={prioritySummary}
+            onClick={() => setPopoverView("priority")}
+          />
+          <FilterMenuRow
+            label="Labels"
+            value={tagsSummary}
+            onClick={() => setPopoverView("tags")}
+          />
+          {showProjectSelect ? (
+            <FilterMenuRow
+              label="Project"
+              value={
+                projects.find((project) => project.id === filters.projectId)
+                  ?.key ?? "Any"
+              }
+              onClick={() => setPopoverView("project")}
+              className={projectFilterClass}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {popoverView === "status" ? (
+        <div className="max-h-[320px] overflow-y-auto p-1">
+          <FilterOptionRow
+            label="Any status"
+            selected={(filters.status?.length ?? 0) === 0}
+            onClick={() => updateParams({ ...filters, status: undefined })}
+          />
+          {STATUS_OPTIONS.map((status) => (
+            <FilterOptionRow
+              key={status}
+              label={STATUS_LABEL[status]}
+              selected={filters.status?.includes(status) ?? false}
+              onClick={() => toggleStatus(status)}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {popoverView === "priority" ? (
+        <div className="max-h-[320px] overflow-y-auto p-1">
+          <FilterOptionRow
+            label="Any priority"
+            selected={(filters.priority?.length ?? 0) === 0}
+            onClick={() => updateParams({ ...filters, priority: undefined })}
+          />
+          {PRIORITY_OPTIONS.map((priority) => (
+            <FilterOptionRow
+              key={priority}
+              label={PRIORITY_LABEL[priority]}
+              selected={filters.priority?.includes(priority) ?? false}
+              onClick={() => togglePriority(priority)}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {popoverView === "tags" ? (
+        <div className="space-y-2 p-2">
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={tagInput}
+              placeholder="Add label"
+              onChange={(event) => setTagInput(event.target.value)}
+              className="h-8 min-w-0 flex-1 rounded-sm text-xs"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addTag();
+                }
+              }}
+            />
+            <FilterChip
+              onClick={addTag}
+              className="h-8 border border-white/10 px-2 text-xs"
+            >
+              Add
+            </FilterChip>
+          </div>
+          {(filters.tags?.length ?? 0) > 0 ? (
+            <div className="space-y-1">
+              {(filters.tags ?? []).map((tag) => (
+                <FilterOptionRow
+                  key={tag}
+                  label={`#${tag}`}
+                  selected
+                  onClick={() => removeTag(tag)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="px-1 py-2 text-[11px] text-white/35">
+              No labels selected
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {popoverView === "project" ? (
+        <div className="p-2">
+          <Select
+            name="projectId"
+            value={filters.projectId ?? ""}
+            onChange={(event) =>
+              updateParams({
+                ...filters,
+                projectId: event.target.value || undefined,
+              })
+            }
+            className="h-8 w-full rounded-sm text-xs"
+            options={[
+              { value: "", label: "All projects" },
+              ...projects.map((project) => ({
+                value: project.id,
+                label: `${project.key} — ${project.name}`,
+              })),
+            ]}
+          />
+        </div>
+      ) : null}
+    </>
+  );
 
   return (
     <div
@@ -456,8 +712,8 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           isPopover
             ? [
                 "absolute right-0 top-full z-50 mt-2",
-                "w-[620px] max-w-[calc(100vw-2rem)]",
-                "rounded-md border border-white/10 bg-slate-950/95 p-3",
+                "w-[300px] max-w-[calc(100vw-2rem)] overflow-hidden",
+                "rounded-md border border-white/10 bg-slate-950/95",
                 "shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl",
                 isOpen ? "block" : "hidden",
               ].join(" ")
@@ -472,6 +728,9 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
               }`
         }
       >
+        {isPopover ? (
+          popoverContent
+        ) : (
         <div className="grid grid-cols-12 gap-4">
           {/* STATUS */}
           <div className="col-span-12 lg:col-span-8">
@@ -613,6 +872,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
