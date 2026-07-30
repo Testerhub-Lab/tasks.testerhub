@@ -30,8 +30,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
   type,
   priority,
   assignee,
-  reporter,
-  requesterName,
   users = [],
   onAssigneeChange,
   isSavingAssignee = false,
@@ -50,11 +48,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
         .map((part) => part[0]?.toUpperCase())
         .join("")
     : null;
-  const metaName = getDisplayName({
-    user: reporter ?? null,
-    fallbackName: requesterName ?? null,
-  });
-
   const typeLabel = resolvedType
     ? resolvedType.charAt(0).toUpperCase() + resolvedType.slice(1).toLowerCase()
     : null;
@@ -102,29 +95,36 @@ const IssueCard: React.FC<IssueCardProps> = ({
   return (
     <Card
       variant="plain"
+      padding="none"
       className={[
-        // плоско, без рамок, без "прыжка", мягкий hover как у Linear
-        "issue-card rounded-[6px] p-3",
-        "bg-white/[0.05] border border-white/12 shadow-[0_10px_26px_rgba(0,0,0,0.28)]",
-        "transition-[background,border-color,box-shadow,transform] duration-150",
-        "hover:bg-white/[0.06] hover:border-white/18 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)] hover:-translate-y-[1px]",
+        "group issue-card rounded-[6px] px-3 py-2.5",
+        "border border-white/[0.075] bg-white/[0.032] shadow-[0_1px_2px_rgba(0,0,0,0.18)]",
+        "transition-[background,border-color,box-shadow] duration-150",
+        "hover:border-white/[0.12] hover:bg-white/[0.05] hover:shadow-[0_4px_14px_rgba(0,0,0,0.2)]",
         "focus-visible:ring-2 focus-visible:ring-white/10 outline-none",
       ].join(" ")}
     >
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {typeLabel ? (
+              <span
+                className={`ui-tooltip inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${typeDotClass}`}
+                data-tooltip={`Type: ${typeLabel}`}
+                aria-label={`Type: ${typeLabel}`}
+              />
+            ) : null}
             {issueKey ? (
-              <span className="block truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/55">
+              <span className="truncate whitespace-nowrap font-mono text-[10px] font-medium text-white/42">
                 {issueKey}
               </span>
             ) : null}
           </div>
 
-          <div className="flex-none flex items-center gap-2">
+          <div className="flex flex-none items-center gap-2 text-white/55 transition-colors group-hover:text-white/75">
             {priorityLevel ? (
               <span
-                className="ui-tooltip inline-flex items-end gap-1 text-white/70"
+                className="ui-tooltip inline-flex items-end gap-[2px]"
                 data-tooltip={`Priority: ${String(priority)}`}
                 aria-label={`Priority: ${String(priority)}`}
               >
@@ -146,10 +146,10 @@ const IssueCard: React.FC<IssueCardProps> = ({
               <button
                 type="button"
                 disabled={!canEdit}
-                className={`inline-flex h-[28px] w-[28px] items-center justify-center rounded-full border text-[11px] font-semibold ${
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors ${
                   assigneeName
-                    ? "bg-white/6 border-white/10 text-white/85"
-                    : "bg-white/4 border-white/8 text-white/35"
+                    ? "border-white/10 bg-white/6 text-white/80 hover:bg-white/10"
+                    : "border-white/8 bg-white/4 text-white/30 hover:bg-white/8 hover:text-white/55"
                 } ${isSavingAssignee ? "opacity-60" : ""}`}
                 title={assigneeName ?? "Unassigned"}
                 onClick={(event) => {
@@ -219,30 +219,11 @@ const IssueCard: React.FC<IssueCardProps> = ({
         </div>
 
         <h3
-          className="line-clamp-2 break-words text-[13px] font-medium leading-5 text-white/92"
+          className="line-clamp-2 break-words text-[13px] font-medium leading-[18px] text-white/90"
           title={title}
         >
           {title}
         </h3>
-
-        {typeLabel || metaName ? (
-          <div className="flex items-center gap-2 text-xs text-white/60">
-            {typeLabel ? (
-              <span className="inline-flex items-center gap-2">
-                <span
-                  className={`ui-tooltip inline-flex h-1.5 w-1.5 rounded-full ${typeDotClass}`}
-                  data-tooltip={`Type: ${typeLabel}`}
-                  aria-label={`Type: ${typeLabel}`}
-                />
-                <span>{typeLabel}</span>
-              </span>
-            ) : null}
-            {typeLabel && metaName ? (
-              <span className="text-white/30">·</span>
-            ) : null}
-            {metaName ? <span className="truncate">{metaName}</span> : null}
-          </div>
-        ) : null}
       </div>
     </Card>
   );
