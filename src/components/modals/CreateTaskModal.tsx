@@ -9,7 +9,7 @@ import { toast } from "../ui/toast";
 import ProjectKeyPicker from "./ProjectKeyPicker";
 import AttachmentsPanel, { type AttachmentItem } from "./AttachmentsPanel";
 import { createTaskAction } from "@/server/actions/tasks";
-import type { TaskInput } from "@/server/validators/task";
+import type { TaskInput, TaskStatus } from "@/server/validators/task";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 
 type ProjectOption = {
@@ -33,6 +33,16 @@ const PRIORITY_OPTIONS: Array<{ value: PriorityType; label: string }> = [
   { value: "MEDIUM", label: "Medium" },
   { value: "HIGH", label: "High" },
   { value: "CRITICAL", label: "Critical" },
+];
+
+const STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
+  { value: "NEW", label: "New" },
+  { value: "TODO", label: "Todo" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "TESTING", label: "Testing" },
+  { value: "DONE", label: "Done" },
+  { value: "HOLD", label: "Hold" },
+  { value: "REJECT", label: "Reject" },
 ];
 
 async function uploadMany(
@@ -152,6 +162,7 @@ interface CreateTaskModalProps {
   projects: ProjectOption[];
   users?: UserOption[];
   initialProjectId?: string | null;
+  initialStatus?: TaskStatus | null;
 }
 
 export default function CreateTaskModal({
@@ -163,6 +174,7 @@ export default function CreateTaskModal({
   projects,
   users = [],
   initialProjectId,
+  initialStatus,
 }: CreateTaskModalProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -170,6 +182,7 @@ export default function CreateTaskModal({
   const [projectId, setProjectId] = useState<string>("");
   const [type, setType] = useState<IssueType>("Bug");
   const [priority, setPriority] = useState<PriorityType>("MEDIUM");
+  const [status, setStatus] = useState<TaskStatus>("NEW");
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [title, setTitle] = useState<string>("");
   const [description, setDescription] = useState<string>("");
@@ -198,6 +211,11 @@ export default function CreateTaskModal({
     }
   }, [initialProjectId, isOpen, projects]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setStatus(initialStatus ?? "NEW");
+  }, [initialStatus, isOpen]);
+
   const firstProjectId = projects?.[0]?.id ?? "";
   const effectiveProjectId = projectId || firstProjectId;
 
@@ -205,6 +223,7 @@ export default function CreateTaskModal({
     setProjectId("");
     setType("Bug");
     setPriority("MEDIUM");
+    setStatus("NEW");
     setAssigneeId("");
     setTitle("");
     setDescription("");
@@ -296,6 +315,7 @@ export default function CreateTaskModal({
       title: trimmedTitle,
       description: description?.trim() ? description : undefined,
       priority,
+      status,
       tags: tagsText?.trim() ? tagsText : undefined,
       attachments: [],
       requesterName: effectiveRequesterName,
@@ -362,6 +382,7 @@ export default function CreateTaskModal({
     description,
     type,
     priority,
+    status,
     tagsText,
     requesterName,
     attachments,
@@ -579,6 +600,22 @@ export default function CreateTaskModal({
                   {PRIORITY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none text-slate-300/80">▾</span>
+              </div>
+
+              <div className={chipBase}>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                  className={selectBase}
+                  aria-label="Status"
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>

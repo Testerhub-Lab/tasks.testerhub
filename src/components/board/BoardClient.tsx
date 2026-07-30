@@ -331,6 +331,24 @@ const BoardClient: React.FC<BoardClientProps> = ({
     );
   }, []);
 
+  const canCreateInBoard = boardId
+    ? editableProjectIdSet.has(boardId)
+    : editableProjectIdSet.size > 0;
+
+  const openCreateForColumn = React.useCallback(
+    (status: BoardColumnStatus) => {
+      window.dispatchEvent(
+        new CustomEvent("open-create-modal", {
+          detail: {
+            projectId: boardId,
+            status,
+          },
+        })
+      );
+    },
+    [boardId]
+  );
+
   const dndSignature = useMemo(
     () =>
       items
@@ -446,6 +464,11 @@ const BoardClient: React.FC<BoardClientProps> = ({
               column.count === 0 &&
               revealedEmptyStatuses.includes(column.status)
                 ? () => hideEmptyColumn(column.status)
+                : undefined
+            }
+            onCreate={
+              canCreateInBoard
+                ? () => openCreateForColumn(column.status)
                 : undefined
             }
           >

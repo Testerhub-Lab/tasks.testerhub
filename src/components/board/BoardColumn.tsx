@@ -11,6 +11,7 @@ interface BoardColumnProps {
   children: React.ReactNode;
   disabled?: boolean;
   onHide?: () => void;
+  onCreate?: () => void;
 }
 
 const statusTone: Partial<Record<TaskStatus, string>> = {
@@ -27,6 +28,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
   children,
   disabled = false,
   onHide,
+  onCreate,
 }) => {
   const { isOver, setNodeRef } = useDroppable({ id: status, disabled });
 
@@ -34,7 +36,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
     <section
       ref={setNodeRef}
       className={[
-        "rounded-[6px] bg-white/[0.012] p-2",
+        "board-column rounded-[6px] bg-white/[0.012] p-2",
         "transition-colors duration-150",
         count === 0 ? "min-h-[88px]" : "",
         isOver ? "bg-cyan-500/[0.07] ring-1 ring-inset ring-cyan-400/20" : "",
@@ -81,6 +83,19 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
         <div className="mt-2 text-[11px] text-white/25">
           {isOver ? "Drop issue here" : "No issues"}
         </div>
+      ) : null}
+
+      {onCreate ? (
+        <button
+          type="button"
+          onClick={onCreate}
+          className="board-column__create mt-2 flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs text-white/40 transition-[background,color,opacity,transform] hover:bg-white/[0.045] hover:text-white/75 focus-visible:bg-white/[0.045] focus-visible:text-white/75 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/15"
+          aria-label={`Create issue in ${title}`}
+          title={`Create issue in ${title}`}
+        >
+          <span aria-hidden="true" className="text-base leading-none">+</span>
+          <span>New issue</span>
+        </button>
       ) : null}
     </section>
   );

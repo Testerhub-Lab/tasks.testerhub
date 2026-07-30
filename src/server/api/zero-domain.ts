@@ -528,7 +528,7 @@ export async function createApiIssue(
 ) {
   const project = await requireApiProjectByKey(user.id, input.projectKey);
   const states = await workflowStates(user.id, project.project.workflowID);
-  const state = stateForStatus(states, "NEW");
+  const state = stateForStatus(states, input.status);
   const id = randomUUID();
 
   try {

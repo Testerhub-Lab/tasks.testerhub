@@ -223,6 +223,7 @@ export async function createTaskAction(data: TaskInput) {
         description: finalDescription,
         type: validated.type,
         priority: validated.priority,
+        status: validated.status,
         tags: validated.tags,
         assigneeID: validated.assigneeId ?? null,
       });
@@ -314,7 +315,7 @@ export async function createTaskAction(data: TaskInput) {
 
           type: validated.type,
           priority: validated.priority,
-          status: Status.NEW, // фиксируем NEW на создание (можно поменять, если нужно)
+          status: validated.status,
 
           tags: validated.tags,
           attachments: validated.attachments,

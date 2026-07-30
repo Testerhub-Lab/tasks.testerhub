@@ -237,6 +237,23 @@ body.is-dragging * {
   cursor: grabbing;
 }
 
+.board-column__create {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .board-column__create {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+
+  .board-column:hover .board-column__create,
+  .board-column:focus-within .board-column__create {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ===== App Shell / Sidebar ===== */
 .app-shell {
   display: flex;

@@ -13,6 +13,7 @@ import { ISSUE_FILTER_QUERY_KEYS } from "../../shared/issueFilterQueryKeys";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
+import type { TaskStatus } from "@/server/validators/task";
 
 const viewTabs = [
   { label: "Board", href: "/board" },
@@ -26,6 +27,10 @@ type ProjectOption = {
   canWrite: boolean;
 };
 type UserOption = { id: string; name: string | null; email: string };
+type OpenCreateModalDetail = {
+  projectId?: string | null;
+  status?: TaskStatus | null;
+};
 
 interface TopBarClientProps {
   projects: ProjectOption[];
@@ -42,6 +47,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [initialProjectId, setInitialProjectId] = useState<string | null>(null);
+  const [initialStatus, setInitialStatus] = useState<TaskStatus | null>(null);
   const [isSubmitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
@@ -75,16 +81,24 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
   const openModal = () => {
     setFormError(null);
+    setInitialStatus(null);
     setModalOpen(true);
   };
   const closeModal = () => {
     setFormError(null);
     setModalOpen(false);
     setInitialProjectId(null);
+    setInitialStatus(null);
   };
 
   useEffect(() => {
-    const handleOpen = () => openModal();
+    const handleOpen = (event: Event) => {
+      const detail = (event as CustomEvent<OpenCreateModalDetail>).detail;
+      setFormError(null);
+      setInitialProjectId(detail?.projectId ?? null);
+      setInitialStatus(detail?.status ?? null);
+      setModalOpen(true);
+    };
     window.addEventListener("open-create-modal", handleOpen);
     return () => {
       window.removeEventListener("open-create-modal", handleOpen);
@@ -286,6 +300,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
         projects={writableProjects}
         users={users}
         initialProjectId={initialProjectId}
+        initialStatus={initialStatus}
       />
     </header>
   );

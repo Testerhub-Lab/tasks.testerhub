@@ -43,6 +43,7 @@ export const createIssueApiSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   type: z.string().trim().min(1).max(40).default("TASK"),
   priority: issuePrioritySchema.default("MEDIUM"),
+  status: issueStatusSchema.default("NEW"),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 

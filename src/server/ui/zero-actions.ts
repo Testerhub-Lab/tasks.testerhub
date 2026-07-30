@@ -156,6 +156,7 @@ export async function createZeroTaskForUI(input: {
   description: string | null;
   type: string;
   priority: Priority;
+  status: Status;
   tags: string[];
   assigneeID: string | null;
 }) {
@@ -181,6 +182,7 @@ export async function createZeroTaskForUI(input: {
     description: input.description,
     type: input.type,
     priority: input.priority,
+    status: input.status,
     tags: input.tags,
   });
   if (input.assigneeID) {
