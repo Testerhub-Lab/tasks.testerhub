@@ -111,7 +111,7 @@ export default function TagsPicker({ value, onChange, className }: Props) {
   };
 
   const summary = useMemo(() => {
-    if (selected.length === 0) return "Tags";
+    if (selected.length === 0) return "Labels";
     if (selected.length === 1) return selected[0]!;
     return `${selected[0]} +${selected.length - 1}`;
   }, [selected]);
@@ -124,7 +124,7 @@ export default function TagsPicker({ value, onChange, className }: Props) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        title={selected.length ? selected.join(", ") : "Tags"}
+        title={selected.length ? selected.join(", ") : "Labels"}
       >
         <span className="font-medium">{summary}</span>
         <span className="pointer-events-none text-slate-300/80">▾</span>

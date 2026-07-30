@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Button from "../ui/Button";
 import { toast } from "../ui/toast";
 import ProjectKeyPicker from "./ProjectKeyPicker";
+import TagsPicker from "./TagsPicker";
 import AttachmentsPanel, { type AttachmentItem } from "./AttachmentsPanel";
 import { createTaskAction } from "@/server/actions/tasks";
 import type { TaskInput, TaskStatus } from "@/server/validators/task";
@@ -44,6 +45,16 @@ const STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
   { value: "HOLD", label: "Hold" },
   { value: "REJECT", label: "Reject" },
 ];
+
+const STATUS_TONE: Record<TaskStatus, string> = {
+  NEW: "border-white/35",
+  TODO: "border-white/35",
+  HOLD: "border-orange-400",
+  IN_PROGRESS: "border-amber-400",
+  TESTING: "border-cyan-400",
+  DONE: "border-emerald-400",
+  REJECT: "border-rose-400",
+};
 
 async function uploadMany(
   items: Array<{ clientId: string; file: File }>,
@@ -186,8 +197,10 @@ export default function CreateTaskModal({
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [title, setTitle] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-  const [tagsText, setTagsText] = useState<string>("");
+  const [tags, setTags] = useState<string[]>([]);
   const [requesterName, setRequesterName] = useState<string>("");
+  const [showMore, setShowMore] = useState(false);
+  const [createMore, setCreateMore] = useState(false);
 
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -227,8 +240,10 @@ export default function CreateTaskModal({
     setAssigneeId("");
     setTitle("");
     setDescription("");
-    setTagsText("");
+    setTags([]);
     setRequesterName("");
+    setShowMore(false);
+    setCreateMore(false);
     setAttachments([]);
     setLocalError(null);
     setDragOver(false);
@@ -316,7 +331,7 @@ export default function CreateTaskModal({
       description: description?.trim() ? description : undefined,
       priority,
       status,
-      tags: tagsText?.trim() ? tagsText : undefined,
+      tags: tags.length ? tags : undefined,
       attachments: [],
       requesterName: effectiveRequesterName,
       assigneeId: assigneeId || undefined,
@@ -368,6 +383,19 @@ export default function CreateTaskModal({
       }
 
       toast.success("Issue created", res.key);
+
+      if (createMore) {
+        setTitle("");
+        setDescription("");
+        setTags([]);
+        setRequesterName("");
+        setAttachments([]);
+        setLocalError(null);
+        requestAnimationFrame(() => titleRef.current?.focus());
+        router.refresh();
+        return;
+      }
+
       close();
       router.push(`/tasks/${res.key}`);
       router.refresh();
@@ -383,10 +411,11 @@ export default function CreateTaskModal({
     type,
     priority,
     status,
-    tagsText,
+    tags,
     requesterName,
     attachments,
     assigneeId,
+    createMore,
     onSubmit,
     close,
     router,
@@ -465,58 +494,69 @@ export default function CreateTaskModal({
   const busy = loading || submitting;
 
   const chipBase =
-    "inline-flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-[12px] text-slate-100 " +
-    "hover:bg-white/7 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+    "inline-flex h-7 items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.035] px-2.5 text-[12px] text-white/70 " +
+    "transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white/90 focus-within:ring-2 focus-within:ring-cyan-400/30";
 
-  const selectBase = "appearance-none bg-transparent pr-6 outline-none text-slate-100";
+  const selectBase =
+    "max-w-[150px] appearance-none bg-transparent outline-none text-inherit";
 
   return createPortal(
     <div className="fixed inset-0 z-50">
       <button
         type="button"
         aria-label="Close modal"
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60"
         onClick={close}
       />
 
-      <div className="relative z-10 flex h-full w-full items-start justify-center p-4 sm:p-6">
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-3 sm:p-6">
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="create-issue-title"
           className={cn(
-            "w-full max-w-[980px]",
-            "overflow-hidden rounded-2xl border border-white/10",
-            "bg-slate-950/35 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)]",
-            "max-h-[84vh]"
+            "w-full max-w-[780px] overflow-visible",
+            "rounded-xl border border-white/[0.11]",
+            "bg-[#111318]/95 shadow-[0_24px_90px_rgba(0,0,0,0.62)] backdrop-blur-md",
+            "max-h-[86vh]"
           )}
         >
-          {/* header */}
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <ProjectKeyPicker projects={projects} value={effectiveProjectId} onChange={setProjectId} />
-              <div className="min-w-0 truncate text-[13px] text-slate-200/80">New issue</div>
+          <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <ProjectKeyPicker
+                projects={projects}
+                value={effectiveProjectId}
+                onChange={setProjectId}
+              />
+              <span aria-hidden="true" className="text-xs text-white/25">
+                ›
+              </span>
+              <div
+                id="create-issue-title"
+                className="min-w-0 truncate text-[13px] font-medium text-white/75"
+              >
+                New issue
+              </div>
             </div>
 
             <button
               type="button"
               onClick={close}
-              className="rounded-md p-2 text-slate-200/70 hover:bg-white/5 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-lg text-white/35 transition-colors hover:bg-white/[0.06] hover:text-white/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30"
               aria-label="Close"
               title="Close (Esc)"
             >
-              ✕
+              ×
             </button>
           </div>
 
-          {/* body */}
           <div
-            className="relative overflow-y-auto px-4 pb-4 pt-4"
+            className="relative max-h-[calc(86vh-48px)] overflow-y-auto px-4 pb-3 pt-2 sm:px-5"
             onDragEnter={onDragEnter}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
           >
-            {/* hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -525,20 +565,23 @@ export default function CreateTaskModal({
               onChange={onFileInputChange}
             />
 
-            {/* drag overlay (как в Linear — без “поля”, просто поверх) */}
-            {dragOver && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-4 pt-16">
-                <div className="w-full max-w-[920px] rounded-2xl border border-white/15 bg-slate-950/60 backdrop-blur-xl">
+            {dragOver ? (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-4 pt-12">
+                <div className="w-full rounded-xl border border-cyan-300/20 bg-[#161a20]/95 shadow-xl">
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-200/80">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70">
                       📎
                     </div>
-                    <div className="text-[13px] text-slate-100">Drop files to attach</div>
-                    <div className="ml-auto text-[12px] text-slate-400/70">Release to upload</div>
+                    <div className="text-[13px] text-white/90">
+                      Drop files to attach
+                    </div>
+                    <div className="ml-auto text-[12px] text-white/40">
+                      Release to add
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             <input
               ref={titleRef}
@@ -550,42 +593,41 @@ export default function CreateTaskModal({
               spellCheck={false}
               className={cn(
                 "w-full bg-transparent",
-                "text-[28px] leading-tight text-slate-100",
-                "placeholder:text-slate-500/70",
+                "text-[21px] font-medium leading-8 text-white/95",
+                "placeholder:text-white/25",
                 "focus:outline-none"
               )}
             />
 
-            {/* description */}
-            <div className="mt-3">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add description…"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-                rows={5}
-                className={cn(
-                  "w-full bg-transparent",
-                  "text-base leading-relaxed text-slate-200/90",
-                  "placeholder:text-slate-500/70",
-                  "focus:outline-none",
-                  "min-h-[140px] max-h-[280px] overflow-y-auto resize-y"
-                )}
-              />
-            </div>
-
-            {/* attachments list (если есть) */}
-            <AttachmentsPanel
-              items={attachments}
-              onRemove={removeAttachment}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add description…"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              rows={2}
+              className={cn(
+                "mt-1 min-h-[68px] max-h-[220px] w-full resize-none overflow-y-auto bg-transparent",
+                "text-[14px] leading-6 text-white/75 placeholder:text-white/25",
+                "[field-sizing:content] focus:outline-none"
+              )}
             />
 
-            {/* controls row */}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <AttachmentsPanel items={attachments} onRemove={removeAttachment} />
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <div className={chipBase}>
-                <select value={type} onChange={(e) => setType(e.target.value as IssueType)} className={selectBase}>
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-fuchsia-400/80"
+                />
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as IssueType)}
+                  className={selectBase}
+                  aria-label="Issue type"
+                >
                   {TYPE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -596,7 +638,17 @@ export default function CreateTaskModal({
               </div>
 
               <div className={chipBase}>
-                <select value={priority} onChange={(e) => setPriority(e.target.value as PriorityType)} className={selectBase}>
+                <span aria-hidden="true" className="text-white/35">
+                  ≡
+                </span>
+                <select
+                  value={priority}
+                  onChange={(e) =>
+                    setPriority(e.target.value as PriorityType)
+                  }
+                  className={selectBase}
+                  aria-label="Priority"
+                >
                   {PRIORITY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -607,6 +659,10 @@ export default function CreateTaskModal({
               </div>
 
               <div className={chipBase}>
+                <span
+                  aria-hidden="true"
+                  className={`h-3 w-3 rounded-full border-2 ${STATUS_TONE[status]}`}
+                />
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
@@ -623,7 +679,18 @@ export default function CreateTaskModal({
               </div>
 
               <div className={chipBase} title="Assignee">
-                <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={selectBase}>
+                <span
+                  aria-hidden="true"
+                  className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white/25 text-[8px] text-white/45"
+                >
+                  {assigneeId ? "✓" : "–"}
+                </span>
+                <select
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className={selectBase}
+                  aria-label="Assignee"
+                >
                   <option value="">Unassigned</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -634,72 +701,117 @@ export default function CreateTaskModal({
                 <span className="pointer-events-none text-slate-300/80">▾</span>
               </div>
 
-              {/* tags (вариант A) */}
-              <div className={cn(chipBase, "w-[220px]")}>
-                <input
-                  value={tagsText}
-                  onChange={(e) => setTagsText(e.target.value)}
-                  placeholder="tags…"
-                  autoComplete="off"
-                  className="w-full bg-transparent text-[12px] text-slate-100 placeholder:text-slate-500/70 focus:outline-none"
-                />
-              </div>
+              <TagsPicker value={tags} onChange={setTags} />
 
-              <button type="button" onClick={insertTemplate} className={cn(chipBase, "gap-2")} title="Ctrl/Cmd+Shift+B">
-                Template
-                <span className="text-[11px] text-slate-300/60">⌘⇧B</span>
-              </button>
-
-              {/* 📎 Attach — как в Linear: иконка, без поля */}
               <button
                 type="button"
-                onClick={pickFiles}
-                className={cn(chipBase, "px-2.5")}
-                title="Attach files"
-                aria-label="Attach"
+                onClick={() => setShowMore((current) => !current)}
+                className={cn(
+                  chipBase,
+                  "w-7 justify-center px-0 text-base tracking-widest"
+                )}
+                aria-expanded={showMore}
+                aria-controls="create-issue-more-options"
+                title="More options"
               >
-                📎
+                …
               </button>
             </div>
 
-            {/* reporter compact */}
-            <div className="mt-4 flex items-center gap-3">
-              <div className="text-[12px] text-slate-300/70">Reporter</div>
-              <input
-                value={requesterName}
-                onChange={(e) => setRequesterName(e.target.value)}
-                placeholder="Guest (optional)"
-                autoComplete="off"
-                className={cn(
-                  "h-8 w-[260px] rounded-md border border-white/10 bg-white/5 px-3",
-                  "text-[12px] text-slate-100 placeholder:text-slate-500/70",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-                )}
-              />
-            </div>
+            {showMore ? (
+              <div
+                id="create-issue-more-options"
+                className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] p-2"
+              >
+                <label className="flex min-w-[260px] flex-1 items-center gap-2">
+                  <span className="text-[11px] text-white/40">Reporter</span>
+                  <input
+                    value={requesterName}
+                    onChange={(e) => setRequesterName(e.target.value)}
+                    placeholder="Guest (optional)"
+                    autoComplete="off"
+                    className="h-7 min-w-0 flex-1 rounded-md border border-white/[0.08] bg-black/10 px-2.5 text-[12px] text-white/80 placeholder:text-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={insertTemplate}
+                  className={chipBase}
+                  title="Ctrl/Cmd+Shift+B"
+                >
+                  Apply bug template
+                  <span className="text-[10px] text-white/30">⌘⇧B</span>
+                </button>
+              </div>
+            ) : null}
 
-            {(localError || errorMessage) && (
+            {localError || errorMessage ? (
               <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {localError || errorMessage}
               </div>
-            )}
-          </div>
+            ) : null}
 
-          {/* footer */}
-          <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-            <div className="text-[12px] text-slate-400/60">Ctrl/Cmd+Enter — create · Esc — close</div>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="secondary" onClick={close} disabled={busy}>
-                Cancel
-              </Button>
-              <Button
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <button
                 type="button"
-                variant="primary"
-                onClick={submit}
-                disabled={busy || title.trim().length < 3 || !effectiveProjectId}
+                onClick={pickFiles}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+                title="Attach files"
+                aria-label="Attach files"
               >
-                Create
-              </Button>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m20.5 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 1 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
+                </svg>
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={createMore}
+                  onClick={() => setCreateMore((current) => !current)}
+                  className="flex items-center gap-2 rounded-md text-[12px] text-white/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "relative h-4 w-7 rounded-full border transition-colors",
+                      createMore
+                        ? "border-cyan-300/30 bg-cyan-400/25"
+                        : "border-white/10 bg-white/10"
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white/80 transition-transform",
+                        createMore ? "translate-x-3.5" : "translate-x-0.5"
+                      )}
+                    />
+                  </span>
+                  Create more
+                </button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={submit}
+                  disabled={
+                    busy || title.trim().length < 3 || !effectiveProjectId
+                  }
+                  className="h-8 rounded-md bg-cyan-400/20 px-3 text-[12px] text-cyan-50 hover:bg-cyan-400/25"
+                >
+                  {busy ? "Creating…" : "Create issue"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
