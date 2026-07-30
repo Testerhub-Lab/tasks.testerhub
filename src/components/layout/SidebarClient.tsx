@@ -160,7 +160,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 <path d="M4 18h8" />
               </svg>
             </span>
-            <span>Inbox</span>
+            <span>Backlog</span>
             {showBacklogBadge ? (
               <span className="sidebar__badge">+{backlogUnread}</span>
             ) : null}

@@ -1,11 +1,12 @@
 import prisma from "../../lib/prisma";
 import { Status, type Prisma } from "@prisma/client";
-import type {
-  BoardColumnLimits,
-  BoardColumnStatus,
-  IssueFilters,
-  IssuePageSize,
-  IssuePaginationInput,
+import {
+  BOARD_COLUMN_STATUSES,
+  type BoardColumnLimits,
+  type BoardColumnStatus,
+  type IssueFilters,
+  type IssuePageSize,
+  type IssuePaginationInput,
 } from "../validators/issueFilters";
 import {
   getZeroAllTasks,
@@ -18,14 +19,6 @@ import {
   getZeroTasks,
   usesZeroUiStore,
 } from "@/server/ui/zero-legacy";
-
-// Board никогда не показывает NEW
-const BOARD_STATUSES = [
-  "TODO",
-  "IN_PROGRESS",
-  "TESTING",
-  "DONE",
-] as const satisfies readonly BoardColumnStatus[];
 
 export type TaskWithProject = Prisma.TaskGetPayload<{
   include: { project: true };
@@ -80,13 +73,13 @@ export const buildTaskWhere = (
     ];
   }
 
-  // ✅ Канон: Backlog всегда только NEW
+  // Backlog view is a focused view of NEW issues.
   if (filters.view === "backlog") {
     where.status = Status.NEW;
   }
-  // ✅ Канон: Board никогда не показывает NEW
+  // Board shows the complete workflow, starting with Backlog (NEW).
   else if (filters.view === "board") {
-    where.status = { in: [...BOARD_STATUSES] };
+    where.status = { in: [...BOARD_COLUMN_STATUSES] };
   }
   // ✅ Остальные страницы: если status-фильтр есть — применяем
   else if (filters.status?.length) {
@@ -218,7 +211,7 @@ export async function getBoardTaskColumns(
   );
 
   return Promise.all(
-    BOARD_STATUSES.map(async (status) => {
+    BOARD_COLUMN_STATUSES.map(async (status) => {
       const where: Prisma.TaskWhereInput = {
         ...baseWhere,
         status,

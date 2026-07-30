@@ -17,13 +17,16 @@ import BoardColumn from "./BoardColumn";
 import { updateTaskFieldsAction, updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter } from "next/navigation";
 import type { TaskStatus } from "../../server/validators/task";
+import {
+  BOARD_COLUMN_STATUSES,
+  type BoardColumnStatus,
+} from "../../server/validators/issueFilters";
 import { Priority } from "@prisma/client";
 import type { UserOption } from "../../server/queries/users";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import type { RealtimeEvent } from "@/types/realtime";
 
 type Status = TaskStatus;
-type BoardColumnStatus = "TODO" | "IN_PROGRESS" | "TESTING" | "DONE";
 
 type BoardTask = {
   id: string;
@@ -40,14 +43,21 @@ type BoardTask = {
   requesterName: string | null;
 };
 
-const columns: { status: BoardColumnStatus; title: string }[] = [
-  { status: "TODO", title: "Todo" },
-  { status: "IN_PROGRESS", title: "In progress" },
-  { status: "TESTING", title: "Testing" },
-  { status: "DONE", title: "Done" },
-];
+const columnTitle: Record<BoardColumnStatus, string> = {
+  NEW: "Backlog",
+  TODO: "Todo",
+  IN_PROGRESS: "In progress",
+  TESTING: "Testing",
+  DONE: "Done",
+};
+
+const columns = BOARD_COLUMN_STATUSES.map((status) => ({
+  status,
+  title: columnTitle[status],
+}));
 
 const hiddenColumnTone: Record<BoardColumnStatus, string> = {
+  NEW: "border-white/25",
   TODO: "border-white/35",
   IN_PROGRESS: "border-amber-400",
   TESTING: "border-cyan-400",

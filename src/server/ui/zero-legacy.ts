@@ -5,11 +5,11 @@ import {
   Status,
   type WorkspaceRole,
 } from "@prisma/client";
-import type { IssueFilters } from "../validators/issueFilters";
-import type {
-  BoardColumnLimits,
-  BoardColumnStatus,
-  IssuePaginationInput,
+import {
+  BOARD_COLUMN_STATUSES,
+  type BoardColumnLimits,
+  type IssueFilters,
+  type IssuePaginationInput,
 } from "../validators/issueFilters";
 import { usesZeroAuthStore } from "../auth/zero-store";
 import { getZeroPool } from "../../zero/db";
@@ -527,7 +527,7 @@ function buildZeroTaskFilterWhere(
     where.push(`(${zeroStatusSQL}) = 'NEW'`);
   } else if (filters.view === "board") {
     where.push(`(${zeroStatusSQL}) = ANY(${
-      addValue([Status.TODO, Status.IN_PROGRESS, Status.TESTING, Status.DONE])
+      addValue([...BOARD_COLUMN_STATUSES])
     }::text[])`);
   } else if (filters.status?.length) {
     where.push(`(${zeroStatusSQL}) = ANY(${addValue(filters.status)}::text[])`);
@@ -785,12 +785,7 @@ function matchesZeroTaskFilters(
   if (filters.view === "backlog" && task.status !== Status.NEW) return false;
   if (
     filters.view === "board" &&
-    !([
-      Status.TODO,
-      Status.IN_PROGRESS,
-      Status.TESTING,
-      Status.DONE,
-    ] as Status[]).includes(task.status)
+    !BOARD_COLUMN_STATUSES.some((status) => status === task.status)
   ) {
     return false;
   }
@@ -885,7 +880,7 @@ export async function getZeroBoardTaskColumns(
   accessibleProjectIDs: string[]
 ) {
   if (accessibleProjectIDs.length === 0) {
-    return (["TODO", "IN_PROGRESS", "TESTING", "DONE"] as BoardColumnStatus[]).map(
+    return BOARD_COLUMN_STATUSES.map(
       (status) => ({
         status,
         items: [],
@@ -904,7 +899,7 @@ export async function getZeroBoardTaskColumns(
   );
 
   return Promise.all(
-    (["TODO", "IN_PROGRESS", "TESTING", "DONE"] as BoardColumnStatus[]).map(
+    BOARD_COLUMN_STATUSES.map(
       async (status) => {
         const statusParam = `$${baseWhere.values.length + 1}`;
         const where = {
