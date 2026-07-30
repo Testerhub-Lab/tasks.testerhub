@@ -1,7 +1,7 @@
 import prisma from "../../lib/prisma";
 import { Status, type Prisma } from "@prisma/client";
 import {
-  BOARD_COLUMN_STATUSES,
+  resolveBoardColumnStatuses,
   type BoardColumnLimits,
   type BoardColumnStatus,
   type IssueFilters,
@@ -79,7 +79,7 @@ export const buildTaskWhere = (
   }
   // Board shows committed work; NEW issues stay in the Backlog view.
   else if (filters.view === "board") {
-    where.status = { in: [...BOARD_COLUMN_STATUSES] };
+    where.status = { in: resolveBoardColumnStatuses(filters) };
   }
   // ✅ Остальные страницы: если status-фильтр есть — применяем
   else if (filters.status?.length) {
@@ -209,9 +209,10 @@ export async function getBoardTaskColumns(
     currentUserId,
     accessibleProjectIds
   );
+  const columnStatuses = resolveBoardColumnStatuses(queryFilters);
 
   return Promise.all(
-    BOARD_COLUMN_STATUSES.map(async (status) => {
+    columnStatuses.map(async (status) => {
       const where: Prisma.TaskWhereInput = {
         ...baseWhere,
         status,

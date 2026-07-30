@@ -10,12 +10,14 @@ import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
 import { redirect } from "next/navigation";
 import {
+  BOARD_COLUMN_STATUSES,
   BOARD_COLUMN_LIMIT_DEFAULT,
   BOARD_COLUMN_LIMIT_MAX,
   BOARD_COLUMN_LIMIT_PARAM,
   hasActiveFilters,
   parseBoardColumnLimitParams,
   parseSearchParams,
+  resolveBoardColumnStatuses,
   type BoardColumnStatus,
 } from "../../server/validators/issueFilters";
 
@@ -85,6 +87,7 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
           projects={projects}
           initialFilters={filters}
           basePath="/board"
+          statusOptions={BOARD_COLUMN_STATUSES}
           density="compact"
           variant="popover"
           showProjectFilter="mobile"
@@ -118,6 +121,11 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
       ) : (
         <BoardClient
           tasks={tasks}
+          statusFilter={
+            filters.status?.length
+              ? resolveBoardColumnStatuses(filters)
+              : null
+          }
           columns={boardColumns.map((column) => ({
             status: column.status,
             totalCount: column.totalCount,

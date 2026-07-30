@@ -46,6 +46,7 @@ interface IssueFiltersBarProps {
   projects: Array<{ id: string; name: string; key: string }>;
   initialFilters: IssueFilters;
   basePath: string;
+  statusOptions?: readonly Status[];
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
   density?: "default" | "compact";
@@ -165,6 +166,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   projects,
   initialFilters,
   basePath,
+  statusOptions = STATUS_OPTIONS,
   hideFiltersButton,
   mode = "default",
   density = "default",
@@ -490,7 +492,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             selected={(filters.status?.length ?? 0) === 0}
             onClick={() => updateParams({ ...filters, status: undefined })}
           />
-          {STATUS_OPTIONS.map((status) => (
+          {statusOptions.map((status) => (
             <FilterOptionRow
               key={status}
               label={STATUS_LABEL[status]}
@@ -745,7 +747,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   onChange={(next) => {
                     const arr = Array.isArray(next) ? next : [];
                     const normalized = arr.filter((v) =>
-                      STATUS_OPTIONS.includes(v as Status)
+                      statusOptions.includes(v as Status)
                     ) as Status[];
 
                     requestAnimationFrame(() => {
@@ -757,7 +759,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   }}
                   options={[
                     { label: "All", value: "__all__" },
-                    ...STATUS_OPTIONS.map((s) => ({ label: STATUS_LABEL[s], value: s })),
+                    ...statusOptions.map((s) => ({ label: STATUS_LABEL[s], value: s })),
                   ]}
                 />
               </div>

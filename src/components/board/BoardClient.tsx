@@ -72,6 +72,7 @@ type BoardColumnMeta = {
 interface BoardClientProps {
   tasks: BoardTask[];
   columns: BoardColumnMeta[];
+  statusFilter?: BoardColumnStatus[] | null;
   users: UserOption[];
   boardId?: string | null;
   editableProjectIds?: string[];
@@ -80,6 +81,7 @@ interface BoardClientProps {
 const BoardClient: React.FC<BoardClientProps> = ({
   tasks,
   columns: columnMeta,
+  statusFilter = null,
   users,
   boardId = null,
   editableProjectIds = [],
@@ -305,26 +307,31 @@ const BoardClient: React.FC<BoardClientProps> = ({
       }),
     [columnMetaByStatus, grouped]
   );
+  const filteredStatusSet = useMemo(
+    () => (statusFilter ? new Set(statusFilter) : null),
+    [statusFilter]
+  );
   const visibleColumns = useMemo(
     () =>
       columnView.filter(
         (column) =>
-          isDragging ||
-          column.count > 0 ||
-          revealedEmptyStatuses.includes(column.status)
+          filteredStatusSet?.has(column.status) ??
+          (isDragging ||
+            column.count > 0 ||
+            revealedEmptyStatuses.includes(column.status))
       ),
-    [columnView, isDragging, revealedEmptyStatuses]
+    [columnView, filteredStatusSet, isDragging, revealedEmptyStatuses]
   );
   const hiddenColumns = useMemo(
     () =>
-      isDragging
+      isDragging || filteredStatusSet
         ? []
         : columnView.filter(
             (column) =>
               column.count === 0 &&
               !revealedEmptyStatuses.includes(column.status)
           ),
-    [columnView, isDragging, revealedEmptyStatuses]
+    [columnView, filteredStatusSet, isDragging, revealedEmptyStatuses]
   );
 
   const revealEmptyColumn = React.useCallback((status: BoardColumnStatus) => {

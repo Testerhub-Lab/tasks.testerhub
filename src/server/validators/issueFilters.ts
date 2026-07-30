@@ -49,6 +49,15 @@ export const BOARD_COLUMN_LIMIT_MAX = 50;
 export type IssuePageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 export type BoardColumnStatus = (typeof BOARD_COLUMN_STATUSES)[number];
 
+export const resolveBoardColumnStatuses = (
+  filters: Pick<IssueFilters, "status">
+): BoardColumnStatus[] => {
+  if (!filters.status?.length) return [...BOARD_COLUMN_STATUSES];
+  return BOARD_COLUMN_STATUSES.filter((status) =>
+    filters.status?.includes(status)
+  );
+};
+
 export type IssuePaginationInput = {
   page: number;
   pageSize: IssuePageSize;

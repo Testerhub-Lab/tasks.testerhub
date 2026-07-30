@@ -6,7 +6,7 @@ import {
   type WorkspaceRole,
 } from "@prisma/client";
 import {
-  BOARD_COLUMN_STATUSES,
+  resolveBoardColumnStatuses,
   type BoardColumnLimits,
   type IssueFilters,
   type IssuePaginationInput,
@@ -527,7 +527,7 @@ function buildZeroTaskFilterWhere(
     where.push(`(${zeroStatusSQL}) = 'NEW'`);
   } else if (filters.view === "board") {
     where.push(`(${zeroStatusSQL}) = ANY(${
-      addValue([...BOARD_COLUMN_STATUSES])
+      addValue(resolveBoardColumnStatuses(filters))
     }::text[])`);
   } else if (filters.status?.length) {
     where.push(`(${zeroStatusSQL}) = ANY(${addValue(filters.status)}::text[])`);
@@ -785,7 +785,9 @@ function matchesZeroTaskFilters(
   if (filters.view === "backlog" && task.status !== Status.NEW) return false;
   if (
     filters.view === "board" &&
-    !BOARD_COLUMN_STATUSES.some((status) => status === task.status)
+    !resolveBoardColumnStatuses(filters).some(
+      (status) => status === task.status
+    )
   ) {
     return false;
   }
@@ -879,8 +881,10 @@ export async function getZeroBoardTaskColumns(
   currentUserID: string | null | undefined,
   accessibleProjectIDs: string[]
 ) {
+  const columnStatuses = resolveBoardColumnStatuses(filters);
+
   if (accessibleProjectIDs.length === 0) {
-    return BOARD_COLUMN_STATUSES.map(
+    return columnStatuses.map(
       (status) => ({
         status,
         items: [],
@@ -899,7 +903,7 @@ export async function getZeroBoardTaskColumns(
   );
 
   return Promise.all(
-    BOARD_COLUMN_STATUSES.map(
+    columnStatuses.map(
       async (status) => {
         const statusParam = `$${baseWhere.values.length + 1}`;
         const where = {

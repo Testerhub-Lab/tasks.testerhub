@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOARD_COLUMN_STATUSES,
   BOARD_COLUMN_LIMIT_DEFAULT,
   BOARD_COLUMN_LIMIT_MAX,
   DEFAULT_PAGE_SIZE,
   parseBoardColumnLimitParams,
   parsePaginationParams,
+  resolveBoardColumnStatuses,
 } from "./issueFilters";
 
 describe("issue pagination search params", () => {
@@ -57,5 +59,21 @@ describe("board column limit search params", () => {
       TESTING: BOARD_COLUMN_LIMIT_MAX,
       DONE: BOARD_COLUMN_LIMIT_DEFAULT,
     });
+  });
+});
+
+describe("board status filters", () => {
+  it("uses every board status when no status filter is selected", () => {
+    expect(resolveBoardColumnStatuses({})).toEqual(BOARD_COLUMN_STATUSES);
+  });
+
+  it("keeps only selected board statuses in workflow order", () => {
+    expect(
+      resolveBoardColumnStatuses({ status: ["DONE", "TODO"] })
+    ).toEqual(["TODO", "DONE"]);
+  });
+
+  it("does not treat backlog-only statuses as board columns", () => {
+    expect(resolveBoardColumnStatuses({ status: ["NEW"] })).toEqual([]);
   });
 });
