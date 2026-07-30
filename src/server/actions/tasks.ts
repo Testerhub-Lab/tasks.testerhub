@@ -37,6 +37,14 @@ const updateStatusSchema = z.object({
   status: taskStatusSchema,
 });
 
+const moveBacklogTasksSchema = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(50)
+    .transform((ids) => [...new Set(ids)]),
+});
+
 const updateFieldsSchema = z
   .object({
     id: z.string().min(1),
@@ -539,6 +547,200 @@ export async function updateTaskStatusAction(data: {
       return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
     return { ok: false as const, formError: "Не удалось обновить статус." };
+  }
+}
+
+export async function moveBacklogTasksToTodoAction(data: {
+  ids: string[];
+}) {
+  try {
+    const { ids } = moveBacklogTasksSchema.parse(data);
+    const authUser = await getCurrentUser();
+    if (!authUser) {
+      return {
+        ok: false as const,
+        formError: "Требуется авторизация",
+        code: "AUTH_REQUIRED",
+      };
+    }
+
+    const workspaceId = await getCurrentWorkspaceId();
+    if (!workspaceId) {
+      return {
+        ok: false as const,
+        formError: "Требуется авторизация",
+        code: "AUTH_REQUIRED",
+      };
+    }
+
+    if (usesZeroUiStore()) {
+      const backlogIssues = await Promise.all(
+        ids.map((issueID) =>
+          getZeroTaskDeletionPermission({
+            userID: authUser.id,
+            workspaceID: workspaceId,
+            issueID,
+          })
+        )
+      );
+      if (
+        backlogIssues.some(
+          (issue) => issue.isDeleted || issue.status !== Status.NEW
+        )
+      ) {
+        return {
+          ok: false as const,
+          formError: "Часть задач уже перемещена или недоступна.",
+        };
+      }
+
+      const results = await Promise.all(
+        ids.map((issueID) =>
+          updateZeroTaskForUI({
+            user: authUser,
+            workspaceID: workspaceId,
+            issueID,
+            status: Status.TODO,
+          })
+        )
+      );
+      const tasks = results.map(({ task }) => task);
+
+      await Promise.all(
+        tasks.map((task) =>
+          broadcastTaskEvent(task.projectId, workspaceId, {
+            type: "task_updated",
+            payload: {
+              task: {
+                id: task.id,
+                projectId: task.projectId,
+                key: task.key,
+                title: task.title,
+                description: task.description,
+                type: task.type,
+                priority: task.priority,
+                status: task.status,
+                assigneeId: task.assigneeId,
+                requesterName: task.requesterName,
+                createdAt: task.createdAt.toISOString(),
+              },
+            },
+          })
+        )
+      );
+
+      revalidatePath("/board");
+      revalidatePath("/backlog");
+      revalidatePath("/issues");
+      return { ok: true as const, movedCount: tasks.length };
+    }
+
+    const backlogTasks = await prisma.task.findMany({
+      where: {
+        id: { in: ids },
+        isDeleted: false,
+        status: Status.NEW,
+        project: { workspaceId },
+      },
+      select: {
+        id: true,
+        projectId: true,
+      },
+    });
+    if (backlogTasks.length !== ids.length) {
+      return {
+        ok: false as const,
+        formError: "Часть задач уже перемещена или недоступна.",
+      };
+    }
+
+    const projectIds = [...new Set(backlogTasks.map((task) => task.projectId))];
+    const access = await Promise.all(
+      projectIds.map((projectId) =>
+        hasProjectRole(authUser, projectId, ProjectRole.MEMBER, {
+          workspaceId,
+        })
+      )
+    );
+    if (access.some((role) => !role)) {
+      return { ok: false as const, formError: "Недостаточно прав" };
+    }
+
+    const updatedTasks = await prisma.$transaction(async (tx) => {
+      const updated = await tx.task.updateMany({
+        where: {
+          id: { in: ids },
+          isDeleted: false,
+          status: Status.NEW,
+        },
+        data: { status: Status.TODO },
+      });
+      if (updated.count !== ids.length) {
+        throw new Error("Backlog selection changed");
+      }
+      await tx.taskActivity.createMany({
+        data: ids.map((taskId) => ({
+          taskId,
+          type: ActivityType.STATUS_CHANGED,
+          fromStatus: Status.NEW,
+          toStatus: Status.TODO,
+          userId: authUser.id,
+          authorName: null,
+        })),
+      });
+      return tx.task.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          projectId: true,
+          key: true,
+          title: true,
+          description: true,
+          type: true,
+          priority: true,
+          status: true,
+          assigneeId: true,
+          requesterName: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    await Promise.all(
+      updatedTasks.map((task) =>
+        broadcastTaskEvent(task.projectId, workspaceId, {
+          type: "task_updated",
+          payload: {
+            task: {
+              id: task.id,
+              projectId: task.projectId,
+              key: task.key,
+              title: task.title,
+              description: task.description,
+              type: task.type,
+              priority: task.priority,
+              status: task.status,
+              assigneeId: task.assigneeId,
+              requesterName: task.requesterName,
+              createdAt: task.createdAt.toISOString(),
+            },
+          },
+        })
+      )
+    );
+
+    revalidatePath("/board");
+    revalidatePath("/backlog");
+    revalidatePath("/issues");
+    return { ok: true as const, movedCount: updatedTasks.length };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
+    }
+    return {
+      ok: false as const,
+      formError: "Не удалось переместить выбранные задачи.",
+    };
   }
 }
 

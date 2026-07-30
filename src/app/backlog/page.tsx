@@ -14,7 +14,7 @@ import {
   parsePaginationParams,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
-import BacklogRowClient from "../../components/issues/BacklogRowClient";
+import BacklogListClient from "../../components/backlog/BacklogListClient";
 
 
 interface BacklogPageProps {
@@ -28,14 +28,11 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
 
   type Filters = ReturnType<typeof parseSearchParams>;
 
-  const queryFilters: Filters =
-    filters.status?.length
-      ? filters
-      : {
-          ...filters,
-          view: "backlog",
-          status: ["NEW"] as const,
-        };
+  const queryFilters: Filters = {
+    ...filters,
+    view: "backlog",
+    status: ["NEW"] as const,
+  };
 
   const user = await getCurrentUser();
   if (!user) redirect("/signin?redirect=/backlog");
@@ -91,23 +88,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         </div>
       ) : (
         <>
-          <div className="space-y-4">
-            {tasks.map((t) => (
-              <BacklogRowClient
-                key={t.id}
-                id={t.id}
-                title={t.title}
-                issueKey={t.key}
-                type={t.type}
-                priority={t.priority}
-                status={t.status}
-                createdAt={t.createdAt}
-                reporter={t.reporter}
-                requesterName={t.requesterName}
-                href={`/tasks/${t.key ?? t.id}`}
-              />
-            ))}
-          </div>
+          <BacklogListClient tasks={tasks} />
           <IssuePagination
             basePath="/backlog"
             page={paginated.page}

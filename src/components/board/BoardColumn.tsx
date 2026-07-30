@@ -15,7 +15,6 @@ interface BoardColumnProps {
 }
 
 const statusTone: Partial<Record<TaskStatus, string>> = {
-  NEW: "border-white/25",
   TODO: "border-white/35",
   IN_PROGRESS: "border-amber-400",
   TESTING: "border-cyan-400",

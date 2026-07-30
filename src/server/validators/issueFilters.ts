@@ -38,7 +38,6 @@ export type IssueFilterPriority = TaskPriority;
 export const PAGE_SIZE_OPTIONS = [10, 15, 20, 50] as const;
 export const DEFAULT_PAGE_SIZE = 20;
 export const BOARD_COLUMN_STATUSES = [
-  "NEW",
   "TODO",
   "IN_PROGRESS",
   "TESTING",
@@ -58,7 +57,6 @@ export type IssuePaginationInput = {
 export type BoardColumnLimits = Record<BoardColumnStatus, number>;
 
 export const BOARD_COLUMN_LIMIT_PARAM: Record<BoardColumnStatus, string> = {
-  NEW: "backlogLimit",
   TODO: "todoLimit",
   IN_PROGRESS: "inProgressLimit",
   TESTING: "testingLimit",

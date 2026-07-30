@@ -77,7 +77,7 @@ export const buildTaskWhere = (
   if (filters.view === "backlog") {
     where.status = Status.NEW;
   }
-  // Board shows the complete workflow, starting with Backlog (NEW).
+  // Board shows committed work; NEW issues stay in the Backlog view.
   else if (filters.view === "board") {
     where.status = { in: [...BOARD_COLUMN_STATUSES] };
   }

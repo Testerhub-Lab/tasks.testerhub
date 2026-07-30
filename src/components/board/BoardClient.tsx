@@ -44,7 +44,6 @@ type BoardTask = {
 };
 
 const columnTitle: Record<BoardColumnStatus, string> = {
-  NEW: "Backlog",
   TODO: "Todo",
   IN_PROGRESS: "In progress",
   TESTING: "Testing",
@@ -57,7 +56,6 @@ const columns = BOARD_COLUMN_STATUSES.map((status) => ({
 }));
 
 const hiddenColumnTone: Record<BoardColumnStatus, string> = {
-  NEW: "border-white/25",
   TODO: "border-white/35",
   IN_PROGRESS: "border-amber-400",
   TESTING: "border-cyan-400",

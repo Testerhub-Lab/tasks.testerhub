@@ -36,7 +36,6 @@ describe("issue pagination search params", () => {
 describe("board column limit search params", () => {
   it("uses the default limit for every board column", () => {
     expect(parseBoardColumnLimitParams({})).toEqual({
-      NEW: BOARD_COLUMN_LIMIT_DEFAULT,
       TODO: BOARD_COLUMN_LIMIT_DEFAULT,
       IN_PROGRESS: BOARD_COLUMN_LIMIT_DEFAULT,
       TESTING: BOARD_COLUMN_LIMIT_DEFAULT,
@@ -47,14 +46,12 @@ describe("board column limit search params", () => {
   it("reads independent column limits and clamps them to the supported range", () => {
     expect(
       parseBoardColumnLimitParams({
-        backlogLimit: "25",
         todoLimit: "40",
         inProgressLimit: "10",
         testingLimit: "500",
         doneLimit: "abc",
       })
     ).toEqual({
-      NEW: 25,
       TODO: 40,
       IN_PROGRESS: BOARD_COLUMN_LIMIT_DEFAULT,
       TESTING: BOARD_COLUMN_LIMIT_MAX,
