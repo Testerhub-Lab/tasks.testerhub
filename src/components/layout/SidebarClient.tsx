@@ -40,7 +40,16 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const activeProjectId = searchParams.get("projectId");
   const activeAssignee = searchParams.get("assignee");
   const isSettingsWorkspace = pathname.startsWith("/settings/workspace");
-  const settingsTab = searchParams.get("tab");
+  const activeWikiProjectKey = pathname.startsWith("/wiki/")
+    ? decodeURIComponent(pathname.split("/")[2] ?? "")
+    : null;
+  const isProjectContext =
+    pathname.startsWith("/board") ||
+    pathname.startsWith("/backlog") ||
+    pathname.startsWith("/issues") ||
+    pathname.startsWith("/wiki");
+  const isAllProjectsActive =
+    isProjectContext && !activeProjectId && !activeWikiProjectKey;
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -59,14 +68,6 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     const params = new URLSearchParams(searchParams.toString());
     if (assignee) params.set("assignee", assignee);
     else params.delete("assignee");
-    const query = params.toString();
-    return query ? `/issues?${query}` : "/issues";
-  };
-
-  const buildStatusHref = (statuses: string[]) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("status");
-    statuses.forEach((status) => params.append("status", status));
     const query = params.toString();
     return query ? `/issues?${query}` : "/issues";
   };
@@ -109,8 +110,11 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
         <button
           type="button"
           className="sidebar__workspace-trigger"
-          onClick={() => setWorkspaceOpen((v) => !v)}
-          aria-expanded={workspaceOpen}
+          onClick={() => {
+            if (workspaces.length > 1) setWorkspaceOpen((v) => !v);
+          }}
+          disabled={workspaces.length <= 1}
+          aria-expanded={workspaces.length > 1 ? workspaceOpen : undefined}
         >
             <span className="sidebar__workspace-avatar">
               {(workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "WS")
@@ -120,51 +124,30 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             <span className="sidebar__workspace-name">
               {workspaces.find((ws) => ws.id === currentWorkspaceId)?.name ?? "Workspace"}
             </span>
-            <span className="sidebar__workspace-caret">▾</span>
-        </button>
-        {workspaceOpen ? (
-          <div className="sidebar__workspace-menu">
-            {canManageWorkspace ? (
-              <Link
-                href="/settings/workspace"
-                className="sidebar__menu-item"
-                onClick={() => setWorkspaceOpen(false)}
-              >
-                Workspace settings
-              </Link>
-            ) : null}
-            {canManageProjects ? (
-              <Link
-                href="/settings/workspace#project-access"
-                className="sidebar__menu-item"
-                onClick={() => setWorkspaceOpen(false)}
-              >
-                Project access
-              </Link>
-            ) : null}
             {workspaces.length > 1 ? (
-              <div className="sidebar__menu-group">
-                <div className="sidebar__menu-title">Switch workspace</div>
-                {workspaces.map((ws) => (
-                  <button
-                    key={ws.id}
-                    type="button"
-                    className={`sidebar__menu-item ${
-                      ws.id === currentWorkspaceId ? "is-active" : ""
-                    }`}
-                    onClick={() => handleWorkspaceChange(ws.id)}
-                  >
-                    {ws.name}
-                  </button>
-                ))}
-              </div>
+              <span className="sidebar__workspace-caret">▾</span>
             ) : null}
+        </button>
+        {workspaceOpen && workspaces.length > 1 ? (
+          <div className="sidebar__workspace-menu">
+            <div className="sidebar__menu-title">Switch workspace</div>
+            {workspaces.map((ws) => (
+              <button
+                key={ws.id}
+                type="button"
+                className={`sidebar__menu-item ${
+                  ws.id === currentWorkspaceId ? "is-active" : ""
+                }`}
+                onClick={() => handleWorkspaceChange(ws.id)}
+              >
+                {ws.name}
+              </button>
+            ))}
           </div>
         ) : null}
       </div>
 
       <div className="sidebar__section">
-        <div className="sidebar__title">Views</div>
         <nav className="sidebar__list">
           <Link
             href="/backlog"
@@ -224,116 +207,75 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             </span>
             <span>Wiki</span>
           </Link>
-          {canManageWorkspace ? (
-            <Link
-              href="/settings/workspace?tab=projects#projects"
-              className={`sidebar__item ${
-                isSettingsWorkspace && settingsTab === "projects" ? "is-active" : ""
-              }`}
-            >
-              <span className="sidebar__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <path d="M4 7h16v10H4z" />
-                  <path d="M9 7v10" />
-                </svg>
-              </span>
-              <span>Projects</span>
-            </Link>
-          ) : null}
-          {canManageProjects ? (
-            <Link
-              href="/settings/workspace?tab=access#project-access"
-              className={`sidebar__item ${
-                isSettingsWorkspace && settingsTab === "access" ? "is-active" : ""
-              }`}
-            >
-              <span className="sidebar__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <circle cx="8" cy="9" r="3" />
-                  <circle cx="16" cy="9" r="3" />
-                  <path d="M3 20c1.4-3 8.6-3 10 0" />
-                  <path d="M11 20c1.2-2.6 7.8-2.6 10 0" />
-                </svg>
-              </span>
-              <span>Project access</span>
-            </Link>
-          ) : null}
-          <Link
-            href="/trash"
-            className={`sidebar__item ${pathname.startsWith("/trash") ? "is-active" : ""}`}
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M4 7h16" />
-                <path d="M9 7V5h6v2" />
-                <path d="M7 7l1 12h8l1-12" />
-              </svg>
-            </span>
-            <span>Trash</span>
-          </Link>
         </nav>
       </div>
 
-      <div className="sidebar__section">
-        <div className="sidebar__title">Filters</div>
-        <nav className="sidebar__list">
-          <Link
-            href={buildIssuesHref("me")}
-            className="sidebar__item"
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M4 5h16l-6 7v5l-4 2v-7z" />
-              </svg>
-            </span>
-            <span>Assigned to me</span>
-          </Link>
-          <Link
-            href={buildStatusHref(["TODO", "IN_PROGRESS", "TESTING", "HOLD"])}
-            className="sidebar__item"
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M5 12h14" />
-                <path d="M12 5v14" />
-              </svg>
-            </span>
-            <span>Open only</span>
-          </Link>
-        </nav>
-      </div>
-
-      <div className="sidebar__section">
-        <details className="sidebar__disclosure">
-          <summary className="sidebar__title sidebar__disclosure-toggle sidebar__section-toggle">
-            <span>
-              Projects
-              <span className="sidebar__count">{projects.length}</span>
-            </span>
-            <span className="sidebar__caret">▾</span>
-          </summary>
-          <nav className="sidebar__list sidebar__projects-list">
-            <Link
-              href={buildHref(null)}
-              className={`sidebar__item ${!activeProjectId ? "is-active" : ""}`}
-            >
-              All projects
-            </Link>
-            {projects.map((project) => (
+      <div className="sidebar__section sidebar__projects">
+        <div className="sidebar__title sidebar__projects-title">
+          <span>Projects</span>
+          <span className="sidebar__count">{projects.length}</span>
+        </div>
+        <nav className="sidebar__list sidebar__projects-list">
+          {projects.map((project) => {
+            const isActive =
+              activeProjectId === project.id ||
+              activeWikiProjectKey === project.key;
+            return (
               <Link
                 key={project.id}
                 href={buildHref(project.id, project.key)}
-                className={`sidebar__item ${activeProjectId === project.id ? "is-active" : ""}`}
+                className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
                 title={`${project.key} — ${project.name}`}
               >
                 <span className="sidebar__project-key">{project.key}</span>
                 <span className="sidebar__project-name">{project.name}</span>
               </Link>
-            ))}
-          </nav>
-        </details>
+            );
+          })}
+          <Link
+            href={buildHref(null)}
+            className={`sidebar__item ${isAllProjectsActive ? "is-context-active" : ""}`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <rect x="4" y="5" width="16" height="14" rx="2" />
+                <path d="M9 5v14M14 5v14" />
+              </svg>
+            </span>
+            <span>All projects</span>
+          </Link>
+        </nav>
       </div>
 
+      <div className="sidebar__footer">
+        {canManageWorkspace || canManageProjects ? (
+          <Link
+            href="/settings/workspace"
+            className={`sidebar__item ${isSettingsWorkspace ? "is-active" : ""}`}
+          >
+            <span className="sidebar__icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z" />
+              </svg>
+            </span>
+            <span>Settings</span>
+          </Link>
+        ) : null}
+        <Link
+          href="/trash"
+          className={`sidebar__item ${pathname.startsWith("/trash") ? "is-active" : ""}`}
+        >
+          <span className="sidebar__icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M4 7h16" />
+              <path d="M9 7V5h6v2" />
+              <path d="M7 7l1 12h8l1-12" />
+            </svg>
+          </span>
+          <span>Trash</span>
+        </Link>
+      </div>
     </aside>
   );
 };

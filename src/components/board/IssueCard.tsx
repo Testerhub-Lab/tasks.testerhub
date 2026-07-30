@@ -29,8 +29,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
   issueKey,
   type,
   priority,
-  description,
-  createdAt,
   assignee,
   reporter,
   requesterName,
@@ -40,14 +38,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
   canEdit = true,
 }) => {
   const resolvedType = type?.trim() || null;
-
-  const cleanDescription = description
-    ? description
-        .replace(/Тип:\s*[A-Za-zА-Яа-я_-]+/i, "")
-        .replace(/Описание:\s*/gi, "")
-        .replace(/Шаги:\s*/gi, "")
-        .trim()
-    : null;
 
   const assigneeName = assignee
     ? getDisplayName({ user: assignee, fallbackName: null })
@@ -87,35 +77,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
     return 0;
   })();
 
-  const createdAtDate = (() => {
-    if (!createdAt) return null;
-    const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
-    return Number.isNaN(date.getTime()) ? null : date;
-  })();
-
-  const formatRelativeTime = (date: Date, now = new Date()) => {
-    const diffMs = Math.max(0, now.getTime() - date.getTime());
-    const minutes = Math.floor(diffMs / 60000);
-    if (minutes < 1) return "1m ago";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    const weeks = Math.floor(days / 7);
-    return `${weeks}w ago`;
-  };
-
-  const formatAbsoluteDate = (date: Date) =>
-    date.toLocaleString("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const assigneeRef = useRef<HTMLDivElement | null>(null);
 
@@ -150,21 +111,14 @@ const IssueCard: React.FC<IssueCardProps> = ({
         "focus-visible:ring-2 focus-visible:ring-white/10 outline-none",
       ].join(" ")}
     >
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <div className="flex items-center gap-2">
-          {issueKey ? (
-            <span className="flex-none whitespace-nowrap text-[11px] text-white/65 font-medium font-mono">
-              {issueKey}
-            </span>
-          ) : null}
-
-          <div className="flex-1 min-w-0">
-            <h3
-              className="text-[13px] font-medium text-white/92 truncate leading-5"
-              title={cleanDescription ?? title}
-            >
-              {title}
-            </h3>
+          <div className="min-w-0 flex-1">
+            {issueKey ? (
+              <span className="block truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/55">
+                {issueKey}
+              </span>
+            ) : null}
           </div>
 
           <div className="flex-none flex items-center gap-2">
@@ -264,6 +218,13 @@ const IssueCard: React.FC<IssueCardProps> = ({
           </div>
         </div>
 
+        <h3
+          className="line-clamp-2 break-words text-[13px] font-medium leading-5 text-white/92"
+          title={title}
+        >
+          {title}
+        </h3>
+
         {typeLabel || metaName ? (
           <div className="flex items-center gap-2 text-xs text-white/60">
             {typeLabel ? (
@@ -280,15 +241,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
               <span className="text-white/30">·</span>
             ) : null}
             {metaName ? <span className="truncate">{metaName}</span> : null}
-          </div>
-        ) : null}
-
-        {createdAtDate ? (
-          <div
-            className="text-[11px] text-white/45"
-            title={`Created ${formatAbsoluteDate(createdAtDate)}`}
-          >
-            Created • {formatRelativeTime(createdAtDate)}
           </div>
         ) : null}
       </div>
