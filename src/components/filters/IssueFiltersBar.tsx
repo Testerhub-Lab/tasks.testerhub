@@ -712,7 +712,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           isPopover
             ? [
                 "absolute right-0 top-full z-50 mt-2",
-                "w-[300px] max-w-[calc(100vw-2rem)] overflow-hidden",
+                "w-[240px] max-w-[calc(100vw-2rem)] overflow-hidden",
                 "rounded-md border border-white/10 bg-slate-950/95",
                 "shadow-[0_18px_50px_rgba(0,0,0,0.48)] backdrop-blur-xl",
                 isOpen ? "block" : "hidden",
