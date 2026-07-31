@@ -1,8 +1,20 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import {
+  Listbox,
+  ListboxButton,
+  ListboxOption,
+  ListboxOptions,
+} from "@headlessui/react";
 
 import Button from "../ui/Button";
 import { toast } from "../ui/toast";
@@ -137,6 +149,93 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+type CompactSelectOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+type CompactSelectProps<T extends string> = {
+  value: T;
+  options: readonly CompactSelectOption<T>[];
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  leading: React.ReactNode;
+};
+
+function CompactSelect<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  leading,
+}: CompactSelectProps<T>) {
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <Listbox value={value} onChange={onChange}>
+      <ListboxButton
+        aria-label={ariaLabel}
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-md border border-white/[0.08]",
+          "bg-white/[0.035] px-2.5 text-[12px] text-white/70 transition-colors",
+          "hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white/90",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+        )}
+      >
+        {leading}
+        <span className="max-w-[150px] truncate">
+          {selected?.label ?? value}
+        </span>
+        <span aria-hidden="true" className="text-white/35">
+          ▾
+        </span>
+      </ListboxButton>
+
+      <ListboxOptions
+        anchor="bottom start"
+        portal
+        modal={false}
+        className={cn(
+          "z-[70] mt-1 max-h-[260px] min-w-[170px] overflow-y-auto rounded-lg",
+          "border border-white/[0.11] bg-[#1a1d23] p-1 text-[12px] text-white/75",
+          "shadow-[0_18px_55px_rgba(0,0,0,0.65)] focus:outline-none"
+        )}
+      >
+        {options.map((option) => (
+          <ListboxOption
+            key={option.value}
+            value={option.value}
+            className={({ focus, selected: isSelected }) =>
+              cn(
+                "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 outline-none",
+                focus && "bg-white/[0.07] text-white",
+                isSelected && "text-white"
+              )
+            }
+          >
+            {({ selected: isSelected }) => (
+              <>
+                <span className="min-w-0 flex-1 truncate">
+                  {option.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "text-[11px] text-cyan-200",
+                    !isSelected && "invisible"
+                  )}
+                >
+                  ✓
+                </span>
+              </>
+            )}
+          </ListboxOption>
+        ))}
+      </ListboxOptions>
+    </Listbox>
+  );
+}
+
 function buildBugTemplatePlain() {
   return [
     "Описание:",
@@ -231,6 +330,16 @@ export default function CreateTaskModal({
 
   const firstProjectId = projects?.[0]?.id ?? "";
   const effectiveProjectId = projectId || firstProjectId;
+  const assigneeOptions = useMemo(
+    () => [
+      { value: "", label: "Unassigned" },
+      ...users.map((user) => ({
+        value: user.id,
+        label: user.name || user.email,
+      })),
+    ],
+    [users]
+  );
 
   const resetForm = useCallback(() => {
     setProjectId("");
@@ -497,9 +606,6 @@ export default function CreateTaskModal({
     "inline-flex h-7 items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.035] px-2.5 text-[12px] text-white/70 " +
     "transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white/90 focus-within:ring-2 focus-within:ring-cyan-400/30";
 
-  const selectBase =
-    "max-w-[150px] appearance-none bg-transparent outline-none text-inherit";
-
   return createPortal(
     <div className="fixed inset-0 z-50">
       <button
@@ -509,7 +615,7 @@ export default function CreateTaskModal({
         onClick={close}
       />
 
-      <div className="relative z-10 flex h-full w-full items-center justify-center p-3 sm:p-6">
+      <div className="relative z-10 flex h-full w-full items-start justify-center px-3 pb-3 pt-4 sm:px-6 sm:pb-6 sm:pt-[12vh]">
         <div
           role="dialog"
           aria-modal="true"
@@ -518,7 +624,7 @@ export default function CreateTaskModal({
             "w-full max-w-[780px] overflow-visible",
             "rounded-xl border border-white/[0.11]",
             "bg-[#111318]/95 shadow-[0_24px_90px_rgba(0,0,0,0.62)] backdrop-blur-md",
-            "max-h-[86vh]"
+            "max-h-[94vh] sm:max-h-[80vh]"
           )}
         >
           <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
@@ -551,7 +657,7 @@ export default function CreateTaskModal({
           </div>
 
           <div
-            className="relative max-h-[calc(86vh-48px)] overflow-y-auto px-4 pb-3 pt-2 sm:px-5"
+            className="relative max-h-[calc(94vh-48px)] overflow-y-auto px-4 pb-3 pt-2 sm:max-h-[calc(80vh-48px)] sm:px-5"
             onDragEnter={onDragEnter}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -617,89 +723,58 @@ export default function CreateTaskModal({
             <AttachmentsPanel items={attachments} onRemove={removeAttachment} />
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <div className={chipBase}>
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-fuchsia-400/80"
-                />
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as IssueType)}
-                  className={selectBase}
-                  aria-label="Issue type"
-                >
-                  {TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none text-slate-300/80">▾</span>
-              </div>
+              <CompactSelect
+                value={type}
+                options={TYPE_OPTIONS}
+                onChange={setType}
+                ariaLabel="Issue type"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-fuchsia-400/80"
+                  />
+                }
+              />
 
-              <div className={chipBase}>
-                <span aria-hidden="true" className="text-white/35">
-                  ≡
-                </span>
-                <select
-                  value={priority}
-                  onChange={(e) =>
-                    setPriority(e.target.value as PriorityType)
-                  }
-                  className={selectBase}
-                  aria-label="Priority"
-                >
-                  {PRIORITY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none text-slate-300/80">▾</span>
-              </div>
+              <CompactSelect
+                value={priority}
+                options={PRIORITY_OPTIONS}
+                onChange={setPriority}
+                ariaLabel="Priority"
+                leading={
+                  <span aria-hidden="true" className="text-white/35">
+                    ≡
+                  </span>
+                }
+              />
 
-              <div className={chipBase}>
-                <span
-                  aria-hidden="true"
-                  className={`h-3 w-3 rounded-full border-2 ${STATUS_TONE[status]}`}
-                />
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className={selectBase}
-                  aria-label="Status"
-                >
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none text-slate-300/80">▾</span>
-              </div>
+              <CompactSelect
+                value={status}
+                options={STATUS_OPTIONS}
+                onChange={setStatus}
+                ariaLabel="Status"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    className={`h-3 w-3 rounded-full border-2 ${STATUS_TONE[status]}`}
+                  />
+                }
+              />
 
-              <div className={chipBase} title="Assignee">
-                <span
-                  aria-hidden="true"
-                  className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white/25 text-[8px] text-white/45"
-                >
-                  {assigneeId ? "✓" : "–"}
-                </span>
-                <select
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  className={selectBase}
-                  aria-label="Assignee"
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name ? u.name : u.email}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none text-slate-300/80">▾</span>
-              </div>
+              <CompactSelect
+                value={assigneeId}
+                options={assigneeOptions}
+                onChange={setAssigneeId}
+                ariaLabel="Assignee"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white/25 text-[8px] text-white/45"
+                  >
+                    {assigneeId ? "✓" : "–"}
+                  </span>
+                }
+              />
 
               <TagsPicker value={tags} onChange={setTags} />
 
