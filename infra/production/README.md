@@ -92,6 +92,17 @@ Copy accepted backups off the production server.
 For major PostgreSQL upgrades, never change only the image major tag. Use a
 tested `pg_dump`/`pg_restore` or `pg_upgrade` procedure.
 
+For the current PostgreSQL 18 production database, use the documented routine in
+`infra/production/backup/`:
+
+```bash
+infra/production/backup/backup.sh
+infra/production/backup/restore-check.sh /home/deploy/pulsar-pg18-backups/<timestamp>/pulsar-pg18-<timestamp>.dump
+```
+
+The routine creates a custom-format dump, SHA-256 checksum, and restore-check
+summary without printing secrets.
+
 ## Validated baseline
 
 The side-by-side contour was validated on 2026-07-26 without changing the
