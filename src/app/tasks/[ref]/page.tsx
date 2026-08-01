@@ -64,18 +64,20 @@ const TaskPage = async ({ params }: TaskPageProps) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <IssueDetails task={task} />
-      <div id="activity" className="mx-auto max-w-6xl space-y-4 scroll-mt-24">
-      <TaskComments
-        boardId={task.projectId}
-        taskId={task.id}
-        issueKey={(task as { key?: string | null }).key ?? task.id}
-        createdAt={task.createdAt}
-        comments={comments}
-        activities={activities}
-        canComment={canComment}
-      />
+      <div id="activity" className="mx-auto max-w-6xl scroll-mt-24">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <TaskComments
+            boardId={task.projectId}
+            taskId={task.id}
+            issueKey={(task as { key?: string | null }).key ?? task.id}
+            createdAt={task.createdAt}
+            comments={comments}
+            activities={activities}
+            canComment={canComment}
+          />
+        </div>
       </div>
     </div>
   );

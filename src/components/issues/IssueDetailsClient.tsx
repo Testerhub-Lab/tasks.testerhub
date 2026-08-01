@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Card from "../ui/Card";
 import BackButton from "./BackButton";
 import IssueMetaPanel from "./IssueMetaPanel";
@@ -21,6 +23,95 @@ function attachmentLabel(url: string) {
   } catch {
     return encoded;
   }
+}
+
+const markdownComponents: Components = {
+  p: ({ children }) => (
+    <p className="mb-3 whitespace-pre-wrap text-[15px] leading-7 text-white/82 last:mb-0">
+      {children}
+    </p>
+  ),
+  a: ({ children, href }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-cyan-300 underline decoration-cyan-300/30 underline-offset-2 hover:text-cyan-200"
+    >
+      {children}
+    </a>
+  ),
+  ul: ({ children }) => (
+    <ul className="mb-3 list-disc space-y-1 pl-5 text-[15px] leading-7 text-white/82">
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="mb-3 list-decimal space-y-1 pl-5 text-[15px] leading-7 text-white/82">
+      {children}
+    </ol>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-3 border-l-2 border-white/15 pl-4 text-white/60">
+      {children}
+    </blockquote>
+  ),
+  pre: ({ children }) => (
+    <pre className="my-4 overflow-x-auto rounded-lg border border-white/[0.09] bg-black/35 p-4 font-mono text-[13px] leading-5 text-white/82 [&>code]:bg-transparent [&>code]:p-0">
+      {children}
+    </pre>
+  ),
+  code: ({ children }) => (
+    <code className="rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-[0.9em] text-white/88">
+      {children}
+    </code>
+  ),
+};
+
+const markdownPlugins = [remarkGfm];
+
+function withDetectedCodeBlock(value: string) {
+  if (value.includes("```")) return value;
+
+  const lines = value.split("\n");
+  const output: string[] = [];
+  const looksLikeCode = (line: string) =>
+    /^\s*(?:const|let|var|function|class|import|export|return)\b/.test(line) ||
+    /^\s*[\w$.]+\s*=/.test(line) ||
+    /\/\/\s*.+$/.test(line);
+
+  for (let index = 0; index < lines.length; ) {
+    if (!looksLikeCode(lines[index] ?? "")) {
+      output.push(lines[index] ?? "");
+      index += 1;
+      continue;
+    }
+
+    const codeLines: string[] = [];
+    while (index < lines.length && looksLikeCode(lines[index] ?? "")) {
+      codeLines.push(lines[index] ?? "");
+      index += 1;
+    }
+
+    if (codeLines.length > 1) {
+      output.push("```", ...codeLines, "```");
+    } else {
+      output.push(...codeLines);
+    }
+  }
+
+  return output.join("\n");
+}
+
+function MarkdownContent({ value }: { value: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={markdownPlugins}
+      components={markdownComponents}
+    >
+      {withDetectedCodeBlock(value)}
+    </ReactMarkdown>
+  );
 }
 
 const parseDetails = (raw?: string | null) => {
@@ -129,6 +220,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -137,6 +229,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const originalDescriptionRef = useRef(descriptionValue);
   const skipTitleBlurRef = useRef(false);
   const skipDescriptionBlurRef = useRef(false);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
 
   const details = parseDetails(descriptionValue);
   const showCopied = (value: "key" | "link") => {
@@ -283,6 +376,26 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     }
   }, [editingDescription]);
 
+  useEffect(() => {
+    if (!actionsOpen) return;
+
+    const closeActions = (event: MouseEvent) => {
+      if (!actionsRef.current?.contains(event.target as Node)) {
+        setActionsOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActionsOpen(false);
+    };
+
+    window.addEventListener("mousedown", closeActions);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("mousedown", closeActions);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [actionsOpen]);
+
   const cancelTitleEdit = () => {
     setTitleValue(originalTitleRef.current);
     setEditingTitle(false);
@@ -387,131 +500,166 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopyKey}
-              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55 transition-colors hover:text-white/80"
-            >
-              {issueKey}
-            </button>
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              {editingTitle ? (
-                <input
-                  ref={titleInputRef}
-                  value={titleValue}
-                  onChange={(event) => setTitleValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      skipTitleBlurRef.current = true;
-                      void commitTitle(titleValue);
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      skipTitleBlurRef.current = true;
-                      cancelTitleEdit();
-                    }
-                  }}
-                  onBlur={() => {
-                    if (skipTitleBlurRef.current) {
-                      skipTitleBlurRef.current = false;
-                      return;
-                    }
-                    void commitTitle(titleValue);
-                  }}
-                  className="w-full min-w-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-lg font-medium leading-tight text-white outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                  disabled={savingTitle}
-                />
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (canEdit) setEditingTitle(true);
-                    }}
-                    className={`max-w-[70%] min-w-0 truncate rounded-lg px-2 py-1 text-left text-lg font-medium leading-tight text-white transition focus:outline-none ${
-                      canEdit
-                        ? "hover:bg-white/5 focus:ring-2 focus:ring-[var(--color-primary)]/40"
-                        : "cursor-default"
-                    }`}
-                  >
-                    {titleValue}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleCopyLink();
-                    }}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/55 transition hover:bg-white/6 hover:text-white"
-                    title="Copy link"
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
-                      <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {canDelete ? (
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                className="rounded-md border border-red-400/30 px-2.5 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
-              >
-                Удалить
-              </button>
-            ) : null}
-            <BackButton />
-          </div>
+    <div className="mx-auto max-w-6xl space-y-7">
+      <header className="flex items-center justify-between gap-4 border-b border-white/[0.07] pb-3">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-white/45">
+          <BackButton />
+          <span aria-hidden="true" className="text-white/20">
+            ›
+          </span>
+          <button
+            type="button"
+            onClick={handleCopyKey}
+            className="truncate rounded-md px-2 py-1 font-medium text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white"
+            title="Copy issue key"
+          >
+            {issueKey}
+          </button>
         </div>
 
-        {savingTitle ? (
-          <span className="text-xs text-white/50">Saving...</span>
-        ) : null}
-      </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => void handleCopyLink()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/40 transition hover:bg-white/[0.06] hover:text-white/75"
+            title="Copy link"
+            aria-label="Copy issue link"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 1 1 7 7l-1 1" />
+              <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
+            </svg>
+          </button>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)]">
-        <div className="space-y-6">
-          <Card className="flex flex-col gap-6 border border-white/4 bg-white/[0.012] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="flex items-center justify-between text-xs text-white/60">
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
-                Description
-              </h2>
-            </div>
-
-            {editingDescription ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                  <span>Editing</span>
-                  <div className="flex items-center gap-2">
+          <div ref={actionsRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setActionsOpen((current) => !current)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-lg text-white/40 transition hover:bg-white/[0.06] hover:text-white/75"
+              aria-label="Issue actions"
+              aria-expanded={actionsOpen}
+            >
+              …
+            </button>
+            {actionsOpen ? (
+              <div className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-lg border border-white/[0.1] bg-[#191c22] p-1 shadow-[0_18px_55px_rgba(0,0,0,0.6)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    void handleCopyKey();
+                  }}
+                  className="flex h-8 w-full items-center rounded-md px-2.5 text-left text-xs text-white/70 hover:bg-white/[0.06] hover:text-white"
+                >
+                  Copy issue key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    void handleCopyLink();
+                  }}
+                  className="flex h-8 w-full items-center rounded-md px-2.5 text-left text-xs text-white/70 hover:bg-white/[0.06] hover:text-white"
+                >
+                  Copy link
+                </button>
+                {canDelete ? (
+                  <>
+                    <div className="my-1 h-px bg-white/[0.07]" />
                     <button
                       type="button"
-                      onClick={() => cancelDescriptionEdit()}
-                      className="rounded-md px-2 py-1 text-white/70 hover:bg-white/5"
+                      onClick={() => {
+                        setActionsOpen(false);
+                        setDeleteConfirmOpen(true);
+                      }}
+                      className="flex h-8 w-full items-center rounded-md px-2.5 text-left text-xs text-red-300/80 hover:bg-red-500/10 hover:text-red-200"
+                    >
+                      Delete issue
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <main className="min-w-0 space-y-7">
+          <div className="space-y-1">
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(event) => setTitleValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    skipTitleBlurRef.current = true;
+                    void commitTitle(titleValue);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipTitleBlurRef.current = true;
+                    cancelTitleEdit();
+                  }
+                }}
+                onBlur={() => {
+                  if (skipTitleBlurRef.current) {
+                    skipTitleBlurRef.current = false;
+                    return;
+                  }
+                  void commitTitle(titleValue);
+                }}
+                className="w-full rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-[24px] font-semibold leading-8 text-white outline-none focus:ring-2 focus:ring-cyan-400/25"
+                disabled={savingTitle}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (canEdit) setEditingTitle(true);
+                }}
+                className={`w-full rounded-lg px-1 py-1 text-left text-[24px] font-semibold leading-8 text-white/95 transition focus:outline-none ${
+                  canEdit
+                    ? "hover:bg-white/[0.035] focus:ring-2 focus:ring-cyan-400/25"
+                    : "cursor-default"
+                }`}
+              >
+                {titleValue}
+              </button>
+            )}
+            {savingTitle ? (
+              <span className="text-xs text-white/40">Saving...</span>
+            ) : null}
+          </div>
+
+          <section className="min-h-[180px]">
+            {editingDescription ? (
+              <div className="space-y-3 rounded-lg border border-white/[0.09] bg-white/[0.02] p-3">
+                <div className="flex items-center justify-between text-xs text-white/45">
+                  <span>Markdown supported</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={cancelDescriptionEdit}
+                      className="rounded-md px-2 py-1 text-white/55 hover:bg-white/[0.06] hover:text-white/80"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
-                      onClick={() => commitDescription(descriptionValue)}
-                      className="rounded-md px-2 py-1 text-white hover:bg-white/10"
+                      onClick={() => void commitDescription(descriptionValue)}
+                      className="rounded-md bg-white/[0.07] px-2 py-1 text-white/85 hover:bg-white/[0.1]"
                     >
                       Save
                     </button>
@@ -534,122 +682,117 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                       cancelDescriptionEdit();
                     }
                   }}
-                  className="min-h-[260px] w-full resize-y rounded-md border border-transparent bg-transparent px-3 py-2 text-sm text-white outline-none shadow-none transition focus:border-transparent focus:ring-0 focus:outline-none focus:shadow-none"
+                  className="min-h-[260px] w-full resize-y bg-transparent text-[14px] leading-6 text-white/85 outline-none"
                   rows={12}
                   disabled={savingDescription}
                 />
-                <div className="text-xs text-white/50">
-                  Ctrl/Cmd + Enter to save • Esc to cancel
+                <div className="text-[11px] text-white/35">
+                  Ctrl/Cmd + Enter to save · Esc to cancel
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (canEdit) setEditingDescription(true);
-                }}
-                className={`w-full rounded-md px-2 py-2 text-left transition focus:outline-none ${
-                  canEdit
-                    ? "hover:bg-white/5 focus:ring-2 focus:ring-[var(--color-primary)]/30"
-                    : "cursor-default"
-                }`}
-              >
-                <div className="space-y-5 prose prose-invert max-w-none">
-                  {!isEmptyValue(details.description) ? (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                        Summary
-                      </div>
-                      <p className="text-base text-[var(--color-text)] whitespace-pre-wrap">
-                        {cleanSummary(details.description)}
-                      </p>
-                    </div>
-                  ) : null}
+              <div className="group relative rounded-lg px-1 py-1">
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDescription(true)}
+                    className="absolute right-0 top-0 z-10 rounded-md px-2 py-1 text-[11px] text-white/30 opacity-0 transition hover:bg-white/[0.06] hover:text-white/70 group-hover:opacity-100 focus:opacity-100"
+                  >
+                    Edit
+                  </button>
+                ) : null}
 
-                  {!isEmptyValue(details.environment) ? (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                        Environment
-                      </div>
-                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                        {details.environment}
-                      </p>
-                    </div>
-                  ) : null}
+                {!isEmptyValue(details.description) ? (
+                  <MarkdownContent value={cleanSummary(details.description)} />
+                ) : null}
 
-                  {stepsList.length ? (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                        Steps
-                      </div>
-                      <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--color-text-secondary)]">
-                        {stepsList.map((step, idx) => (
-                          <li key={`${step}-${idx}`}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  ) : null}
+                {!isEmptyValue(details.environment) ? (
+                  <div className="mt-6 space-y-2">
+                    <h3 className="text-xs font-medium text-white/45">Environment</h3>
+                    <MarkdownContent value={details.environment ?? ""} />
+                  </div>
+                ) : null}
 
-                  {!isEmptyValue(details.expected) ? (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                        Expected
-                      </div>
-                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                        {details.expected}
-                      </p>
-                    </div>
-                  ) : null}
+                {stepsList.length ? (
+                  <div className="mt-6 space-y-2">
+                    <h3 className="text-xs font-medium text-white/45">Steps</h3>
+                    <ol className="list-decimal space-y-1 pl-5 text-[15px] leading-7 text-white/82">
+                      {stepsList.map((step, index) => (
+                        <li key={`${step}-${index}`}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
 
-                  {!isEmptyValue(details.actual) ? (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                        Actual
-                      </div>
-                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
-                        {details.actual}
-                      </p>
-                    </div>
-                  ) : null}
+                {!isEmptyValue(details.expected) ? (
+                  <div className="mt-6 space-y-2">
+                    <h3 className="text-xs font-medium text-white/45">Expected</h3>
+                    <MarkdownContent value={details.expected ?? ""} />
+                  </div>
+                ) : null}
 
-                  {isEmptyValue(details.description) &&
-                  isEmptyValue(details.environment) &&
-                  stepsList.length === 0 &&
-                  isEmptyValue(details.expected) &&
-                  isEmptyValue(details.actual) ? (
-                    <p className="text-sm text-white/50">
-                      Add description...
-                    </p>
-                  ) : null}
-                </div>
-              </button>
+                {!isEmptyValue(details.actual) ? (
+                  <div className="mt-6 space-y-2">
+                    <h3 className="text-xs font-medium text-white/45">Actual</h3>
+                    <MarkdownContent value={details.actual ?? ""} />
+                  </div>
+                ) : null}
+
+                {isEmptyValue(details.description) &&
+                isEmptyValue(details.environment) &&
+                stepsList.length === 0 &&
+                isEmptyValue(details.expected) &&
+                isEmptyValue(details.actual) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (canEdit) setEditingDescription(true);
+                    }}
+                    className="text-sm text-white/35 hover:text-white/60"
+                  >
+                    Add description...
+                  </button>
+                ) : null}
+              </div>
             )}
             {savingDescription ? (
-              <span className="text-xs text-white/50">Saving...</span>
+              <span className="mt-2 block text-xs text-white/40">Saving...</span>
             ) : null}
+          </section>
 
-            {liveTask.attachments.length ? (
-              <div className="space-y-3 border-t border-white/8 pt-4">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
-                  Attachments
-                </h2>
-                <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                  {liveTask.attachments.map((file) => (
-                    <li key={file}>
-                      <a
-                        href={file}
-                        className="text-[var(--color-primary)] hover:underline"
-                        target="_blank"
-                        rel="noreferrer"
+          {liveTask.attachments.length ? (
+            <section className="border-t border-white/[0.07] pt-5">
+              <h2 className="mb-3 text-xs font-medium text-white/45">
+                Attachments
+              </h2>
+              <ul className="flex flex-wrap gap-2">
+                {liveTask.attachments.map((file) => (
+                  <li key={file}>
+                    <a
+                      href={file}
+                      className="inline-flex h-9 max-w-[280px] items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.025] px-3 text-xs text-white/65 transition hover:border-white/[0.14] hover:bg-white/[0.05] hover:text-white"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
                       >
-                        {attachmentLabel(file)}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </Card>
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <path d="M14 2v6h6" />
+                      </svg>
+                      <span className="truncate">{attachmentLabel(file)}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           {knowledge.projectKey ? (
             <TaskKnowledgePanel
               taskId={liveTask.id}
@@ -661,9 +804,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               canEdit={canEdit}
             />
           ) : null}
-        </div>
+        </main>
 
-        <div className="lg:sticky lg:top-24 h-fit">
+        <div className="h-fit lg:sticky lg:top-20">
           <IssueMetaPanel
             id={liveTask.id}
             projectLabel={projectLabel ?? null}
@@ -673,7 +816,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             reporterName={reporterName}
             assigneeId={liveTask.assignee?.id ?? null}
             tags={liveTask.tags}
-            typeLabel={details.type ?? null}
+            typeLabel={details.type ?? liveTask.type ?? null}
             users={users}
             canEdit={canEdit}
             createdAt={liveTask.createdAt}

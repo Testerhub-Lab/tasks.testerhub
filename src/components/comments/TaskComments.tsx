@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
@@ -121,7 +120,6 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   const [serverComments, setServerComments] = useState<CommentItem[]>(comments);
   const [serverActivities, setServerActivities] = useState<TaskActivityItem[]>(activities);
   const [isSubmitting, setSubmitting] = useState(false);
-  const [view, setView] = useState<"all" | "comments">("all");
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -413,37 +411,17 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
   };
 
   const activityCount = activity.filter((item) => item.kind !== "empty").length;
-  const commentCount = activity.filter((item) => item.kind === "comment").length;
-  const visibleActivity =
-    view === "comments"
-      ? activity.filter((item) => item.kind === "comment")
-      : activity;
 
   return (
-    <Card ref={rootRef} className="space-y-3 p-4">
+    <section
+      ref={rootRef}
+      className="space-y-5 border-t border-white/[0.07] pt-6"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-          <button
-            type="button"
-            onClick={() => setView("all")}
-            className={[
-              "rounded-md px-2 py-1 text-xs transition-colors",
-              view === "all" ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
-            ].join(" ")}
-          >
-            Activity · {activityCount}
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("comments")}
-            className={[
-              "rounded-md px-2 py-1 text-xs transition-colors",
-              view === "comments" ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
-            ].join(" ")}
-          >
-            Comments · {commentCount}
-          </button>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-white/85">Activity</h2>
+          <span className="text-xs text-white/30">{activityCount}</span>
         </div>
         {pending.length ? (
           <div className="text-xs text-white/40">+{pending.length} local</div>
@@ -451,16 +429,16 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
       </div>
 
       {/* Feed */}
-      <div ref={listRef} className="max-h-[360px] overflow-auto pr-2">
-        <div className="divide-y divide-white/10">
-          {visibleActivity.length === 0 ? (
+      <div ref={listRef}>
+        <div className="divide-y divide-white/[0.07]">
+          {activity.length === 0 ? (
             <div className="py-2">
               <div className="text-sm text-[var(--color-text-secondary)]">
                 No comments yet.
               </div>
             </div>
           ) : null}
-          {visibleActivity.map((item) => {
+          {activity.map((item) => {
             if (item.kind === "created") {
               return (
                 <div key={item.id} className="py-2">
@@ -586,69 +564,67 @@ const TaskComments: React.FC<TaskCommentsProps> = ({
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="h-px bg-white/10" />
-
       {/* Composer */}
       {canComment ? (
-        <div className="space-y-2">
-        <Textarea
-          name="text"
-          placeholder="Add a comment…"
-          value={text}
-          onFocus={() => setFocused(true)}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              event.preventDefault();
-              void submit();
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              cancel();
-            }
-          }}
-        />
-
-        {isFocused || authorName.trim() ? (
-          <Input
-            type="text"
-            name="authorName"
-            placeholder="Your name (optional)"
-            value={authorName}
-            onChange={(event) => setAuthorName(event.target.value)}
+        <div className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.018] p-3 focus-within:border-white/[0.14]">
+          <Textarea
+            name="text"
+            placeholder="Add a comment…"
+            value={text}
+            className="min-h-[84px] resize-none border-0 bg-transparent p-0 shadow-none focus:ring-0"
+            onFocus={() => setFocused(true)}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void submit();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                cancel();
+              }
+            }}
           />
-        ) : null}
 
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-[var(--color-text-secondary)]">
-            Ctrl/Cmd + Enter to send • Esc to cancel
-          </div>
+          {isFocused || authorName.trim() ? (
+            <Input
+              type="text"
+              name="authorName"
+              placeholder="Your name (optional)"
+              value={authorName}
+              onChange={(event) => setAuthorName(event.target.value)}
+            />
+          ) : null}
 
-          <div className="flex gap-2">
-            {isFocused ? (
-              <Button type="button" variant="secondary" onClick={cancel}>
-                Cancel
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-[var(--color-text-secondary)]">
+              Ctrl/Cmd + Enter to send • Esc to cancel
+            </div>
+
+            <div className="flex gap-2">
+              {isFocused ? (
+                <Button type="button" variant="secondary" onClick={cancel}>
+                  Cancel
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="primary"
+                disabled={isSubmitting || !text.trim()}
+                onClick={() => void submit()}
+              >
+                {isSubmitting ? "Sending..." : "Send"}
               </Button>
-            ) : null}
-
-            <Button
-              type="button"
-              variant="primary"
-              disabled={isSubmitting || !text.trim()}
-              onClick={() => void submit()}
-            >
-              {isSubmitting ? "Sending..." : "Send"}
-            </Button>
+            </div>
           </div>
-        </div>
         </div>
       ) : (
         <div className="text-sm text-white/45">
           Доступ только для чтения.
         </div>
       )}
-    </Card>
+    </section>
   );
 };
 

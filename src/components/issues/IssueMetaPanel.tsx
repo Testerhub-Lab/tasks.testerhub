@@ -97,6 +97,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
     assigneeId ?? ""
   );
   const [isSaving, setSaving] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   React.useEffect(() => {
     setCurrentAssignee(assigneeId ?? "");
@@ -182,20 +183,26 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   })();
 
   return (
-    <div className="space-y-3 rounded-xl border border-white/4 bg-white/[0.012] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+    <aside className="space-y-3">
+      <div className="flex items-center justify-between px-2">
+        <h2 className="text-xs font-medium text-white/45">Properties</h2>
+        {isSaving ? (
+          <span className="text-[11px] text-white/35">Saving...</span>
+        ) : null}
+      </div>
       {isSaving ? (
-        <div className="text-[11px] text-white/50">Saving...</div>
+        <span className="sr-only">Saving properties</span>
       ) : null}
 
-      <div className="space-y-1 text-xs text-white/60">
+      <div className="flex flex-col gap-0.5 text-xs text-white/60">
         {typeLabel || (tags && tags.length) ? (
-          <div className="flex items-start justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+          <div className="order-4 flex items-start justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M20 12V4H4v8" />
                 <path d="M4 12l8 8 8-8" />
               </svg>
-              <span>Tags</span>
+              <span>Labels</span>
             </div>
             <div className="flex flex-wrap justify-end gap-1.5 text-[11px] text-white/65">
               {typeLabel ? (
@@ -216,7 +223,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         ) : null}
 
         {projectLabel ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+          <div className="order-5 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 7h18" />
@@ -231,7 +238,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+        <div className="order-3 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M20 21a8 8 0 1 0-16 0" />
@@ -312,7 +319,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
         </div>
 
         {reporterName ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+          <div className="order-6 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M12 20v-6" />
@@ -328,7 +335,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+        <div className="order-1 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M4 7h16" />
@@ -371,7 +378,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
+        <div className="order-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
           <div className="flex items-center gap-2 text-white/60">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M3 12h4" />
@@ -428,55 +435,44 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           </div>
         </div>
 
-        {environment ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
-            <div className="flex items-center gap-2 text-white/60">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 2v4" />
-                <path d="M12 18v4" />
-                <path d="M4.93 4.93l2.83 2.83" />
-                <path d="M16.24 16.24l2.83 2.83" />
-                <path d="M2 12h4" />
-                <path d="M18 12h4" />
-                <path d="M4.93 19.07l2.83-2.83" />
-                <path d="M16.24 7.76l2.83-2.83" />
-              </svg>
-              <span>Environment</span>
+        <div className="order-7 mt-2 border-t border-white/[0.07] pt-2">
+          <button
+            type="button"
+            onClick={() => setShowMore((current) => !current)}
+            className="flex h-8 w-full items-center justify-between rounded-md px-2 text-xs text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+            aria-expanded={showMore}
+          >
+            <span>More</span>
+            <span aria-hidden="true">{showMore ? "−" : "+"}</span>
+          </button>
+
+          {showMore ? (
+            <div className="mt-1 space-y-0.5">
+              {environment ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
+                  <span className="text-white/45">Environment</span>
+                  <span className="min-w-0 truncate text-right text-xs text-white/65">
+                    {environment}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
+                <span className="text-white/45">Created</span>
+                <span className="text-xs text-white/65">
+                  {formatDate(createdAt)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
+                <span className="text-white/45">Updated</span>
+                <span className="text-xs text-white/65">
+                  {formatDate(updatedAt ?? createdAt)}
+                </span>
+              </div>
             </div>
-            <span className="min-w-0 text-right text-sm text-white/80 truncate">
-              {environment}
-            </span>
-          </div>
-        ) : null}
-
-        <div className="my-2 border-t border-white/10" />
-
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
-          <div className="flex items-center gap-2 text-white/60">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 3" />
-            </svg>
-            <span>Created</span>
-          </div>
-          <span className="text-sm text-white/75">{formatDate(createdAt)}</span>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
-          <div className="flex items-center gap-2 text-white/60">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2v6" />
-              <path d="M6 8h12" />
-              <path d="M5 10v10h14V10" />
-            </svg>
-            <span>Updated</span>
-          </div>
-          <span className="text-sm text-white/75">
-            {formatDate(updatedAt ?? createdAt)}
-          </span>
+          ) : null}
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 
