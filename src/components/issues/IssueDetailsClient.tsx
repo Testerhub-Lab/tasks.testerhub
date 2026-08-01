@@ -114,6 +114,191 @@ function MarkdownContent({ value }: { value: string }) {
   );
 }
 
+type SlashCommand = {
+  id: string;
+  label: string;
+  description: string;
+  keywords: string[];
+  insert: string;
+  cursorOffset: number;
+  marker: string;
+};
+
+type SlashMenuState = {
+  start: number;
+  end: number;
+  query: string;
+  top: number;
+  left: number;
+};
+
+const slashCommands: SlashCommand[] = [
+  {
+    id: "heading-1",
+    label: "Heading 1",
+    description: "Large section heading",
+    keywords: ["h1", "title", "заголовок"],
+    insert: "# ",
+    cursorOffset: 2,
+    marker: "H1",
+  },
+  {
+    id: "heading-2",
+    label: "Heading 2",
+    description: "Medium section heading",
+    keywords: ["h2", "subtitle", "заголовок"],
+    insert: "## ",
+    cursorOffset: 3,
+    marker: "H2",
+  },
+  {
+    id: "heading-3",
+    label: "Heading 3",
+    description: "Small section heading",
+    keywords: ["h3", "заголовок"],
+    insert: "### ",
+    cursorOffset: 4,
+    marker: "H3",
+  },
+  {
+    id: "bulleted-list",
+    label: "Bulleted list",
+    description: "Create a simple list",
+    keywords: ["bullet", "list", "список"],
+    insert: "- ",
+    cursorOffset: 2,
+    marker: "•",
+  },
+  {
+    id: "numbered-list",
+    label: "Numbered list",
+    description: "Create an ordered list",
+    keywords: ["number", "ordered", "list", "список"],
+    insert: "1. ",
+    cursorOffset: 3,
+    marker: "1.",
+  },
+  {
+    id: "checklist",
+    label: "Checklist",
+    description: "Create a task list",
+    keywords: ["todo", "task", "check", "чеклист"],
+    insert: "- [ ] ",
+    cursorOffset: 6,
+    marker: "☑",
+  },
+  {
+    id: "quote",
+    label: "Quote",
+    description: "Capture a quote or note",
+    keywords: ["blockquote", "note", "цитата"],
+    insert: "> ",
+    cursorOffset: 2,
+    marker: "❯",
+  },
+  {
+    id: "code-block",
+    label: "Code block",
+    description: "Insert a fenced code block",
+    keywords: ["code", "snippet", "код"],
+    insert: "\u0060\u0060\u0060\n\n\u0060\u0060\u0060",
+    cursorOffset: 4,
+    marker: "</>",
+  },
+  {
+    id: "divider",
+    label: "Divider",
+    description: "Separate content sections",
+    keywords: ["line", "separator", "разделитель"],
+    insert: "---\n",
+    cursorOffset: 4,
+    marker: "—",
+  },
+];
+
+function getSlashContext(value: string, caret: number) {
+  const beforeCaret = value.slice(0, caret);
+  const match = beforeCaret.match(/(?:^|\s)\/([^/\n]*)$/);
+  if (!match || typeof match.index !== "number") return null;
+
+  const query = match[1] ?? "";
+  if (query.length > 40) return null;
+
+  const start = beforeCaret.length - query.length - 1;
+  return { start, end: caret, query };
+}
+
+function filterSlashCommands(query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return slashCommands;
+
+  return slashCommands.filter((command) =>
+    [command.label, command.description, ...command.keywords]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalized)
+  );
+}
+
+function getTextareaCaretPosition(
+  textarea: HTMLTextAreaElement,
+  caret: number
+) {
+  const style = window.getComputedStyle(textarea);
+  const mirror = document.createElement("div");
+  const marker = document.createElement("span");
+  const copiedProperties = [
+    "borderBottomWidth",
+    "borderLeftWidth",
+    "borderRightWidth",
+    "borderTopWidth",
+    "boxSizing",
+    "fontFamily",
+    "fontSize",
+    "fontStyle",
+    "fontWeight",
+    "letterSpacing",
+    "lineHeight",
+    "paddingBottom",
+    "paddingLeft",
+    "paddingRight",
+    "paddingTop",
+    "tabSize",
+    "textIndent",
+    "textTransform",
+    "wordSpacing",
+  ] as const;
+
+  mirror.style.position = "absolute";
+  mirror.style.visibility = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.overflowWrap = "break-word";
+  mirror.style.width = style.width;
+  mirror.style.top = "-9999px";
+
+  for (const property of copiedProperties) {
+    mirror.style[property] = style[property];
+  }
+
+  mirror.textContent = textarea.value.slice(0, caret);
+  marker.textContent = textarea.value.slice(caret, caret + 1) || ".";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const position = {
+    left: marker.offsetLeft - textarea.scrollLeft,
+    top: marker.offsetTop - textarea.scrollTop,
+    lineHeight: Number.parseFloat(style.lineHeight) || 24,
+  };
+  document.body.removeChild(mirror);
+  return position;
+}
+
+function resizeTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "0px";
+  textarea.style.height = Math.max(180, textarea.scrollHeight) + "px";
+}
+
 const parseDetails = (raw?: string | null) => {
   const result: {
     type?: string | null;
@@ -221,6 +406,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const [savingTitle, setSavingTitle] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
+  const [activeSlashIndex, setActiveSlashIndex] = useState(0);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -228,10 +415,12 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   const originalTitleRef = useRef(titleValue);
   const originalDescriptionRef = useRef(descriptionValue);
   const skipTitleBlurRef = useRef(false);
-  const skipDescriptionBlurRef = useRef(false);
   const actionsRef = useRef<HTMLDivElement | null>(null);
 
   const details = parseDetails(descriptionValue);
+  const visibleSlashCommands = slashMenu
+    ? filterSlashCommands(slashMenu.query)
+    : [];
   const showCopied = (value: "key" | "link") => {
     toast.success(value === "key" ? "Issue key copied" : "Link copied");
   };
@@ -371,8 +560,16 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
     if (editingDescription && descriptionRef.current) {
       const textarea = descriptionRef.current;
       textarea.focus();
+      resizeTextarea(textarea);
       const length = textarea.value.length;
       textarea.setSelectionRange(length, length);
+    }
+  }, [editingDescription]);
+
+  useEffect(() => {
+    if (!editingDescription) {
+      setSlashMenu(null);
+      setActiveSlashIndex(0);
     }
   }, [editingDescription]);
 
@@ -403,7 +600,53 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
   const cancelDescriptionEdit = () => {
     setDescriptionValue(originalDescriptionRef.current);
+    setSlashMenu(null);
     setEditingDescription(false);
+  };
+
+  const syncSlashMenu = (
+    value: string,
+    caret: number,
+    textarea: HTMLTextAreaElement
+  ) => {
+    const context = getSlashContext(value, caret);
+    if (!context) {
+      setSlashMenu(null);
+      return;
+    }
+
+    const caretPosition = getTextareaCaretPosition(textarea, caret);
+    const menuWidth = 288;
+    setSlashMenu({
+      ...context,
+      top: Math.max(8, caretPosition.top + caretPosition.lineHeight + 6),
+      left: Math.max(
+        0,
+        Math.min(caretPosition.left, textarea.clientWidth - menuWidth)
+      ),
+    });
+    setActiveSlashIndex(0);
+  };
+
+  const applySlashCommand = (command: SlashCommand) => {
+    if (!slashMenu) return;
+
+    const nextValue =
+      descriptionValue.slice(0, slashMenu.start) +
+      command.insert +
+      descriptionValue.slice(slashMenu.end);
+    const nextCaret = slashMenu.start + command.cursorOffset;
+    setDescriptionValue(nextValue);
+    setSlashMenu(null);
+    setActiveSlashIndex(0);
+
+    requestAnimationFrame(() => {
+      const textarea = descriptionRef.current;
+      if (!textarea) return;
+      resizeTextarea(textarea);
+      textarea.focus();
+      textarea.setSelectionRange(nextCaret, nextCaret);
+    });
   };
 
   const commitTitle = async (nextValue: string) => {
@@ -645,63 +888,181 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
 
           <section className="min-h-[180px]">
             {editingDescription ? (
-              <div className="space-y-3 rounded-lg border border-white/[0.09] bg-white/[0.02] p-3">
-                <div className="flex items-center justify-between text-xs text-white/45">
-                  <span>Markdown supported</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={cancelDescriptionEdit}
-                      className="rounded-md px-2 py-1 text-white/55 hover:bg-white/[0.06] hover:text-white/80"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void commitDescription(descriptionValue)}
-                      className="rounded-md bg-white/[0.07] px-2 py-1 text-white/85 hover:bg-white/[0.1]"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
+              <div className="relative px-1 py-1">
                 <textarea
                   ref={descriptionRef}
                   value={descriptionValue}
-                  onChange={(event) => setDescriptionValue(event.target.value)}
+                  onChange={(event) => {
+                    const textarea = event.currentTarget;
+                    const nextValue = textarea.value;
+                    setDescriptionValue(nextValue);
+                    resizeTextarea(textarea);
+                    syncSlashMenu(
+                      nextValue,
+                      textarea.selectionStart,
+                      textarea
+                    );
+                  }}
+                  onSelect={(event) => {
+                    const textarea = event.currentTarget;
+                    syncSlashMenu(
+                      textarea.value,
+                      textarea.selectionStart,
+                      textarea
+                    );
+                  }}
+                  onScroll={(event) => {
+                    if (!slashMenu) return;
+                    const textarea = event.currentTarget;
+                    syncSlashMenu(
+                      textarea.value,
+                      textarea.selectionStart,
+                      textarea
+                    );
+                  }}
                   spellCheck={false}
                   onKeyDown={(event) => {
+                    if (slashMenu && event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setActiveSlashIndex((current) =>
+                        visibleSlashCommands.length
+                          ? (current + 1) % visibleSlashCommands.length
+                          : 0
+                      );
+                      return;
+                    }
+                    if (slashMenu && event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setActiveSlashIndex((current) =>
+                        visibleSlashCommands.length
+                          ? (current - 1 + visibleSlashCommands.length) %
+                            visibleSlashCommands.length
+                          : 0
+                      );
+                      return;
+                    }
+                    if (
+                      slashMenu &&
+                      (event.key === "Enter" || event.key === "Tab") &&
+                      visibleSlashCommands[activeSlashIndex]
+                    ) {
+                      event.preventDefault();
+                      applySlashCommand(
+                        visibleSlashCommands[activeSlashIndex]
+                      );
+                      return;
+                    }
                     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                       event.preventDefault();
-                      skipDescriptionBlurRef.current = true;
                       void commitDescription(descriptionValue);
+                      return;
                     }
                     if (event.key === "Escape") {
                       event.preventDefault();
-                      skipDescriptionBlurRef.current = true;
+                      if (slashMenu) {
+                        setSlashMenu(null);
+                        return;
+                      }
                       cancelDescriptionEdit();
                     }
                   }}
-                  className="min-h-[260px] w-full resize-y bg-transparent text-[14px] leading-6 text-white/85 outline-none"
-                  rows={12}
+                  onBlur={() => {
+                    setSlashMenu(null);
+                    void commitDescription(descriptionValue);
+                  }}
+                  className="block min-h-[180px] w-full resize-none overflow-hidden bg-transparent text-[15px] leading-7 text-white/82 outline-none"
+                  rows={1}
                   disabled={savingDescription}
+                  aria-label="Issue description"
+                  aria-controls={slashMenu ? "description-slash-menu" : undefined}
                 />
-                <div className="text-[11px] text-white/35">
-                  Ctrl/Cmd + Enter to save · Esc to cancel
+
+                {slashMenu ? (
+                  <div
+                    id="description-slash-menu"
+                    role="listbox"
+                    aria-label="Formatting commands"
+                    className="absolute z-30 max-h-[320px] w-72 overflow-y-auto rounded-lg border border-white/[0.1] bg-[#191c22] p-1 shadow-[0_20px_60px_rgba(0,0,0,0.58)]"
+                    style={{ top: slashMenu.top, left: slashMenu.left }}
+                  >
+                    <div className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/30">
+                      Commands
+                    </div>
+                    {visibleSlashCommands.length ? (
+                      visibleSlashCommands.map((command, index) => (
+                        <button
+                          key={command.id}
+                          type="button"
+                          role="option"
+                          aria-selected={index === activeSlashIndex}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setActiveSlashIndex(index)}
+                          onClick={() => applySlashCommand(command)}
+                          className={[
+                            "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition",
+                            index === activeSlashIndex
+                              ? "bg-white/[0.08]"
+                              : "hover:bg-white/[0.05]",
+                          ].join(" ")}
+                        >
+                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.035] font-mono text-[10px] text-white/60">
+                            {command.marker}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-medium text-white/80">
+                              {command.label}
+                            </span>
+                            <span className="block truncate text-[11px] text-white/35">
+                              {command.description}
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-2.5 py-3 text-xs text-white/35">
+                        No matching commands
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="mt-1 text-[11px] text-white/25">
+                  Type / for commands · Ctrl/Cmd + Enter to save · Esc to cancel
                 </div>
               </div>
             ) : (
-              <div className="group relative rounded-lg px-1 py-1">
-                {canEdit ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditingDescription(true)}
-                    className="absolute right-0 top-0 z-10 rounded-md px-2 py-1 text-[11px] text-white/30 opacity-0 transition hover:bg-white/[0.06] hover:text-white/70 group-hover:opacity-100 focus:opacity-100"
-                  >
-                    Edit
-                  </button>
-                ) : null}
-
+              <div
+                className={[
+                  "relative rounded-lg px-1 py-1 outline-none",
+                  canEdit
+                    ? "cursor-text focus:ring-2 focus:ring-cyan-400/20"
+                    : "",
+                ].join(" ")}
+                onClick={(event) => {
+                  if (!canEdit) return;
+                  if (
+                    event.target instanceof Element &&
+                    event.target.closest("a, button")
+                  ) {
+                    return;
+                  }
+                  setEditingDescription(true);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    canEdit &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    setEditingDescription(true);
+                  }
+                }}
+                tabIndex={canEdit ? 0 : undefined}
+                role={canEdit ? "textbox" : undefined}
+                aria-label={canEdit ? "Edit issue description" : undefined}
+                aria-readonly={canEdit ? true : undefined}
+                aria-multiline={canEdit ? true : undefined}
+              >
                 {!isEmptyValue(details.description) ? (
                   <MarkdownContent value={cleanSummary(details.description)} />
                 ) : null}
@@ -743,15 +1104,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 stepsList.length === 0 &&
                 isEmptyValue(details.expected) &&
                 isEmptyValue(details.actual) ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (canEdit) setEditingDescription(true);
-                    }}
-                    className="text-sm text-white/35 hover:text-white/60"
-                  >
-                    Add description...
-                  </button>
+                  <p className="text-sm text-white/35">Add description...</p>
                 ) : null}
               </div>
             )}
