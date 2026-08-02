@@ -645,7 +645,6 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   isSavingAssignee,
   canEdit,
 }) => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -656,6 +655,11 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
+  const href = buildIssueDetailHref(task.key ?? task.id, searchParams, {
+    projectId: task.projectId,
+    projectKey: task.project?.key ?? null,
+    from: "board",
+  });
 
   return (
     <div
@@ -668,13 +672,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
       }`}
       onClick={() => {
         if (!isDragging && !isSaving) {
-          router.push(
-            buildIssueDetailHref(task.key ?? task.id, searchParams, {
-              projectId: task.projectId,
-              projectKey: task.project?.key ?? null,
-              from: "board",
-            })
-          );
+          window.location.href = href;
         }
       }}
       {...attributes}

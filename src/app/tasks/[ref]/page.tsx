@@ -85,12 +85,14 @@ export async function renderTaskPage({
     );
   }
 
-  const comments = await getCommentsByTaskId(task.id);
-  const activities = await getTaskActivitiesByTaskId(task.id);
-  const projectAccess = await getProjectAccess(user, task.projectId, {
-    workspaceId,
-    includeArchived: true,
-  });
+  const [comments, activities, projectAccess] = await Promise.all([
+    getCommentsByTaskId(task.id),
+    getTaskActivitiesByTaskId(task.id),
+    getProjectAccess(user, task.projectId, {
+      workspaceId,
+      includeArchived: true,
+    }),
+  ]);
   const canComment = Boolean(
     projectAccess &&
       projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)

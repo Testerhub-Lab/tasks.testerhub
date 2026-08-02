@@ -1,39 +1,32 @@
 "use client";
 
 import React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Button from "../ui/Button";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   buildProjectIssueViewHref,
   buildIssueViewHref,
+  type IssueViewPath,
 } from "@/shared/issueNavigation";
 import { getProjectKeyFromPathname } from "@/shared/projectKeyRoutes";
 
 const BackButton: React.FC = () => {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const projectKey = getProjectKeyFromPathname(pathname);
+  const from = searchParams.get("from");
+  const targetView: IssueViewPath =
+    from === "list" ? "/issues" : from === "backlog" ? "/backlog" : "/board";
+  const href = projectKey
+    ? buildProjectIssueViewHref(projectKey, targetView, searchParams)
+    : buildIssueViewHref(targetView, searchParams);
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="h-7 px-2 text-xs text-white/70 hover:text-white"
-      onClick={() => {
-        if (window.history.length > 1) {
-          router.back();
-        } else {
-          router.push(
-            projectKey
-              ? buildProjectIssueViewHref(projectKey, "/board", searchParams)
-              : buildIssueViewHref("/board", searchParams)
-          );
-        }
-      }}
+    <a
+      href={href}
+      className="button button--ghost h-7 px-2 text-xs text-white/70 hover:text-white"
     >
       ← Back
-    </Button>
+    </a>
   );
 };
 

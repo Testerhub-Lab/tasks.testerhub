@@ -28,26 +28,30 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     getCurrentUser(),
   ]);
   if (!workspaceId || !user) return null;
-  const project =
+  const [project, accessibleProjectIds] = await Promise.all([
     (task as { projectId?: string | null }).projectId
-      ? await getProjectById(
+      ? getProjectById(
           (task as { projectId?: string | null }).projectId!,
           workspaceId,
           user,
           { includeArchived: true }
         )
-      : null;
-  const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId, {
-    includeArchived: true,
-  });
-  const users = await getUsersForAssignee(workspaceId, accessibleProjectIds);
-  const [workspaceRole, projectAccess] = await Promise.all([
-    getWorkspaceRole(user, workspaceId),
-    getProjectAccess(user, task.projectId, {
-      workspaceId,
+      : null,
+    getAccessibleProjectIds(user, workspaceId, {
       includeArchived: true,
     }),
   ]);
+  const [users, workspaceRole, projectAccess, knowledge, knowledgeLinks] =
+    await Promise.all([
+      getUsersForAssignee(workspaceId, accessibleProjectIds),
+      getWorkspaceRole(user, workspaceId),
+      getProjectAccess(user, task.projectId, {
+        workspaceId,
+        includeArchived: true,
+      }),
+      getProjectKnowledge(task.projectId),
+      getTaskKnowledgeLinks(task.id),
+    ]);
 
   const canDelete =
     workspaceRole === "ADMIN" ||
@@ -61,10 +65,6 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     projectAccess &&
       projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)
   );
-  const [knowledge, knowledgeLinks] = await Promise.all([
-    getProjectKnowledge(task.projectId),
-    getTaskKnowledgeLinks(task.id),
-  ]);
   const wikiPages =
     knowledge.provider === "NATIVE"
       ? await getWikiPageTree(task.projectId)

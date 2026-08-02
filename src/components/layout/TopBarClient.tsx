@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -30,6 +37,38 @@ const viewTabs: Array<{ label: string; href: IssueViewPath; layout: IssueViewLay
   { label: "Board", href: "/board", layout: "board" },
   { label: "List", href: "/issues", layout: "list" },
 ];
+
+const PENDING_LAYOUT_PREFERENCE_KEY = "pulsar:pending-issue-view-layout";
+
+function isIssueViewRootPath(pathname: string) {
+  return (
+    pathname === "/board" ||
+    pathname === "/issues" ||
+    /^\/[^/]+\/(?:board|issues)$/.test(pathname)
+  );
+}
+
+function queueLayoutPreferenceSave(layout: IssueViewLayout) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    PENDING_LAYOUT_PREFERENCE_KEY,
+    JSON.stringify({ layout })
+  );
+}
+
+function readQueuedLayoutPreference() {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(PENDING_LAYOUT_PREFERENCE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { layout?: string };
+    return parsed.layout === "board" || parsed.layout === "list"
+      ? parsed.layout
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 type ProjectOption = {
   id: string;
@@ -71,13 +110,15 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
+  const assigneeFilter = searchParams.get("assignee");
+  const legacyProjectId = searchParams.get("projectId");
   const activeProject = useMemo(
     () =>
       findProjectByRouteContext(projects, {
         pathname,
-        projectId: searchParams.get("projectId"),
+        projectId: legacyProjectId,
       }),
-    [pathname, projects, searchParams]
+    [pathname, projects, legacyProjectId]
   );
 
   const currentPath = useMemo(() => {
@@ -193,10 +234,10 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     router.refresh();
   };
 
-  const saveLayoutPreference = (layout: IssueViewLayout) => {
-      const scope = resolveIssueViewScope({
-      projectId: activeProject?.id ?? searchParams.get("projectId"),
-      assignee: searchParams.get("assignee"),
+  const saveLayoutPreference = useCallback((layout: IssueViewLayout) => {
+    const scope = resolveIssueViewScope({
+      projectId: activeProject?.id ?? legacyProjectId,
+      assignee: assigneeFilter,
     });
 
     startViewPreferenceTransition(() => {
@@ -207,9 +248,25 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
         console.error("Failed to save issue view preference", error);
       });
     });
-  };
+  }, [
+    activeProject?.id,
+    assigneeFilter,
+    legacyProjectId,
+    startViewPreferenceTransition,
+  ]);
 
   const activeLayout = issueViewPathToLayout(pathname);
+
+  useEffect(() => {
+    if (!activeLayout || !isIssueViewRootPath(pathname)) return;
+    const queuedLayout = readQueuedLayoutPreference();
+    if (queuedLayout !== activeLayout) return;
+    window.sessionStorage.removeItem(PENDING_LAYOUT_PREFERENCE_KEY);
+    const timeoutId = window.setTimeout(() => {
+      saveLayoutPreference(activeLayout);
+    }, 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeLayout, pathname, saveLayoutPreference]);
 
   return (
     <header className="topbar">
@@ -228,13 +285,22 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
               ? buildProjectIssueViewHref(activeProject.key, tab.href, searchParams)
               : buildIssueViewHref(tab.href, searchParams);
             return (
-              <Link
+              <a
                 key={tab.href}
                 href={href}
                 onClick={(event) => {
-                  event.preventDefault();
-                  router.push(href);
-                  saveLayoutPreference(tab.layout);
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.altKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.button !== 0 ||
+                    isActive
+                  ) {
+                    return;
+                  }
+                  queueLayoutPreferenceSave(tab.layout);
                 }}
                 aria-current={isActive ? "page" : undefined}
                 className={[
@@ -243,7 +309,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
                 ].join(" ")}
               >
                 {tab.label}
-              </Link>
+              </a>
             );
           })}
         </nav>

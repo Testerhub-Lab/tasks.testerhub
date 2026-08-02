@@ -1,5 +1,4 @@
 import React from "react";
-import Link from "next/link";
 import Badge from "../ui/Badge";
 import {
   formatDate,
@@ -109,9 +108,9 @@ const IssueRow: React.FC<IssueRowProps> = ({
   if (!href) return content;
 
   return (
-    <Link href={href} className="block">
+    <a href={href} className="block">
       {content}
-    </Link>
+    </a>
   );
 };
 

@@ -945,15 +945,28 @@ export async function getZeroTask(
   accessibleProjectIDs: string[],
   options?: { archived?: boolean }
 ) {
-  const rows = await loadZeroTaskRows(
-    accessibleProjectIDs,
-    options?.archived ?? false
-  );
-  return (
-    rows
-      .map(mapZeroTask)
-      .find((task) => (field === "id" ? task.id : task.key) === value) ?? null
-  );
+  if (accessibleProjectIDs.length === 0) return null;
+  const archived = options?.archived ?? false;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (field === "id" && !uuidPattern.test(value)) return null;
+
+  const where =
+    field === "id"
+      ? {
+          clause: `issue.project_id = ANY($1::uuid[])
+       AND ($2::boolean = (issue.archived_at IS NOT NULL))
+       AND issue.id = $3::uuid`,
+          values: [accessibleProjectIDs, archived, value],
+        }
+      : {
+          clause: `issue.project_id = ANY($1::uuid[])
+       AND ($2::boolean = (issue.archived_at IS NOT NULL))
+       AND upper(project.key || '-' || issue.number::text) = upper($3::text)`,
+          values: [accessibleProjectIDs, archived, value],
+        };
+  const rows = await selectZeroTaskRows(where, { limit: 1 });
+  return rows[0] ? mapZeroTask(rows[0]) : null;
 }
 
 export async function getZeroDeletedTasks(accessibleProjectIDs: string[]) {
