@@ -4,6 +4,7 @@ import { getBacklogUnreadCount } from "@/server/queries/tasks";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getWorkspacesForUser } from "@/server/queries/workspaces";
+import { getIssueViewPreferences } from "@/server/queries/issueViewPreferences";
 import {
   getAccessibleProjectIds,
   getWorkspaceRole,
@@ -17,7 +18,10 @@ export default async function Sidebar() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) return null;
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
-  const projects = await getProjects(workspaceId, user);
+  const [projects, issueViewPreferences] = await Promise.all([
+    getProjects(workspaceId, user),
+    getIssueViewPreferences({ userId: user.id, workspaceId }),
+  ]);
   const workspaces = await getWorkspacesForUser(user.id);
   let backlogUnread = 0;
   let canManageWorkspace = false;
@@ -59,6 +63,7 @@ export default async function Sidebar() {
   return (
     <SidebarClient
       projects={projects}
+      issueViewPreferences={issueViewPreferences}
       backlogUnread={backlogUnread}
       workspaces={workspaces.map((m) => m.workspace)}
       currentWorkspaceId={workspaceId}

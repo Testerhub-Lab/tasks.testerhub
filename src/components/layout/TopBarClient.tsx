@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -10,14 +10,20 @@ import CreateTaskModal from "../modals/CreateTaskModal";
 import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
 import { buildIssueViewHref, type IssueViewPath } from "../../shared/issueNavigation";
+import { saveIssueViewPreferenceAction } from "@/server/actions/issueViewPreferences";
+import {
+  issueViewPathToLayout,
+  resolveIssueViewScope,
+  type IssueViewLayout,
+} from "@/shared/issueViews";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
 import type { TaskStatus } from "@/server/validators/task";
 
-const viewTabs = [
-  { label: "Board", href: "/board" },
-  { label: "List", href: "/issues" },
+const viewTabs: Array<{ label: string; href: IssueViewPath; layout: IssueViewLayout }> = [
+  { label: "Board", href: "/board", layout: "board" },
+  { label: "List", href: "/issues", layout: "list" },
 ];
 
 type ProjectOption = {
@@ -51,6 +57,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   const [isSubmitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
+  const [, startViewPreferenceTransition] = useTransition();
   const { user, loading, refresh } = useAuth();
   const writableProjects = useMemo(
     () => projects.filter((project) => project.canWrite),
@@ -173,6 +180,24 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     router.refresh();
   };
 
+  const saveLayoutPreference = (layout: IssueViewLayout) => {
+    const scope = resolveIssueViewScope({
+      projectId: searchParams.get("projectId"),
+      assignee: searchParams.get("assignee"),
+    });
+
+    startViewPreferenceTransition(() => {
+      void saveIssueViewPreferenceAction({
+        ...scope,
+        layout,
+      }).catch((error) => {
+        console.error("Failed to save issue view preference", error);
+      });
+    });
+  };
+
+  const activeLayout = issueViewPathToLayout(pathname);
+
   return (
     <header className="topbar">
       <div className="topbar__left">
@@ -185,11 +210,17 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
         <nav className="inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
           {viewTabs.map((tab) => {
-            const isActive = pathname === tab.href;
+            const isActive = activeLayout === tab.layout;
+            const href = buildIssueViewHref(tab.href, searchParams);
             return (
               <Link
                 key={tab.href}
-                href={buildIssueViewHref(tab.href as IssueViewPath, searchParams)}
+                href={href}
+                onClick={(event) => {
+                  event.preventDefault();
+                  router.push(href);
+                  saveLayoutPreference(tab.layout);
+                }}
                 aria-current={isActive ? "page" : undefined}
                 className={[
                   "inline-flex h-7 items-center justify-center rounded-sm px-2 text-xs",

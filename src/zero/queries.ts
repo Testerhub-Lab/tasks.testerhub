@@ -78,6 +78,21 @@ export const zeroQueries = defineQueries({
           .orderBy("name", "asc")
     ),
   },
+  issueViewPreferences: {
+    byWorkspace: defineQuery(
+      workspaceArgs,
+      ({ args, ctx }: { args: z.infer<typeof workspaceArgs>; ctx: ZeroContext }) =>
+        zql.issueViewPreference
+          .where("workspaceID", args.workspaceID)
+          .where("userID", ctx.userID)
+          .whereExists("workspace", (workspace) =>
+            workspace.whereExists("members", (member) =>
+              member.where("userID", ctx.userID)
+            )
+          )
+          .orderBy("updatedAt", "desc")
+    ),
+  },
   issues: {
     byProject: defineQuery(
       projectArgs,

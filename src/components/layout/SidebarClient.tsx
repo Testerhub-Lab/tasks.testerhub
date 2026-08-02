@@ -5,15 +5,19 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { setWorkspaceAction } from "@/server/actions/workspaces";
 import {
-  DEFAULT_ISSUE_VIEW_PATH,
   buildIssueViewHref,
 } from "@/shared/issueNavigation";
+import {
+  resolveIssueViewPath,
+  type IssueViewPreference,
+} from "@/shared/issueViews";
 
 type ProjectOption = { id: string; name: string; key: string };
 type WorkspaceOption = { id: string; name: string; slug: string };
 
 interface SidebarClientProps {
   projects: ProjectOption[];
+  issueViewPreferences: IssueViewPreference[];
   backlogUnread: number;
   workspaces: WorkspaceOption[];
   currentWorkspaceId: string;
@@ -31,6 +35,7 @@ const getBasePath = (pathname: string) => {
 
 const SidebarClient: React.FC<SidebarClientProps> = ({
   projects,
+  issueViewPreferences,
   backlogUnread,
   workspaces,
   currentWorkspaceId,
@@ -72,7 +77,14 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     const params = new URLSearchParams(searchParams.toString());
     if (assignee) params.set("assignee", assignee);
     else params.delete("assignee");
-    return buildIssueViewHref(DEFAULT_ISSUE_VIEW_PATH, params);
+    const path = resolveIssueViewPath(
+      {
+        scope: assignee === "me" ? "my" : activeProjectId ? "project" : "all",
+        projectId: activeProjectId,
+      },
+      issueViewPreferences
+    );
+    return buildIssueViewHref(path, params);
   };
 
   const buildHref = (projectId?: string | null, projectKey?: string) => {
@@ -85,8 +97,18 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     } else {
       params.delete("projectId");
     }
+    const targetBasePath =
+      basePath === "/issues" || basePath === "/board"
+        ? resolveIssueViewPath(
+            {
+              scope: projectId ? "project" : activeAssignee === "me" ? "my" : "all",
+              projectId: projectId ?? null,
+            },
+            issueViewPreferences
+          )
+        : basePath;
     const query = params.toString();
-    return query ? `${basePath}?${query}` : basePath;
+    return query ? `${targetBasePath}?${query}` : targetBasePath;
   };
 
   useEffect(() => {
@@ -171,7 +193,10 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
           <Link
             href={buildIssuesHref("me")}
             className={`sidebar__item ${
-              pathname.startsWith("/issues") && activeAssignee === "me" ? "is-active" : ""
+              (pathname.startsWith("/issues") || pathname.startsWith("/board")) &&
+              activeAssignee === "me"
+                ? "is-active"
+                : ""
             }`}
           >
             <span className="sidebar__icon">
@@ -183,7 +208,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             <span>My issues</span>
           </Link>
           <Link
-            href={buildIssueViewHref(DEFAULT_ISSUE_VIEW_PATH, searchParams)}
+            href={buildIssuesHref()}
             className={`sidebar__item ${
               (pathname.startsWith("/issues") || pathname.startsWith("/board")) &&
               activeAssignee !== "me"

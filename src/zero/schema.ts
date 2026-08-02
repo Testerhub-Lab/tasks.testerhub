@@ -18,6 +18,8 @@ export type WorkflowCategory =
 export type IssuePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type IssueParticipantRole = "ASSIGNEE" | "WATCHER";
 export type KnowledgeProvider = "DISABLED" | "NATIVE" | "EXTERNAL";
+export type IssueViewPreferenceScope = "all" | "project" | "my";
+export type IssueViewPreferenceLayout = "board" | "list";
 
 const user = table("user")
   .from("users")
@@ -101,6 +103,20 @@ const project = table("project")
     createdAt: number().from("created_at"),
     updatedAt: number().from("updated_at"),
     archivedAt: number().from("archived_at").optional(),
+  })
+  .primaryKey("id");
+
+const issueViewPreference = table("issueViewPreference")
+  .from("issue_view_preferences")
+  .columns({
+    id: string(),
+    workspaceID: string().from("workspace_id"),
+    userID: string().from("user_id"),
+    scope: enumeration<IssueViewPreferenceScope>(),
+    projectID: string().from("project_id").optional(),
+    layout: enumeration<IssueViewPreferenceLayout>(),
+    createdAt: number().from("created_at"),
+    updatedAt: number().from("updated_at"),
   })
   .primaryKey("id");
 
@@ -246,6 +262,11 @@ const userRelationships = relationships(user, ({ many }) => ({
     destField: ["userID"],
     destSchema: workspaceMember,
   }),
+  issueViewPreferences: many({
+    sourceField: ["id"],
+    destField: ["userID"],
+    destSchema: issueViewPreference,
+  }),
 }));
 
 const workspaceRelationships = relationships(workspace, ({ many, one }) => ({
@@ -285,6 +306,11 @@ const workspaceRelationships = relationships(workspace, ({ many, one }) => ({
     sourceField: ["id"],
     destField: ["workspaceID"],
     destSchema: tag,
+  }),
+  issueViewPreferences: many({
+    sourceField: ["id"],
+    destField: ["workspaceID"],
+    destSchema: issueViewPreference,
   }),
 }));
 
@@ -359,7 +385,38 @@ const projectRelationships = relationships(project, ({ many, one }) => ({
     destField: ["projectID"],
     destSchema: wikiPage,
   }),
+  issueViewPreferences: many({
+    sourceField: ["id"],
+    destField: ["projectID"],
+    destSchema: issueViewPreference,
+  }),
 }));
+
+const issueViewPreferenceRelationships = relationships(
+  issueViewPreference,
+  ({ many, one }) => ({
+    workspace: one({
+      sourceField: ["workspaceID"],
+      destField: ["id"],
+      destSchema: workspace,
+    }),
+    user: one({
+      sourceField: ["userID"],
+      destField: ["id"],
+      destSchema: user,
+    }),
+    project: one({
+      sourceField: ["projectID"],
+      destField: ["id"],
+      destSchema: project,
+    }),
+    members: many({
+      sourceField: ["workspaceID"],
+      destField: ["workspaceID"],
+      destSchema: workspaceMember,
+    }),
+  })
+);
 
 const issueRelationships = relationships(issue, ({ many, one }) => ({
   project: one({
@@ -618,6 +675,7 @@ export const zeroSchema = createSchema({
     workflow,
     workflowState,
     project,
+    issueViewPreference,
     issue,
     comment,
     wikiPage,
@@ -635,6 +693,7 @@ export const zeroSchema = createSchema({
     workflowRelationships,
     workflowStateRelationships,
     projectRelationships,
+    issueViewPreferenceRelationships,
     issueRelationships,
     commentRelationships,
     wikiPageRelationships,

@@ -231,6 +231,37 @@ CREATE INDEX projects_workspace_order_idx
   ON projects (workspace_id, name, id)
   WHERE archived_at IS NULL;
 
+CREATE TABLE issue_view_preferences (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  scope text NOT NULL,
+  project_id uuid REFERENCES projects (id) ON DELETE CASCADE,
+  layout text NOT NULL DEFAULT 'board',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT issue_view_preferences_scope
+    CHECK (scope IN ('all', 'project', 'my')),
+  CONSTRAINT issue_view_preferences_layout
+    CHECK (layout IN ('board', 'list')),
+  CONSTRAINT issue_view_preferences_project_scope
+    CHECK (
+      (scope = 'all' AND project_id IS NULL)
+      OR (scope = 'project' AND project_id IS NOT NULL)
+      OR scope = 'my'
+    )
+);
+
+CREATE UNIQUE INDEX issue_view_preferences_global_key
+  ON issue_view_preferences (workspace_id, user_id, scope)
+  WHERE project_id IS NULL;
+CREATE UNIQUE INDEX issue_view_preferences_project_key
+  ON issue_view_preferences (workspace_id, user_id, scope, project_id)
+  WHERE project_id IS NOT NULL;
+CREATE INDEX issue_view_preferences_project_id_idx
+  ON issue_view_preferences (project_id)
+  WHERE project_id IS NOT NULL;
+
 CREATE TABLE issues (
   id uuid PRIMARY KEY,
   workspace_id uuid NOT NULL,
@@ -472,6 +503,9 @@ CREATE PUBLICATION pulsar_zero_data FOR TABLE
   ),
   workspace_members (
     workspace_id, user_id, role, created_at, updated_at
+  ),
+  issue_view_preferences (
+    id, workspace_id, user_id, scope, project_id, layout, created_at, updated_at
   ),
   workflows (
     id, workspace_id, name, is_default, created_at, updated_at, archived_at
