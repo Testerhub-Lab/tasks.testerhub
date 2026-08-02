@@ -5,12 +5,17 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { setWorkspaceAction } from "@/server/actions/workspaces";
 import {
+  buildProjectIssueViewHref,
   buildIssueViewHref,
 } from "@/shared/issueNavigation";
 import {
   resolveIssueViewPath,
   type IssueViewPreference,
 } from "@/shared/issueViews";
+import {
+  buildProjectIssueViewPath,
+  findProjectByRouteContext,
+} from "@/shared/projectKeyRoutes";
 
 type ProjectOption = { id: string; name: string; key: string };
 type WorkspaceOption = { id: string; name: string; slug: string };
@@ -26,6 +31,9 @@ interface SidebarClientProps {
 }
 
 const getBasePath = (pathname: string) => {
+  if (/^\/[^/]+\/board(?:\/|$)/.test(pathname)) return "/board";
+  if (/^\/[^/]+\/backlog(?:\/|$)/.test(pathname)) return "/backlog";
+  if (/^\/[^/]+\/issues(?:\/|$)/.test(pathname)) return "/issues";
   if (pathname.startsWith("/board")) return "/board";
   if (pathname.startsWith("/backlog")) return "/backlog";
   if (pathname.startsWith("/issues")) return "/issues";
@@ -46,7 +54,11 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const basePath = getBasePath(pathname);
-  const activeProjectId = searchParams.get("projectId");
+  const activeProject = findProjectByRouteContext(projects, {
+    pathname,
+    projectId: searchParams.get("projectId"),
+  });
+  const activeProjectId = activeProject?.id ?? null;
   const activeAssignee = searchParams.get("assignee");
   const isSettingsWorkspace = pathname.startsWith("/settings/workspace");
   const activeWikiProjectKey = pathname.startsWith("/wiki/")
@@ -56,10 +68,18 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     pathname.startsWith("/board") ||
     pathname.startsWith("/backlog") ||
     pathname.startsWith("/issues") ||
+    /^\/[^/]+\/(?:board|backlog|issues)(?:\/|$)/.test(pathname) ||
     pathname.startsWith("/wiki");
   const isAllProjectsActive =
     isProjectContext && !activeProjectId && !activeWikiProjectKey;
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
+  const isIssueViewPath =
+    pathname.startsWith("/issues") ||
+    pathname.startsWith("/board") ||
+    /^\/[^/]+\/(?:issues|board)(?:\/|$)/.test(pathname);
+  const isBacklogPath =
+    pathname.startsWith("/backlog") ||
+    /^\/[^/]+\/backlog(?:\/|$)/.test(pathname);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
@@ -84,7 +104,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
       },
       issueViewPreferences
     );
-    return buildIssueViewHref(path, params);
+    return buildProjectIssueViewHref(activeProject?.key, path, params);
   };
 
   const buildHref = (projectId?: string | null, projectKey?: string) => {
@@ -107,6 +127,18 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             issueViewPreferences
           )
         : basePath;
+    if (
+      projectKey &&
+      (targetBasePath === "/board" || targetBasePath === "/issues")
+    ) {
+      return buildProjectIssueViewHref(projectKey, targetBasePath, params);
+    }
+    if (projectKey && targetBasePath === "/backlog") {
+      params.delete("projectId");
+      const query = params.toString();
+      const href = buildProjectIssueViewPath(projectKey, "/backlog");
+      return query ? `${href}?${query}` : href;
+    }
     const query = params.toString();
     return query ? `${targetBasePath}?${query}` : targetBasePath;
   };
@@ -175,8 +207,12 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
       <div className="sidebar__section">
         <nav className="sidebar__list">
           <Link
-            href={buildIssueViewHref("/backlog", searchParams)}
-            className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
+            href={
+              activeProject
+                ? buildProjectIssueViewHref(activeProject.key, "/backlog", searchParams)
+                : buildIssueViewHref("/backlog", searchParams)
+            }
+            className={`sidebar__item ${isBacklogPath ? "is-active" : ""}`}
           >
             <span className="sidebar__icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -193,8 +229,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
           <Link
             href={buildIssuesHref("me")}
             className={`sidebar__item ${
-              (pathname.startsWith("/issues") || pathname.startsWith("/board")) &&
-              activeAssignee === "me"
+              isIssueViewPath && activeAssignee === "me"
                 ? "is-active"
                 : ""
             }`}
@@ -210,8 +245,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
           <Link
             href={buildIssuesHref()}
             className={`sidebar__item ${
-              (pathname.startsWith("/issues") || pathname.startsWith("/board")) &&
-              activeAssignee !== "me"
+              isIssueViewPath && activeAssignee !== "me"
                 ? "is-active"
                 : ""
             }`}

@@ -508,9 +508,11 @@ export default function CreateTaskModal({
       }
 
       close();
+      const projectKey = projects.find((project) => project.id === pid)?.key;
       router.push(
         buildIssueDetailHref(res.key, searchParams, {
           projectId: pid,
+          projectKey,
         })
       );
       router.refresh();
@@ -533,6 +535,7 @@ export default function CreateTaskModal({
     createMore,
     onSubmit,
     close,
+    projects,
     router,
     searchParams,
   ]);

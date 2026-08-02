@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ISSUE_VIEW_PATH,
   buildIssueDetailHref,
+  buildProjectIssueViewHref,
   buildIssueViewHref,
   clearIssueFiltersHref,
 } from "./issueNavigation";
@@ -22,6 +23,17 @@ describe("issue navigation", () => {
     );
   });
 
+  it("builds canonical project-key issue view links without projectId", () => {
+    const params = new URLSearchParams("projectId=project-1&q=bug&page=3");
+
+    expect(buildProjectIssueViewHref("PULSAR", "/board", params)).toBe(
+      "/pulsar/board?q=bug"
+    );
+    expect(buildProjectIssueViewHref("PULSAR", "/issues", params)).toBe(
+      "/pulsar/issues?q=bug"
+    );
+  });
+
   it("builds issue detail links with the task project as context", () => {
     const href = buildIssueDetailHref(
       "PULSAR-28",
@@ -37,6 +49,20 @@ describe("issue navigation", () => {
     );
   });
 
+  it("builds canonical project-key issue detail links", () => {
+    const href = buildIssueDetailHref(
+      "PULSAR-30",
+      new URLSearchParams("projectId=project-1&assignee=me"),
+      {
+        projectId: "project-1",
+        projectKey: "PULSAR",
+        from: "board",
+      }
+    );
+
+    expect(href).toBe("/pulsar/issues/PULSAR-30?assignee=me&from=board");
+  });
+
   it("keeps project context when clearing page filters", () => {
     const href = clearIssueFiltersHref(
       "/board",
@@ -44,5 +70,15 @@ describe("issue navigation", () => {
     );
 
     expect(href).toBe("/board?projectId=project-1&pageSize=50");
+  });
+
+  it("keeps canonical project path and clears projectId when clearing filters", () => {
+    const href = clearIssueFiltersHref(
+      "/pulsar/board",
+      new URLSearchParams("projectId=project-1&q=bug&page=2&pageSize=50"),
+      { projectKey: "PULSAR" }
+    );
+
+    expect(href).toBe("/pulsar/board?pageSize=50");
   });
 });

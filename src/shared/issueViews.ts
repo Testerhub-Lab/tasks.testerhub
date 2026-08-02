@@ -22,8 +22,12 @@ export function issueViewLayoutToPath(layout: IssueViewLayout): IssueViewPath {
 }
 
 export function issueViewPathToLayout(path: string): IssueViewLayout | null {
-  if (path.startsWith("/board")) return "board";
-  if (path.startsWith("/issues")) return "list";
+  if (path.startsWith("/board") || /^\/[^/]+\/board(?:\/|$)/.test(path)) {
+    return "board";
+  }
+  if (path.startsWith("/issues") || /^\/[^/]+\/issues(?:\/|$)/.test(path)) {
+    return "list";
+  }
   return null;
 }
 

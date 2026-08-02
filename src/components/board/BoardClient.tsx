@@ -32,6 +32,7 @@ type Status = TaskStatus;
 type BoardTask = {
   id: string;
   projectId: string;
+  project?: { key: string } | null;
   key: string | null;
   title: string;
   type: string | null;
@@ -670,6 +671,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
           router.push(
             buildIssueDetailHref(task.key ?? task.id, searchParams, {
               projectId: task.projectId,
+              projectKey: task.project?.key ?? null,
               from: "board",
             })
           );

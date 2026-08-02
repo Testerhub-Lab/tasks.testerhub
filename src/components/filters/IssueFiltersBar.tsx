@@ -9,7 +9,7 @@ import Select from "../ui/Select";
 import FilterChip from "./FilterChip";
 import SegmentedChips from "./SegmentedChips";
 import { parseSearchParams, type IssueFilters } from "../../server/validators/issueFilters";
-import { clearIssueFiltersHref, type IssueViewPath } from "@/shared/issueNavigation";
+import { clearIssueFiltersHref } from "@/shared/issueNavigation";
 
 const STATUS_OPTIONS: Status[] = [
   Status.NEW,
@@ -270,13 +270,14 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const clearFilters = () => {
     startTransition(() => {
       router.replace(
-        clearIssueFiltersHref(basePath as IssueViewPath, getLatestParams()),
+        clearIssueFiltersHref(basePath, getLatestParams()),
         { scroll: false }
       );
     });
   };
 
   const isProjectFilterVisible = showProjectFilter !== "never";
+  const projectFilterActive = isProjectFilterVisible && !!filters.projectId;
   const showProjectSelect = projects.length > 1 && isProjectFilterVisible;
   const projectFilterClass =
     showProjectFilter === "mobile" ? "lg:hidden" : "";
@@ -296,7 +297,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     (filters.status?.length ?? 0) > 0 ||
     (filters.priority?.length ?? 0) > 0 ||
     (filters.tags?.length ?? 0) > 0 ||
-    !!filters.projectId ||
+    projectFilterActive ||
     !!filters.assignee;
 
   const activeCount =
@@ -304,7 +305,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     (filters.status?.length ?? 0) +
     (filters.priority?.length ?? 0) +
     (filters.tags?.length ?? 0) +
-    (filters.projectId ? 1 : 0) +
+    (projectFilterActive ? 1 : 0) +
     (filters.assignee ? 1 : 0);
 
   // --- removable handlers (тут типы уже enum)
@@ -369,7 +370,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   // Compact: только Project + Clear
   // =========================
   if (isCompact) {
-    if (!showProjectSelect && !(filters.q || filters.projectId || filters.assignee)) {
+    if (!showProjectSelect && !(filters.q || projectFilterActive || filters.assignee)) {
       return null;
     }
     return (
@@ -409,7 +410,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             ) : null}
           </div>
 
-          {(filters.q || filters.projectId) ? (
+          {(filters.q || projectFilterActive) ? (
             <FilterChip onClick={clearFilters} className={chipSize}>
               Clear
             </FilterChip>

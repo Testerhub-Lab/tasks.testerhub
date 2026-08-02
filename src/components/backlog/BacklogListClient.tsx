@@ -11,6 +11,7 @@ import { buildIssueDetailHref } from "@/shared/issueNavigation";
 type BacklogTask = {
   id: string;
   projectId: string;
+  project?: { key: string } | null;
   title: string;
   key: string | null;
   type: string | null;
@@ -115,6 +116,7 @@ export default function BacklogListClient({
             requesterName={task.requesterName}
             href={buildIssueDetailHref(task.key ?? task.id, searchParams, {
               projectId: task.projectId,
+              projectKey: task.project?.key ?? null,
               from: "backlog",
             })}
             selected={selectedIds.has(task.id)}

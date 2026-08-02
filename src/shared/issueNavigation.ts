@@ -1,4 +1,8 @@
 import { ISSUE_FILTER_QUERY_KEYS } from "./issueFilterQueryKeys";
+import {
+  buildProjectIssueDetailPath,
+  buildProjectIssueViewPath,
+} from "./projectKeyRoutes";
 
 export type IssueViewPath = "/board" | "/issues" | "/backlog";
 export type IssueViewSource = "board" | "list" | "backlog";
@@ -58,29 +62,50 @@ export function buildIssueViewHref(path: IssueViewPath, input: QueryInput) {
   return query ? `${path}?${query}` : path;
 }
 
+export function buildProjectIssueViewHref(
+  projectKey: string | null | undefined,
+  path: IssueViewPath,
+  input: QueryInput
+) {
+  if (!projectKey) return buildIssueViewHref(path, input);
+  const params = issueContextParams(input);
+  params.delete("page");
+  params.delete("projectId");
+  const basePath = buildProjectIssueViewPath(projectKey, path);
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}
+
 export function buildIssueDetailHref(
   ref: string,
   input: QueryInput,
   options: {
     projectId?: string | null;
+    projectKey?: string | null;
     from?: IssueViewSource;
   } = {}
 ) {
   const params = issueContextParams(input);
-  if (options.projectId) params.set("projectId", options.projectId);
+  if (options.projectKey) params.delete("projectId");
+  else if (options.projectId) params.set("projectId", options.projectId);
   if (options.from) params.set("from", options.from);
-  const query = params.toString();
-  return query
-    ? `/tasks/${encodeURIComponent(ref)}?${query}`
+  const basePath = options.projectKey
+    ? buildProjectIssueDetailPath(options.projectKey, ref)
     : `/tasks/${encodeURIComponent(ref)}`;
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
 }
 
-export function clearIssueFiltersHref(path: IssueViewPath, input: QueryInput) {
+export function clearIssueFiltersHref(
+  path: IssueViewPath | string,
+  input: QueryInput,
+  options: { projectKey?: string | null } = {}
+) {
   const source = queryInputToParams(input);
   const params = new URLSearchParams();
   const projectId = source.get("projectId");
   const pageSize = source.get("pageSize");
-  if (projectId) params.set("projectId", projectId);
+  if (projectId && !options.projectKey) params.set("projectId", projectId);
   if (pageSize) params.set("pageSize", pageSize);
   const query = params.toString();
   return query ? `${path}?${query}` : path;

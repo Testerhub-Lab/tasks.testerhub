@@ -4,27 +4,46 @@ import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import IssuePagination from "../../components/issues/IssuePagination";
 import BacklogSeen from "../../components/backlog/BacklogSeen";
 import { getPaginatedTasks } from "../../server/queries/tasks";
-import { getProjects } from "../../server/queries/projects";
+import { getProjectById, getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import {
   hasActiveFilters,
   parsePaginationParams,
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import BacklogListClient from "../../components/backlog/BacklogListClient";
-import { clearIssueFiltersHref } from "../../shared/issueNavigation";
+import {
+  buildProjectIssueViewHref,
+  clearIssueFiltersHref,
+} from "../../shared/issueNavigation";
 
 
 interface BacklogPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
+export async function renderBacklogPage({
+  searchParams,
+  basePath = "/backlog",
+  projectContext = null,
+}: BacklogPageProps & {
+  basePath?: string;
+  projectContext?: { id: string; key: string } | null;
+}) {
   const resolvedSearchParams = await searchParams;
-  const filters = parseSearchParams(resolvedSearchParams);
+  const effectiveSearchParams = {
+    ...resolvedSearchParams,
+    ...(projectContext ? { projectId: projectContext.id } : {}),
+  };
+  const hrefSearchParams = projectContext
+    ? Object.fromEntries(
+        Object.entries(resolvedSearchParams).filter(([key]) => key !== "projectId")
+      )
+    : resolvedSearchParams;
+  const filters = parseSearchParams(effectiveSearchParams);
   const paginationInput = parsePaginationParams(resolvedSearchParams);
 
   type Filters = ReturnType<typeof parseSearchParams>;
@@ -36,9 +55,21 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
   };
 
   const user = await getCurrentUser();
-  if (!user) redirect("/signin?redirect=/backlog");
+  if (!user) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
   const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) redirect("/signin?redirect=/backlog");
+  if (!workspaceId) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
+  const legacyProjectId =
+    !projectContext && typeof resolvedSearchParams.projectId === "string"
+      ? resolvedSearchParams.projectId
+      : null;
+  if (legacyProjectId) {
+    const project = await getProjectById(legacyProjectId, workspaceId, user);
+    if (project) {
+      permanentRedirect(
+        buildProjectIssueViewHref(project.key, "/backlog", resolvedSearchParams)
+      );
+    }
+  }
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
   const paginated = await getPaginatedTasks(
     queryFilters,
@@ -58,9 +89,9 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}
-        basePath="/backlog"
+        basePath={basePath}
         density="compact"
-        showProjectFilter="mobile"
+        showProjectFilter={projectContext ? "never" : "mobile"}
       />
       {tasks.length === 0 ? (
         <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">
@@ -75,7 +106,9 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href={clearIssueFiltersHref("/backlog", resolvedSearchParams)}
+                href={clearIssueFiltersHref(basePath, hrefSearchParams, {
+                  projectKey: projectContext?.key,
+                })}
                 className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
               >
                 Clear filters
@@ -91,7 +124,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
         <>
           <BacklogListClient tasks={tasks} />
           <IssuePagination
-            basePath="/backlog"
+            basePath={basePath}
             page={paginated.page}
             pageSize={paginated.pageSize}
             totalCount={paginated.totalCount}
@@ -102,6 +135,9 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
       )}
     </div>
   );
-};
+}
+
+const BacklogPage = ({ searchParams }: BacklogPageProps) =>
+  renderBacklogPage({ searchParams });
 
 export default BacklogPage;

@@ -24,7 +24,9 @@ describe("issue views", () => {
     expect(issueViewLayoutToPath("board")).toBe("/board");
     expect(issueViewLayoutToPath("list")).toBe("/issues");
     expect(issueViewPathToLayout("/board?projectId=1")).toBe("board");
+    expect(issueViewPathToLayout("/pulsar/board")).toBe("board");
     expect(issueViewPathToLayout("/issues")).toBe("list");
+    expect(issueViewPathToLayout("/pulsar/issues/PULSAR-30")).toBe("list");
     expect(issueViewPathToLayout("/backlog")).toBeNull();
   });
 

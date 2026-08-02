@@ -26,7 +26,13 @@ interface TaskPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const TaskPage = async ({ params, searchParams }: TaskPageProps) => {
+export async function renderTaskPage({
+  params,
+  searchParams,
+  projectContext = null,
+}: TaskPageProps & {
+  projectContext?: { id: string; key: string } | null;
+}) {
   const { ref } = await params;
   const resolvedSearchParams = await searchParams;
   if (!ref) {
@@ -36,7 +42,9 @@ const TaskPage = async ({ params, searchParams }: TaskPageProps) => {
   const normalizedRef = ref.toUpperCase();
   const issueKeyPattern = /^[A-Z0-9]+-\d+$/;
   const user = await getCurrentUser();
-  const currentTaskHref = buildIssueDetailHref(ref, resolvedSearchParams);
+  const currentTaskHref = buildIssueDetailHref(ref, resolvedSearchParams, {
+    projectKey: projectContext?.key,
+  });
   if (!user) {
     redirect(`/signin?redirect=${encodeURIComponent(currentTaskHref)}`);
   }
@@ -52,12 +60,27 @@ const TaskPage = async ({ params, searchParams }: TaskPageProps) => {
   if (!task) {
     return notFound();
   }
+  if (
+    projectContext &&
+    task.project.key.toUpperCase() !== projectContext.key.toUpperCase()
+  ) {
+    return notFound();
+  }
 
   const taskKey = (task as { key?: string | null }).key;
+  if (!projectContext && taskKey) {
+    permanentRedirect(
+      buildIssueDetailHref(taskKey, resolvedSearchParams, {
+        projectKey: task.project.key,
+      })
+    );
+  }
+
   if (!issueKeyPattern.test(normalizedRef) && taskKey) {
     permanentRedirect(
       buildIssueDetailHref(taskKey, resolvedSearchParams, {
         projectId: task.projectId,
+        projectKey: projectContext?.key ?? task.project.key,
       })
     );
   }
@@ -91,6 +114,9 @@ const TaskPage = async ({ params, searchParams }: TaskPageProps) => {
       </div>
     </div>
   );
-};
+}
+
+const TaskPage = ({ params, searchParams }: TaskPageProps) =>
+  renderTaskPage({ params, searchParams });
 
 export default TaskPage;

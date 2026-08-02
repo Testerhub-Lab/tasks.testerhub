@@ -4,11 +4,11 @@ import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssuePagination from "../../components/issues/IssuePagination";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getPaginatedTasks } from "../../server/queries/tasks";
-import { getProjects } from "../../server/queries/projects";
+import { getProjectById, getProjects } from "../../server/queries/projects";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import {
   hasActiveFilters,
   parsePaginationParams,
@@ -16,6 +16,7 @@ import {
 } from "../../server/validators/issueFilters";
 import Card from "../../components/ui/Card";
 import {
+  buildProjectIssueViewHref,
   buildIssueDetailHref,
   clearIssueFiltersHref,
 } from "../../shared/issueNavigation";
@@ -24,15 +25,43 @@ interface IssuesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
+export async function renderIssuesPage({
+  searchParams,
+  basePath = "/issues",
+  projectContext = null,
+}: IssuesPageProps & {
+  basePath?: string;
+  projectContext?: { id: string; key: string } | null;
+}) {
   const resolvedSearchParams = await searchParams;
-  const filters = parseSearchParams(resolvedSearchParams);
+  const effectiveSearchParams = {
+    ...resolvedSearchParams,
+    ...(projectContext ? { projectId: projectContext.id } : {}),
+  };
+  const hrefSearchParams = projectContext
+    ? Object.fromEntries(
+        Object.entries(resolvedSearchParams).filter(([key]) => key !== "projectId")
+      )
+    : resolvedSearchParams;
+  const filters = parseSearchParams(effectiveSearchParams);
   const paginationInput = parsePaginationParams(resolvedSearchParams);
 
   const user = await getCurrentUser();
-  if (!user) redirect("/signin?redirect=/issues");
+  if (!user) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
   const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) redirect("/signin?redirect=/issues");
+  if (!workspaceId) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
+  const legacyProjectId =
+    !projectContext && typeof resolvedSearchParams.projectId === "string"
+      ? resolvedSearchParams.projectId
+      : null;
+  if (legacyProjectId) {
+    const project = await getProjectById(legacyProjectId, workspaceId, user);
+    if (project) {
+      permanentRedirect(
+        buildProjectIssueViewHref(project.key, "/issues", resolvedSearchParams)
+      );
+    }
+  }
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
   const paginated = await getPaginatedTasks(
     filters,
@@ -49,9 +78,9 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
       <IssueFiltersBar
         projects={projects}
         initialFilters={filters}
-        basePath="/issues"
+        basePath={basePath}
         density="compact"
-        showProjectFilter="mobile"
+        showProjectFilter={projectContext ? "never" : "mobile"}
       />
 
       {tasks.length === 0 ? (
@@ -67,7 +96,9 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href={clearIssueFiltersHref("/issues", resolvedSearchParams)}
+                href={clearIssueFiltersHref(basePath, hrefSearchParams, {
+                  projectKey: projectContext?.key,
+                })}
                 className="rounded-full border border-[rgba(255,255,255,0.14)] px-4 py-2 text-sm text-white/90 hover:bg-white/5 transition-colors"
               >
                 Clear filters
@@ -97,14 +128,18 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
                 requesterName={task.requesterName}
                 href={buildIssueDetailHref(
                   task.key ?? task.id,
-                  resolvedSearchParams,
-                  { projectId: task.projectId, from: "list" }
+                  hrefSearchParams,
+                  {
+                    projectId: task.projectId,
+                    projectKey: task.project?.key ?? projectContext?.key,
+                    from: "list",
+                  }
                 )}
               />
             ))}
           </Card>
           <IssuePagination
-            basePath="/issues"
+            basePath={basePath}
             page={paginated.page}
             pageSize={paginated.pageSize}
             totalCount={paginated.totalCount}
@@ -115,6 +150,9 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
       )}
     </div>
   );
-};
+}
+
+const IssuesPage = ({ searchParams }: IssuesPageProps) =>
+  renderIssuesPage({ searchParams });
 
 export default IssuesPage;

@@ -14,7 +14,10 @@ import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import TaskKnowledgePanel from "@/components/wiki/TaskKnowledgePanel";
-import { buildIssueViewHref } from "@/shared/issueNavigation";
+import {
+  buildProjectIssueViewHref,
+} from "@/shared/issueNavigation";
+import { getProjectKeyFromPathname } from "@/shared/projectKeyRoutes";
 
 function attachmentLabel(url: string) {
   const encoded = /[?&]filename=([^&]+)/.exec(url)?.[1];
@@ -491,7 +494,13 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   }, [task]);
 
   useEffect(() => {
-    if (!liveTask.projectId || searchParams.get("projectId")) return;
+    if (
+      !liveTask.projectId ||
+      searchParams.get("projectId") ||
+      getProjectKeyFromPathname(pathname)
+    ) {
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("projectId", liveTask.projectId);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -746,7 +755,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
       }
       setDeleteConfirmOpen(false);
       router.push(
-        buildIssueViewHref(
+        buildProjectIssueViewHref(
+          liveTask.project.key,
           "/board",
           new URLSearchParams(`projectId=${encodeURIComponent(liveTask.projectId)}`)
         )

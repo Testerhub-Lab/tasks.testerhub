@@ -3,12 +3,12 @@ import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import BoardClient from "../../components/board/BoardClient";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
 import { getBoardTaskColumns } from "../../server/queries/tasks";
-import { getProjects } from "../../server/queries/projects";
+import { getProjectById, getProjects } from "../../server/queries/projects";
 import { getUsersForAssignee } from "../../server/queries/users";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import {
   BOARD_COLUMN_STATUSES,
   BOARD_COLUMN_LIMIT_DEFAULT,
@@ -20,13 +20,17 @@ import {
   resolveBoardColumnStatuses,
   type BoardColumnStatus,
 } from "../../server/validators/issueFilters";
-import { clearIssueFiltersHref } from "../../shared/issueNavigation";
+import {
+  buildProjectIssueViewHref,
+  clearIssueFiltersHref,
+} from "../../shared/issueNavigation";
 
 interface BoardPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 function boardColumnLimitHref(
+  basePath: string,
   searchParams: Record<string, string | string[] | undefined>,
   status: BoardColumnStatus,
   nextLimit: number
@@ -41,12 +45,28 @@ function boardColumnLimitHref(
   }
   params.set(BOARD_COLUMN_LIMIT_PARAM[status], String(nextLimit));
   const query = params.toString();
-  return query ? `/board?${query}` : "/board";
+  return query ? `${basePath}?${query}` : basePath;
 }
 
-const BoardPage = async ({ searchParams }: BoardPageProps) => {
+export async function renderBoardPage({
+  searchParams,
+  basePath = "/board",
+  projectContext = null,
+}: BoardPageProps & {
+  basePath?: string;
+  projectContext?: { id: string; key: string } | null;
+}) {
   const resolvedSearchParams = await searchParams;
-  const filters = parseSearchParams(resolvedSearchParams);
+  const effectiveSearchParams = {
+    ...resolvedSearchParams,
+    ...(projectContext ? { projectId: projectContext.id } : {}),
+  };
+  const hrefSearchParams = projectContext
+    ? Object.fromEntries(
+        Object.entries(resolvedSearchParams).filter(([key]) => key !== "projectId")
+      )
+    : resolvedSearchParams;
+  const filters = parseSearchParams(effectiveSearchParams);
   const boardColumnLimits = parseBoardColumnLimitParams(resolvedSearchParams);
 
   type Filters = ReturnType<typeof parseSearchParams>;
@@ -57,9 +77,21 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
   };
 
   const user = await getCurrentUser();
-  if (!user) redirect("/signin?redirect=/board");
+  if (!user) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
   const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) redirect("/signin?redirect=/board");
+  if (!workspaceId) redirect(`/signin?redirect=${encodeURIComponent(basePath)}`);
+  const legacyProjectId =
+    !projectContext && typeof resolvedSearchParams.projectId === "string"
+      ? resolvedSearchParams.projectId
+      : null;
+  if (legacyProjectId) {
+    const project = await getProjectById(legacyProjectId, workspaceId, user);
+    if (project) {
+      permanentRedirect(
+        buildProjectIssueViewHref(project.key, "/board", resolvedSearchParams)
+      );
+    }
+  }
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId);
   const [boardColumns, users] = await Promise.all([
     getBoardTaskColumns(
@@ -87,11 +119,11 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
         <IssueFiltersBar
           projects={projects}
           initialFilters={filters}
-          basePath="/board"
+          basePath={basePath}
           statusOptions={BOARD_COLUMN_STATUSES}
           density="compact"
           variant="popover"
-          showProjectFilter="mobile"
+          showProjectFilter={projectContext ? "never" : "mobile"}
         />
       </div>
       {tasks.length === 0 ? (
@@ -107,7 +139,9 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href={clearIssueFiltersHref("/board", resolvedSearchParams)}
+                href={clearIssueFiltersHref(basePath, hrefSearchParams, {
+                  projectKey: projectContext?.key,
+                })}
                 className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
               >
                 Clear filters
@@ -134,7 +168,8 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
             loadMoreHref:
               column.hasMore && column.limit < BOARD_COLUMN_LIMIT_MAX
               ? boardColumnLimitHref(
-                  resolvedSearchParams,
+                  basePath,
+                  hrefSearchParams,
                   column.status,
                   Math.min(
                     column.limit + BOARD_COLUMN_LIMIT_DEFAULT,
@@ -152,6 +187,9 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
       )}
     </div>
   );
-};
+}
+
+const BoardPage = ({ searchParams }: BoardPageProps) =>
+  renderBoardPage({ searchParams });
 
 export default BoardPage;

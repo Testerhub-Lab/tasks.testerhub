@@ -9,13 +9,18 @@ import Input from "../ui/Input";
 import CreateTaskModal from "../modals/CreateTaskModal";
 import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
-import { buildIssueViewHref, type IssueViewPath } from "../../shared/issueNavigation";
+import {
+  buildProjectIssueViewHref,
+  buildIssueViewHref,
+  type IssueViewPath,
+} from "../../shared/issueNavigation";
 import { saveIssueViewPreferenceAction } from "@/server/actions/issueViewPreferences";
 import {
   issueViewPathToLayout,
   resolveIssueViewScope,
   type IssueViewLayout,
 } from "@/shared/issueViews";
+import { findProjectByRouteContext } from "@/shared/projectKeyRoutes";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -66,6 +71,14 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
   const q = useDebouncedQueryParam({ key: "q", debounceMs: 300, scroll: false });
   const searchParams = useSearchParams();
+  const activeProject = useMemo(
+    () =>
+      findProjectByRouteContext(projects, {
+        pathname,
+        projectId: searchParams.get("projectId"),
+      }),
+    [pathname, projects, searchParams]
+  );
 
   const currentPath = useMemo(() => {
     const qs = searchParams.toString();
@@ -78,7 +91,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
 
   const openModal = () => {
     setFormError(null);
-    setInitialProjectId(searchParams.get("projectId"));
+    setInitialProjectId(activeProject?.id ?? searchParams.get("projectId"));
     setInitialStatus(null);
     setModalOpen(true);
   };
@@ -181,8 +194,8 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   };
 
   const saveLayoutPreference = (layout: IssueViewLayout) => {
-    const scope = resolveIssueViewScope({
-      projectId: searchParams.get("projectId"),
+      const scope = resolveIssueViewScope({
+      projectId: activeProject?.id ?? searchParams.get("projectId"),
       assignee: searchParams.get("assignee"),
     });
 
@@ -211,7 +224,9 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
         <nav className="inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
           {viewTabs.map((tab) => {
             const isActive = activeLayout === tab.layout;
-            const href = buildIssueViewHref(tab.href, searchParams);
+            const href = activeProject
+              ? buildProjectIssueViewHref(activeProject.key, tab.href, searchParams)
+              : buildIssueViewHref(tab.href, searchParams);
             return (
               <Link
                 key={tab.href}
