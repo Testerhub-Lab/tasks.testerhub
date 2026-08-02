@@ -114,7 +114,7 @@ export default function Stage3Workspace({
             onClick={() => setShowProjectForm((value) => !value)}
             type="button"
           >
-            {showProjectForm ? "Cancel" : "+ New project"}
+            {showProjectForm ? "Cancel" : "+ New product"}
           </button>
         ) : null}
 
@@ -141,24 +141,24 @@ export default function Stage3Workspace({
           <div className="grid min-h-[60vh] place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-6 text-center">
             <div>
               <h2 className="text-lg font-semibold text-white">
-                Create the first project
+                Create the first product
               </h2>
               <p className="mt-1 text-sm text-white/50">
-                Projects, issues and comments in this screen use Zero only.
+                Products, issues and comments in this screen use Zero only.
               </p>
               <button
                 className="mt-4 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
                 onClick={() => setShowProjectForm(true)}
                 type="button"
               >
-                New project
+                New product
               </button>
             </div>
           </div>
         ) : (
           <WorkspaceMessage>
             {defaultWorkflow
-              ? "No accessible projects."
+              ? "No accessible products."
               : "The workspace has no active workflow."}
           </WorkspaceMessage>
         )}
@@ -207,7 +207,7 @@ function CreateProjectForm({
       onCreated(projectID);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Unable to create project"
+        cause instanceof Error ? cause.message : "Unable to create product"
       );
     } finally {
       setSubmitting(false);
@@ -224,7 +224,7 @@ function CreateProjectForm({
         className="w-full rounded-md border border-white/10 bg-white/5 px-2.5 py-2 text-xs text-white outline-none focus:border-cyan-300/40"
         maxLength={120}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Project name"
+        placeholder="Product name"
         value={name}
       />
       <input

@@ -39,7 +39,7 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
     const trimmedKey = key.trim().toUpperCase();
     const trimmedName = name.trim();
     if (trimmedKey.length < 2 || trimmedName.length < 2) {
-      toast.error("Укажите ключ и название проекта");
+      toast.error("Укажите ключ и название продукта");
       return;
     }
 
@@ -52,46 +52,58 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
     setCreating(false);
 
     if (!res.ok) {
-      toast.error("Не удалось создать проект", res.formError ?? "Попробуйте позже.");
+      toast.error("Не удалось создать продукт", res.formError ?? "Попробуйте позже.");
       return;
     }
 
     setKey("");
     setName("");
-    toast.success("Project created");
+    toast.success("Product created");
     router.refresh();
   };
 
   const handleArchiveToggle = async (projectId: string, archived: boolean) => {
     const res = await setProjectArchivedAction({ workspaceId, projectId, archived });
     if (!res.ok) {
-      toast.error("Не удалось обновить проект", res.formError ?? "Попробуйте позже.");
+      toast.error("Не удалось обновить продукт", res.formError ?? "Попробуйте позже.");
       return;
     }
-    toast.success(archived ? "Project archived" : "Project restored");
+    toast.success(archived ? "Product archived" : "Product restored");
     router.refresh();
   };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-white">Projects</h2>
+        <h2 className="text-base font-semibold text-white">Products</h2>
         <span className="text-xs text-white/40">{projects.length} total</span>
       </div>
 
       <div className="surface rounded-[var(--radius-lg)] p-4">
-        <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)_auto]">
-          <Input
-            value={key}
-            onChange={(event) => setKey(event.target.value.toUpperCase())}
-            placeholder="KEY"
-            className="h-7 text-[11px] uppercase"
-            maxLength={6}
-          />
+        <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)_auto]">
+          <div className="space-y-1">
+            <Input
+              value={key}
+              onChange={(event) =>
+                setKey(
+                  event.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "")
+                    .slice(0, 10)
+                )
+              }
+              placeholder="KEY"
+              className="h-7 text-[11px] uppercase"
+              maxLength={10}
+            />
+            <p className="px-1 text-[10px] text-white/35">
+              2–10 symbols, keep short
+            </p>
+          </div>
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Project name"
+            placeholder="Product name"
             className="h-7 text-[11px]"
             maxLength={60}
           />
@@ -107,7 +119,7 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
       </div>
 
       <div className="surface rounded-[var(--radius-lg)]">
-        <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2 border-b border-white/5 px-4 py-2 text-[10px] uppercase tracking-wide text-white/40">
+        <div className="grid grid-cols-[140px_minmax(0,1fr)_auto] gap-2 border-b border-white/5 px-4 py-2 text-[10px] uppercase tracking-wide text-white/40">
           <span>Key</span>
           <span>Name</span>
           <span className="text-right">Actions</span>
@@ -115,13 +127,13 @@ const WorkspaceProjectsClient: React.FC<WorkspaceProjectsClientProps> = ({
         <div className="divide-y divide-white/5">
           {sorted.length === 0 ? (
             <div className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">
-              Проектов пока нет.
+              Продуктов пока нет.
             </div>
           ) : (
             sorted.map((project) => (
               <div
                 key={project.id}
-                className="grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-2"
+                className="grid grid-cols-[140px_minmax(0,1fr)_auto] items-center gap-2 px-4 py-2"
               >
                 <span className="text-xs text-white/80">{project.key}</span>
                 <span className="truncate text-sm text-white">

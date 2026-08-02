@@ -64,7 +64,7 @@ export default async function ProjectWikiPage({
           </div>
           <h1 className="text-2xl font-semibold text-white">Внешняя Wiki</h1>
           <p className="text-sm text-white/55">
-            Документация этого проекта подключена как внешний сервис.
+            Документация этого продукта подключена как внешний сервис.
           </p>
           {configuration.externalUrl ? (
             <a
@@ -86,10 +86,10 @@ export default async function ProjectWikiPage({
       <div className="mx-auto max-w-3xl">
         <Card className="space-y-3">
           <h1 className="text-xl font-semibold text-white">
-            Wiki проекта {project.key} отключена
+            Wiki продукта {project.key} отключена
           </h1>
           <p className="text-sm text-white/55">
-            Администратор проекта может включить нативную Wiki или подключить
+            Администратор продукта может включить нативную Wiki или подключить
             внешний сервис в настройках.
           </p>
           {access.role === ProjectRole.ADMIN ? (
@@ -191,7 +191,7 @@ export default async function ProjectWikiPage({
       ) : pages.length === 0 ? (
         <Card>
           <p className="text-sm text-white/50">
-            В этом проекте пока нет страниц.
+            В этом продукте пока нет страниц.
           </p>
         </Card>
       ) : (

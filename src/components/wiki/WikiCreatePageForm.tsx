@@ -66,7 +66,7 @@ export default function WikiCreatePageForm({
         className="h-10 rounded-md border border-white/10 bg-[#11162a] px-3 text-sm text-white"
         aria-label="Родительская страница"
       >
-        <option value="">В корне проекта</option>
+        <option value="">В корне продукта</option>
         {parents.map((page) => (
           <option key={page.id} value={page.id}>
             {page.title}

@@ -65,9 +65,9 @@ export default function ProjectKnowledgeSettingsClient({
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-white">Wiki проекта</h2>
+        <h2 className="text-base font-semibold text-white">Product Wiki</h2>
         <p className="mt-1 text-xs text-white/45">
-          Нативная Wiki использует права проекта. Внешний провайдер заменяет её
+          Нативная Wiki использует права продукта. Внешний провайдер заменяет её
           одной ссылкой; существующие страницы при переключении не удаляются.
         </p>
       </div>
@@ -104,8 +104,8 @@ export default function ProjectKnowledgeSettingsClient({
         ) : (
           <div className="flex items-center text-xs text-white/45">
             {provider === "NATIVE"
-              ? "Доступ наследуется от участников проекта."
-              : "Пункт Wiki будет скрыт для этого проекта."}
+              ? "Доступ наследуется от участников продукта."
+              : "Пункт Wiki будет скрыт для этого продукта."}
           </div>
         )}
         <Button

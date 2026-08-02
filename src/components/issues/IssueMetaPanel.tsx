@@ -230,7 +230,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
                 <path d="M6 7v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
                 <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
               </svg>
-              <span>Project</span>
+              <span>Product</span>
             </div>
             <span className="min-w-0 text-right text-sm text-white/80 truncate">
               {projectLabel}

@@ -51,7 +51,7 @@ export default async function WikiPage() {
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-white">Wiki</h1>
         <p className="mt-2 max-w-2xl text-sm text-white/55">
-          Документация разделена по проектам и использует те же права доступа,
+          Документация разделена по продуктам и использует те же права доступа,
           что задачи и доски.
         </p>
       </div>
@@ -59,7 +59,7 @@ export default async function WikiPage() {
       {projects.length === 0 ? (
         <Card>
           <p className="text-sm text-white/55">
-            У вас пока нет доступных проектов.
+            У вас пока нет доступных продуктов.
           </p>
         </Card>
       ) : (
@@ -90,7 +90,7 @@ export default async function WikiPage() {
                     ? `${project._count.wikiPages} страниц`
                     : configuration.provider === KnowledgeProvider.EXTERNAL
                       ? "Открывается во внешнем сервисе"
-                      : "Настраивается администратором проекта"}
+                      : "Настраивается администратором продукта"}
                 </p>
               </Card>
             );

@@ -110,7 +110,7 @@ export default function ApiTokensClient({
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-white/50">
             Персональные токены выполняют операции от вашего имени и не могут
-            обойти права workspace или проекта.
+            обойти права workspace или продукта.
           </p>
         </div>
 

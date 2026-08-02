@@ -75,7 +75,7 @@ const WorkspaceSettingsPage = async () => {
   if (!canEditWorkspace && managedProjects.length === 0) {
     return (
       <div className="rounded-[var(--radius-lg)] border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-6 text-sm text-[var(--color-text-secondary)]">
-        Недостаточно прав для управления воркспейсом или проектами.
+        Недостаточно прав для управления воркспейсом или продуктами.
       </div>
     );
   }

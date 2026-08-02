@@ -281,8 +281,8 @@ const createProjectSchema = z.object({
   key: z
     .string()
     .min(2)
-    .max(6)
-    .regex(/^[A-Z0-9]+$/, "Project key must be A-Z/0-9"),
+    .max(10)
+    .regex(/^[A-Z][A-Z0-9]{1,9}$/, "Product key must start with A-Z and use A-Z/0-9"),
   name: z.string().min(2).max(60),
 });
 

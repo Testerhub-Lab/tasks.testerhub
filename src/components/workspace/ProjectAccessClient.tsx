@@ -143,7 +143,7 @@ export default function ProjectAccessClient({
   };
 
   const handleRemove = async (projectMemberId: string) => {
-    if (!confirm("Отозвать доступ пользователя к этому проекту?")) return;
+    if (!confirm("Отозвать доступ пользователя к этому продукту?")) return;
 
     setBusyId(projectMemberId);
     const result = await removeProjectMemberAction({
@@ -163,7 +163,7 @@ export default function ProjectAccessClient({
   if (projects.length === 0) {
     return (
       <div className="surface rounded-[var(--radius-lg)] p-4 text-sm text-white/60">
-        Создайте проект, чтобы приглашать участников.
+        Создайте продукт, чтобы приглашать участников.
       </div>
     );
   }
@@ -171,10 +171,10 @@ export default function ProjectAccessClient({
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-white">Project access</h2>
+        <h2 className="text-base font-semibold text-white">Product access</h2>
         <p className="mt-1 text-xs text-white/45">
-          Участники видят только выбранные проекты. Администраторы воркспейса
-          имеют доступ ко всем проектам автоматически.
+          Участники видят только выбранные продукты. Администраторы воркспейса
+          имеют доступ ко всем продуктам автоматически.
         </p>
       </div>
 
@@ -231,7 +231,7 @@ export default function ProjectAccessClient({
         <div className="divide-y divide-white/5">
           {selectedMembers.length === 0 ? (
             <div className="px-4 py-5 text-sm text-white/50">
-              У проекта пока нет отдельных участников.
+              У продукта пока нет отдельных участников.
             </div>
           ) : (
             selectedMembers.map((member) => {

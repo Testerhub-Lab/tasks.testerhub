@@ -89,7 +89,7 @@ export default function ProjectKeyPicker({ projects, value, onChange, className 
           setOpen((v) => !v);
           setActive((prev) => (prev >= 0 ? prev : projects.findIndex((p) => p.id === value)));
         }}
-        title={selected ? `${selected.key} — ${selected.name}` : "Project"}
+        title={selected ? `${selected.key} — ${selected.name}` : "Product"}
       >
         <span className="font-medium">{selected?.key ?? "—"}</span>
         <span className="pointer-events-none text-slate-300/80">▾</span>
@@ -98,7 +98,7 @@ export default function ProjectKeyPicker({ projects, value, onChange, className 
       {open && (
         <div
           role="listbox"
-          aria-label="Project"
+          aria-label="Product"
           className={cn(
             "absolute left-0 top-[calc(100%+8px)] z-50 w-[220px]",
             "overflow-hidden rounded-xl border border-white/10",
@@ -127,6 +127,10 @@ export default function ProjectKeyPicker({ projects, value, onChange, className 
                     buttonRef.current?.focus();
                   }}
                 >
+                  <span className="min-w-0 flex-1 truncate text-slate-100">
+                    {p.name}
+                  </span>
+
                   <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-medium text-slate-100">
                     {p.key}
                   </span>

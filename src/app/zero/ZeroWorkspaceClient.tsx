@@ -82,7 +82,7 @@ function Stage3App({
             PULSAR-9 · Zero product slice
           </p>
           <h1 className="mt-1 text-xl font-semibold text-white">
-            Projects and issues
+            Products and issues
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">

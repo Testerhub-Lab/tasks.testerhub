@@ -367,9 +367,11 @@ body.is-dragging * {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 38px;
-  height: 20px;
-  padding: 0 4px;
+  width: auto;
+  max-width: 76px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 6px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
@@ -381,6 +383,8 @@ body.is-dragging * {
 }
 
 .sidebar__project-name {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

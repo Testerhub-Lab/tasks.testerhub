@@ -418,7 +418,7 @@ export default function CreateTaskModal({
 
     const pid = effectiveProjectId;
     if (!pid) {
-      const msg = "Select project";
+      const msg = "Select product";
       setLocalError(msg);
       toast.error("Cannot create issue", msg);
       return;

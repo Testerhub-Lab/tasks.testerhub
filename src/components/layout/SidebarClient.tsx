@@ -277,7 +277,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
 
       <div className="sidebar__section sidebar__projects">
         <div className="sidebar__title sidebar__projects-title">
-          <span>Projects</span>
+          <span>Products</span>
           <span className="sidebar__count">{projects.length}</span>
         </div>
         <nav className="sidebar__list sidebar__projects-list">
@@ -292,10 +292,10 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
                 title={`${project.key} — ${project.name}`}
               >
-                <span className="sidebar__project-key">
-                  {project.key.slice(0, 4).toUpperCase()}
-                </span>
                 <span className="sidebar__project-name">{project.name}</span>
+                <span className="sidebar__project-key">
+                  {project.key.toUpperCase()}
+                </span>
               </Link>
             );
           })}
@@ -309,7 +309,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 <path d="M9 5v14M14 5v14" />
               </svg>
             </span>
-            <span>All projects</span>
+            <span>All products</span>
           </Link>
         </nav>
       </div>

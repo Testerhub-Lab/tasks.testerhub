@@ -52,7 +52,7 @@ const TrashClient = ({ tasks }: TrashClientProps) => {
         <thead className="bg-white/[0.04] text-white/65">
           <tr>
             <th className="px-4 py-3 font-medium">Задача</th>
-            <th className="px-4 py-3 font-medium">Проект</th>
+            <th className="px-4 py-3 font-medium">Продукт</th>
             <th className="px-4 py-3 font-medium">Удалена</th>
             <th className="px-4 py-3 font-medium text-right">Действие</th>
           </tr>

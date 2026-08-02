@@ -62,7 +62,7 @@ const POPOVER_TITLE: Record<PopoverView, string> = {
   status: "Status",
   priority: "Priority",
   tags: "Labels",
-  project: "Project",
+  project: "Product",
 };
 
 const FilterMenuRow = ({
@@ -396,7 +396,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                 }
                 className={`${controlHeight} ${controlRadius} ${controlText} max-w-[320px] ${projectFilterClass}`}
                 options={[
-                  { value: "", label: "All projects" },
+                  { value: "", label: "All products" },
                   ...projects.map((project) => ({
                     value: project.id,
                     label: `${project.key} — ${project.name}`,
@@ -475,7 +475,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           />
           {showProjectSelect ? (
             <FilterMenuRow
-              label="Project"
+              label="Product"
               value={
                 projects.find((project) => project.id === filters.projectId)
                   ?.key ?? "Any"
@@ -578,7 +578,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             }
             className="h-8 w-full rounded-sm text-xs"
             options={[
-              { value: "", label: "All projects" },
+              { value: "", label: "All products" },
               ...projects.map((project) => ({
                 value: project.id,
                 label: `${project.key} — ${project.name}`,
@@ -696,8 +696,8 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
             {filters.projectId && projects.length > 0 && isProjectFilterVisible ? (
               <div className={projectFilterClass}>
-                <RemovableChip onRemove={clearProject} title="Remove project">
-                  {projects.find((p) => p.id === filters.projectId)?.key ?? "Project"}
+                <RemovableChip onRemove={clearProject} title="Remove product">
+                  {projects.find((p) => p.id === filters.projectId)?.key ?? "Product"}
                 </RemovableChip>
               </div>
             ) : null}
@@ -847,7 +847,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
           {/* PROJECT */}
           <div className={`col-span-12 lg:col-span-4 ${projectFilterClass}`}>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--color-text-secondary)]">Project</span>
+              <span className="text-xs text-[var(--color-text-secondary)]">Product</span>
 
               {showProjectSelect ? (
                 <Select
@@ -861,7 +861,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   }
                   className={`${controlHeight} ${controlRadius} ${controlText} max-w-[220px]`}
                   options={[
-                    { value: "", label: "All projects" },
+                    { value: "", label: "All products" },
                     ...projects.map((project) => ({
                       value: project.id,
                       label: `${project.key} — ${project.name}`,
