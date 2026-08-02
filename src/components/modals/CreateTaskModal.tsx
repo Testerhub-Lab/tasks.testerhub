@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Listbox,
   ListboxButton,
@@ -24,6 +24,7 @@ import AttachmentsPanel, { type AttachmentItem } from "./AttachmentsPanel";
 import { createTaskAction } from "@/server/actions/tasks";
 import type { TaskInput, TaskStatus } from "@/server/validators/task";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import { buildIssueDetailHref } from "@/shared/issueNavigation";
 
 type ProjectOption = {
   id: string;
@@ -287,6 +288,7 @@ export default function CreateTaskModal({
   initialStatus,
 }: CreateTaskModalProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
 
   const [projectId, setProjectId] = useState<string>("");
@@ -506,7 +508,11 @@ export default function CreateTaskModal({
       }
 
       close();
-      router.push(`/tasks/${res.key}`);
+      router.push(
+        buildIssueDetailHref(res.key, searchParams, {
+          projectId: pid,
+        })
+      );
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -528,6 +534,7 @@ export default function CreateTaskModal({
     onSubmit,
     close,
     router,
+    searchParams,
   ]);
 
   // focus on open

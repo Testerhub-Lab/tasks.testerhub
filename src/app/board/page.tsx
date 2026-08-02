@@ -20,6 +20,7 @@ import {
   resolveBoardColumnStatuses,
   type BoardColumnStatus,
 } from "../../server/validators/issueFilters";
+import { clearIssueFiltersHref } from "../../shared/issueNavigation";
 
 interface BoardPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -106,7 +107,7 @@ const BoardPage = async ({ searchParams }: BoardPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href="/board"
+                href={clearIssueFiltersHref("/board", resolvedSearchParams)}
                 className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
               >
                 Clear filters

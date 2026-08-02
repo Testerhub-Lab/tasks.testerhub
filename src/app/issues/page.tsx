@@ -15,6 +15,10 @@ import {
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import Card from "../../components/ui/Card";
+import {
+  buildIssueDetailHref,
+  clearIssueFiltersHref,
+} from "../../shared/issueNavigation";
 
 interface IssuesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -63,7 +67,7 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href="/issues"
+                href={clearIssueFiltersHref("/issues", resolvedSearchParams)}
                 className="rounded-full border border-[rgba(255,255,255,0.14)] px-4 py-2 text-sm text-white/90 hover:bg-white/5 transition-colors"
               >
                 Clear filters
@@ -91,7 +95,11 @@ const IssuesPage = async ({ searchParams }: IssuesPageProps) => {
                 createdAt={task.createdAt}
                 reporter={task.reporter}
                 requesterName={task.requesterName}
-                href={`/tasks/${task.key ?? task.id}`}
+                href={buildIssueDetailHref(
+                  task.key ?? task.id,
+                  resolvedSearchParams,
+                  { projectId: task.projectId, from: "list" }
+                )}
               />
             ))}
           </Card>

@@ -9,7 +9,7 @@ import Input from "../ui/Input";
 import CreateTaskModal from "../modals/CreateTaskModal";
 import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
-import { ISSUE_FILTER_QUERY_KEYS } from "../../shared/issueFilterQueryKeys";
+import { buildIssueViewHref, type IssueViewPath } from "../../shared/issueNavigation";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -69,18 +69,9 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     [currentPath]
   );
 
-  const allowedQuery = useMemo(() => {
-    const params = new URLSearchParams();
-    for (const key of ISSUE_FILTER_QUERY_KEYS) {
-      const value = searchParams.get(key);
-      if (value) params.set(key, value);
-    }
-    const query = params.toString();
-    return query ? `?${query}` : "";
-  }, [searchParams]);
-
   const openModal = () => {
     setFormError(null);
+    setInitialProjectId(searchParams.get("projectId"));
     setInitialStatus(null);
     setModalOpen(true);
   };
@@ -198,7 +189,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
             return (
               <Link
                 key={tab.href}
-                href={`${tab.href}${allowedQuery}`}
+                href={buildIssueViewHref(tab.href as IssueViewPath, searchParams)}
                 aria-current={isActive ? "page" : undefined}
                 className={[
                   "inline-flex h-7 items-center justify-center rounded-sm px-2 text-xs",

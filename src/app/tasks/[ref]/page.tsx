@@ -17,15 +17,18 @@ import {
 } from "../../../server/auth/access";
 import { ProjectRole } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { buildIssueDetailHref } from "../../../shared/issueNavigation";
 
 export const dynamic = "force-dynamic";
 
 interface TaskPageProps {
   params: Promise<{ ref: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const TaskPage = async ({ params }: TaskPageProps) => {
+const TaskPage = async ({ params, searchParams }: TaskPageProps) => {
   const { ref } = await params;
+  const resolvedSearchParams = await searchParams;
   if (!ref) {
     return notFound();
   }
@@ -33,7 +36,10 @@ const TaskPage = async ({ params }: TaskPageProps) => {
   const normalizedRef = ref.toUpperCase();
   const issueKeyPattern = /^[A-Z0-9]+-\d+$/;
   const user = await getCurrentUser();
-  if (!user) redirect(`/signin?redirect=${encodeURIComponent(`/tasks/${ref}`)}`);
+  const currentTaskHref = buildIssueDetailHref(ref, resolvedSearchParams);
+  if (!user) {
+    redirect(`/signin?redirect=${encodeURIComponent(currentTaskHref)}`);
+  }
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin");
   const accessibleProjectIds = await getAccessibleProjectIds(user, workspaceId, {
@@ -49,7 +55,11 @@ const TaskPage = async ({ params }: TaskPageProps) => {
 
   const taskKey = (task as { key?: string | null }).key;
   if (!issueKeyPattern.test(normalizedRef) && taskKey) {
-    permanentRedirect(`/tasks/${taskKey}`);
+    permanentRedirect(
+      buildIssueDetailHref(taskKey, resolvedSearchParams, {
+        projectId: task.projectId,
+      })
+    );
   }
 
   const comments = await getCommentsByTaskId(task.id);

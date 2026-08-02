@@ -12,8 +12,9 @@ import { deleteTaskAction, updateTaskFieldsAction } from "../../server/actions/t
 import { toast } from "../ui/toast";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import TaskKnowledgePanel from "@/components/wiki/TaskKnowledgePanel";
+import { buildIssueViewHref } from "@/shared/issueNavigation";
 
 function attachmentLabel(url: string) {
   const encoded = /[?&]filename=([^&]+)/.exec(url)?.[1];
@@ -393,6 +394,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   knowledge,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [liveTask, setLiveTask] = useState<TaskWithProjectAndReporter>(task);
   const issueKey = liveTask.key ?? liveTask.id;
   const reporterName = getDisplayName({
@@ -486,6 +489,13 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   useEffect(() => {
     setLiveTask(task);
   }, [task]);
+
+  useEffect(() => {
+    if (!liveTask.projectId || searchParams.get("projectId")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("projectId", liveTask.projectId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [liveTask.projectId, pathname, router, searchParams]);
 
   useBoardRealtime({
     boardId: liveTask.projectId,
@@ -735,7 +745,12 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
         return;
       }
       setDeleteConfirmOpen(false);
-      router.push("/board");
+      router.push(
+        buildIssueViewHref(
+          "/board",
+          new URLSearchParams(`projectId=${encodeURIComponent(liveTask.projectId)}`)
+        )
+      );
       router.refresh();
     } finally {
       setDeleteSubmitting(false);

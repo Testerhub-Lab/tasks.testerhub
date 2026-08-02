@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Priority, Status } from "@prisma/client";
 import { moveBacklogTasksToTodoAction } from "../../server/actions/tasks";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import BacklogRowClient from "../issues/BacklogRowClient";
+import { buildIssueDetailHref } from "@/shared/issueNavigation";
 
 type BacklogTask = {
   id: string;
+  projectId: string;
   title: string;
   key: string | null;
   type: string | null;
@@ -25,6 +27,7 @@ export default function BacklogListClient({
   tasks: BacklogTask[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -110,7 +113,10 @@ export default function BacklogListClient({
             createdAt={task.createdAt}
             reporter={task.reporter}
             requesterName={task.requesterName}
-            href={`/tasks/${task.key ?? task.id}`}
+            href={buildIssueDetailHref(task.key ?? task.id, searchParams, {
+              projectId: task.projectId,
+              from: "backlog",
+            })}
             selected={selectedIds.has(task.id)}
             selectionActive={selectedCount > 0}
             onSelectionChange={(selected) => setSelected(task.id, selected)}

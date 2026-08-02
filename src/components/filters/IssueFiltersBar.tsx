@@ -9,6 +9,7 @@ import Select from "../ui/Select";
 import FilterChip from "./FilterChip";
 import SegmentedChips from "./SegmentedChips";
 import { parseSearchParams, type IssueFilters } from "../../server/validators/issueFilters";
+import { clearIssueFiltersHref, type IssueViewPath } from "@/shared/issueNavigation";
 
 const STATUS_OPTIONS: Status[] = [
   Status.NEW,
@@ -268,10 +269,10 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
 
   const clearFilters = () => {
     startTransition(() => {
-      const params = getLatestParams();
-      const pageSize = params.get("pageSize");
-      const query = pageSize ? `?pageSize=${encodeURIComponent(pageSize)}` : "";
-      router.replace(`${basePath}${query}`, { scroll: false });
+      router.replace(
+        clearIssueFiltersHref(basePath as IssueViewPath, getLatestParams()),
+        { scroll: false }
+      );
     });
   };
 

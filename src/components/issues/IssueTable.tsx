@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Badge from "../ui/Badge";
 import { formatDate, getPriorityClasses, getStatusLabel } from "./utils";
 import type { TaskPriority, TaskStatus } from "../../server/validators/task";
 import { getDisplayName } from "../../server/auth/displayName";
+import { buildIssueDetailHref } from "@/shared/issueNavigation";
 
 interface IssueTableItem {
   id: string;
@@ -24,6 +25,7 @@ interface IssueTableProps {
 
 const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--color-card-border)]">
       <table className="w-full text-left text-sm">
@@ -40,7 +42,9 @@ const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
             <tr
               key={item.id}
               className="cursor-pointer hover:bg-[rgba(255,255,255,0.04)]"
-              onClick={() => router.push(`/tasks/${item.key ?? item.id}`)}
+              onClick={() =>
+                router.push(buildIssueDetailHref(item.key ?? item.id, searchParams))
+              }
             >
               <td className="px-4 py-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">

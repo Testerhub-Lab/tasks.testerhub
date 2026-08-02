@@ -15,7 +15,7 @@ import {
 import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
 import { updateTaskFieldsAction, updateTaskStatusAction } from "../../server/actions/tasks";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { TaskStatus } from "../../server/validators/task";
 import {
   BOARD_COLUMN_STATUSES,
@@ -25,6 +25,7 @@ import { Priority } from "@prisma/client";
 import type { UserOption } from "../../server/queries/users";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import type { RealtimeEvent } from "@/types/realtime";
+import { buildIssueDetailHref } from "@/shared/issueNavigation";
 
 type Status = TaskStatus;
 
@@ -644,6 +645,7 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   canEdit,
 }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: task.id,
@@ -665,7 +667,12 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
       }`}
       onClick={() => {
         if (!isDragging && !isSaving) {
-          router.push(`/tasks/${task.key ?? task.id}`);
+          router.push(
+            buildIssueDetailHref(task.key ?? task.id, searchParams, {
+              projectId: task.projectId,
+              from: "board",
+            })
+          );
         }
       }}
       {...attributes}

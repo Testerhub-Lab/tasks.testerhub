@@ -4,6 +4,10 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { setWorkspaceAction } from "@/server/actions/workspaces";
+import {
+  DEFAULT_ISSUE_VIEW_PATH,
+  buildIssueViewHref,
+} from "@/shared/issueNavigation";
 
 type ProjectOption = { id: string; name: string; key: string };
 type WorkspaceOption = { id: string; name: string; slug: string };
@@ -68,8 +72,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     const params = new URLSearchParams(searchParams.toString());
     if (assignee) params.set("assignee", assignee);
     else params.delete("assignee");
-    const query = params.toString();
-    return query ? `/issues?${query}` : "/issues";
+    return buildIssueViewHref(DEFAULT_ISSUE_VIEW_PATH, params);
   };
 
   const buildHref = (projectId?: string | null, projectKey?: string) => {
@@ -150,7 +153,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
       <div className="sidebar__section">
         <nav className="sidebar__list">
           <Link
-            href="/backlog"
+            href={buildIssueViewHref("/backlog", searchParams)}
             className={`sidebar__item ${pathname.startsWith("/backlog") ? "is-active" : ""}`}
           >
             <span className="sidebar__icon">
@@ -180,9 +183,12 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             <span>My issues</span>
           </Link>
           <Link
-            href="/issues"
+            href={buildIssueViewHref(DEFAULT_ISSUE_VIEW_PATH, searchParams)}
             className={`sidebar__item ${
-              pathname.startsWith("/issues") || pathname.startsWith("/board") ? "is-active" : ""
+              (pathname.startsWith("/issues") || pathname.startsWith("/board")) &&
+              activeAssignee !== "me"
+                ? "is-active"
+                : ""
             }`}
           >
             <span className="sidebar__icon">

@@ -15,6 +15,7 @@ import {
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import BacklogListClient from "../../components/backlog/BacklogListClient";
+import { clearIssueFiltersHref } from "../../shared/issueNavigation";
 
 
 interface BacklogPageProps {
@@ -74,7 +75,7 @@ const BacklogPage = async ({ searchParams }: BacklogPageProps) => {
           <div className="mt-4 flex justify-center">
             {isFiltered ? (
               <Link
-                href="/backlog"
+                href={clearIssueFiltersHref("/backlog", resolvedSearchParams)}
                 className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
               >
                 Clear filters
