@@ -366,9 +366,8 @@ body.is-dragging * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
-  width: auto;
-  max-width: 72px;
+  flex: 0 0 58px;
+  width: 58px;
   height: 18px;
   padding: 0 6px;
   border-radius: 6px;
