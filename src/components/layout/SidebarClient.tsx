@@ -72,6 +72,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     pathname.startsWith("/wiki");
   const isAllProjectsActive =
     isProjectContext && !activeProjectId && !activeWikiProjectKey;
+  const showProductsSection = projects.length > 1;
   const showBacklogBadge = !pathname.startsWith("/backlog") && backlogUnread > 0;
   const isIssueViewPath =
     pathname.startsWith("/issues") ||
@@ -275,44 +276,46 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
         </nav>
       </div>
 
-      <div className="sidebar__section sidebar__projects">
-        <div className="sidebar__title sidebar__projects-title">
-          <span>Products</span>
-          <span className="sidebar__count">{projects.length}</span>
+      {showProductsSection ? (
+        <div className="sidebar__section sidebar__projects">
+          <div className="sidebar__title sidebar__projects-title">
+            <span>Products</span>
+            <span className="sidebar__count">{projects.length}</span>
+          </div>
+          <nav className="sidebar__list sidebar__projects-list">
+            {projects.map((project) => {
+              const isActive =
+                activeProjectId === project.id ||
+                activeWikiProjectKey === project.key;
+              return (
+                <Link
+                  key={project.id}
+                  href={buildHref(project.id, project.key)}
+                  className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
+                  title={`${project.key} — ${project.name}`}
+                >
+                  <span className="sidebar__project-key">
+                    {project.key.toUpperCase()}
+                  </span>
+                  <span className="sidebar__project-name">{project.name}</span>
+                </Link>
+              );
+            })}
+            <Link
+              href={buildHref(null)}
+              className={`sidebar__item ${isAllProjectsActive ? "is-context-active" : ""}`}
+            >
+              <span className="sidebar__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <rect x="4" y="5" width="16" height="14" rx="2" />
+                  <path d="M9 5v14M14 5v14" />
+                </svg>
+              </span>
+              <span>All products</span>
+            </Link>
+          </nav>
         </div>
-        <nav className="sidebar__list sidebar__projects-list">
-          {projects.map((project) => {
-            const isActive =
-              activeProjectId === project.id ||
-              activeWikiProjectKey === project.key;
-            return (
-              <Link
-                key={project.id}
-                href={buildHref(project.id, project.key)}
-                className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
-                title={`${project.key} — ${project.name}`}
-              >
-                <span className="sidebar__project-name">{project.name}</span>
-                <span className="sidebar__project-key">
-                  {project.key.toUpperCase()}
-                </span>
-              </Link>
-            );
-          })}
-          <Link
-            href={buildHref(null)}
-            className={`sidebar__item ${isAllProjectsActive ? "is-context-active" : ""}`}
-          >
-            <span className="sidebar__icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <rect x="4" y="5" width="16" height="14" rx="2" />
-                <path d="M9 5v14M14 5v14" />
-              </svg>
-            </span>
-            <span>All products</span>
-          </Link>
-        </nav>
-      </div>
+      ) : null}
 
       <div className="sidebar__footer">
         {canManageWorkspace || canManageProjects ? (
