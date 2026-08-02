@@ -2,52 +2,108 @@
 
 import React, { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Priority, Status } from "@prisma/client";
 
 import Input from "../ui/Input";
 import Select from "../ui/Select";
 import FilterChip from "./FilterChip";
 import SegmentedChips from "./SegmentedChips";
-import { parseSearchParams, type IssueFilters } from "../../server/validators/issueFilters";
+import type { IssueFilters } from "../../server/validators/issueFilters";
 import { clearIssueFiltersHref } from "@/shared/issueNavigation";
 
-const STATUS_OPTIONS: Status[] = [
-  Status.NEW,
-  Status.TODO,
-  Status.IN_PROGRESS,
-  Status.TESTING,
-  Status.DONE,
+type FilterStatus = NonNullable<IssueFilters["status"]>[number];
+type FilterPriority = NonNullable<IssueFilters["priority"]>[number];
+
+const STATUS_VALUES = [
+  "NEW",
+  "TODO",
+  "HOLD",
+  "IN_PROGRESS",
+  "TESTING",
+  "DONE",
+  "REJECT",
+] as const satisfies readonly FilterStatus[];
+
+const PRIORITY_VALUES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+] as const satisfies readonly FilterPriority[];
+
+const STATUS_OPTIONS: FilterStatus[] = [
+  "NEW",
+  "TODO",
+  "IN_PROGRESS",
+  "TESTING",
+  "DONE",
 ];
 
-const PRIORITY_OPTIONS: Priority[] = [
-  Priority.LOW,
-  Priority.MEDIUM,
-  Priority.HIGH,
-  Priority.CRITICAL,
-];
+const PRIORITY_OPTIONS: FilterPriority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
-const STATUS_LABEL: Record<Status, string> = {
-  [Status.NEW]: "New",
-  [Status.TODO]: "To Do",
-  [Status.HOLD]: "Hold",
-  [Status.IN_PROGRESS]: "In Progress",
-  [Status.TESTING]: "Testing",
-  [Status.DONE]: "Done",
-  [Status.REJECT]: "Reject",
+const STATUS_LABEL: Record<FilterStatus, string> = {
+  NEW: "New",
+  TODO: "To Do",
+  HOLD: "Hold",
+  IN_PROGRESS: "In Progress",
+  TESTING: "Testing",
+  DONE: "Done",
+  REJECT: "Reject",
 };
 
-const PRIORITY_LABEL: Record<Priority, string> = {
-  [Priority.LOW]: "Low",
-  [Priority.MEDIUM]: "Medium",
-  [Priority.HIGH]: "High",
-  [Priority.CRITICAL]: "Critical",
+const PRIORITY_LABEL: Record<FilterPriority, string> = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  CRITICAL: "Critical",
+};
+
+const isFilterStatus = (value: string): value is FilterStatus =>
+  STATUS_VALUES.includes(value as FilterStatus);
+
+const isFilterPriority = (value: string): value is FilterPriority =>
+  PRIORITY_VALUES.includes(value as FilterPriority);
+
+const normalizeString = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const normalizeArray = (value?: string | null) =>
+  value
+    ? value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    : [];
+
+const parseClientSearchParams = (
+  searchParams: URLSearchParams
+): IssueFilters => {
+  const tags = normalizeArray(searchParams.get("tags"))
+    .filter((tag) => tag.length <= 24)
+    .slice(0, 20);
+  const status = normalizeArray(searchParams.get("status")).filter(isFilterStatus);
+  const priority = normalizeArray(searchParams.get("priority")).filter(
+    isFilterPriority
+  );
+  const view = normalizeString(searchParams.get("view"));
+
+  return {
+    q: normalizeString(searchParams.get("q")),
+    status: status.length ? status : undefined,
+    priority: priority.length ? priority : undefined,
+    tags: tags.length ? tags : undefined,
+    projectId: normalizeString(searchParams.get("projectId")),
+    assignee: normalizeString(searchParams.get("assignee")),
+    view: view === "board" || view === "backlog" || view === "issues" ? view : undefined,
+  };
 };
 
 interface IssueFiltersBarProps {
   projects: Array<{ id: string; name: string; key: string }>;
   initialFilters: IssueFilters;
   basePath: string;
-  statusOptions?: readonly Status[];
+  statusOptions?: readonly FilterStatus[];
   hideFiltersButton?: boolean;
   mode?: "default" | "compact";
   density?: "default" | "compact";
@@ -186,9 +242,7 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const isPopover = variant === "popover";
 
   const currentFilters = useMemo(() => {
-    const raw: Record<string, string> = {};
-    for (const [key, value] of searchParams.entries()) raw[key] = value;
-    return parseSearchParams(raw);
+    return parseClientSearchParams(searchParams);
   }, [searchParams]);
 
   const filters = Object.keys(currentFilters).length ? currentFilters : initialFilters;
@@ -309,12 +363,12 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     (filters.assignee ? 1 : 0);
 
   // --- removable handlers (тут типы уже enum)
-  const removeStatus = (status: Status) => {
+  const removeStatus = (status: FilterStatus) => {
     const next = (filters.status ?? []).filter((s) => s !== status);
     updateParams({ ...filters, status: next.length ? next : undefined });
   };
 
-  const toggleStatus = (status: Status) => {
+  const toggleStatus = (status: FilterStatus) => {
     const current = filters.status ?? [];
     const next = current.includes(status)
       ? current.filter((item) => item !== status)
@@ -322,12 +376,12 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
     updateParams({ ...filters, status: next.length ? next : undefined });
   };
 
-  const removePriority = (priority: Priority) => {
+  const removePriority = (priority: FilterPriority) => {
     const next = (filters.priority ?? []).filter((p) => p !== priority);
     updateParams({ ...filters, priority: next.length ? next : undefined });
   };
 
-  const togglePriority = (priority: Priority) => {
+  const togglePriority = (priority: FilterPriority) => {
     const current = filters.priority ?? [];
     const next = current.includes(priority)
       ? current.filter((item) => item !== priority)
@@ -424,13 +478,13 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
   const priorityValues = (filters.priority ?? []) as unknown as string[];
   const statusSummary =
     filters.status?.length === 1
-      ? STATUS_LABEL[filters.status[0] as Status]
+      ? STATUS_LABEL[filters.status[0] as FilterStatus]
       : filters.status?.length
         ? `${filters.status.length} selected`
         : "Any";
   const prioritySummary =
     filters.priority?.length === 1
-      ? PRIORITY_LABEL[filters.priority[0] as Priority]
+      ? PRIORITY_LABEL[filters.priority[0] as FilterPriority]
       : filters.priority?.length
         ? `${filters.priority.length} selected`
         : "Any";
@@ -660,20 +714,20 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
             {(filters.status ?? []).map((s) => (
               <RemovableChip
                 key={s}
-                onRemove={() => removeStatus(s as Status)}
+                onRemove={() => removeStatus(s as FilterStatus)}
                 title="Remove status"
               >
-                {STATUS_LABEL[s as Status] ?? String(s)}
+                {STATUS_LABEL[s as FilterStatus] ?? String(s)}
               </RemovableChip>
             ))}
 
             {(filters.priority ?? []).map((p) => (
               <RemovableChip
                 key={p}
-                onRemove={() => removePriority(p as Priority)}
+                onRemove={() => removePriority(p as FilterPriority)}
                 title="Remove priority"
               >
-                {PRIORITY_LABEL[p as Priority] ?? String(p)}
+                {PRIORITY_LABEL[p as FilterPriority] ?? String(p)}
               </RemovableChip>
             ))}
 
@@ -749,8 +803,8 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   onChange={(next) => {
                     const arr = Array.isArray(next) ? next : [];
                     const normalized = arr.filter((v) =>
-                      statusOptions.includes(v as Status)
-                    ) as Status[];
+                      statusOptions.includes(v as FilterStatus)
+                    ) as FilterStatus[];
 
                     requestAnimationFrame(() => {
                       updateParams({
@@ -785,8 +839,8 @@ const IssueFiltersBar: React.FC<IssueFiltersBarProps> = ({
                   onChange={(next) => {
                     const arr = Array.isArray(next) ? next : [];
                     const normalized = arr.filter((v) =>
-                      PRIORITY_OPTIONS.includes(v as Priority)
-                    ) as Priority[];
+                      PRIORITY_OPTIONS.includes(v as FilterPriority)
+                    ) as FilterPriority[];
 
                     requestAnimationFrame(() => {
                       updateParams({

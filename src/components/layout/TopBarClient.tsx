@@ -8,13 +8,12 @@ import React, {
   useState,
   useTransition,
 } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
-import CreateTaskModal from "../modals/CreateTaskModal";
-import { createTaskAction } from "../../server/actions/tasks";
 import { useDebouncedQueryParam } from "../../hooks/useDebouncedQueryParam";
 import {
   buildProjectIssueViewHref,
@@ -28,7 +27,6 @@ import {
   type IssueViewLayout,
 } from "@/shared/issueViews";
 import { findProjectByRouteContext } from "@/shared/projectKeyRoutes";
-import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { getDisplayName } from "@/server/auth/displayName";
 import { useAuth } from "@/lib/auth/useAuth";
 import type { TaskStatus } from "@/server/validators/task";
@@ -37,6 +35,10 @@ const viewTabs: Array<{ label: string; href: IssueViewPath; layout: IssueViewLay
   { label: "Board", href: "/board", layout: "board" },
   { label: "List", href: "/issues", layout: "list" },
 ];
+
+const CreateTaskModal = dynamic(() => import("../modals/CreateTaskModal"), {
+  ssr: false,
+});
 
 const PENDING_LAYOUT_PREFERENCE_KEY = "pulsar:pending-issue-view-layout";
 
@@ -98,8 +100,6 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   const [isModalOpen, setModalOpen] = useState(false);
   const [initialProjectId, setInitialProjectId] = useState<string | null>(null);
   const [initialStatus, setInitialStatus] = useState<TaskStatus | null>(null);
-  const [isSubmitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const [, startViewPreferenceTransition] = useTransition();
   const { user, loading, refresh } = useAuth();
@@ -131,13 +131,11 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   );
 
   const openModal = () => {
-    setFormError(null);
     setInitialProjectId(activeProject?.id ?? searchParams.get("projectId"));
     setInitialStatus(null);
     setModalOpen(true);
   };
   const closeModal = () => {
-    setFormError(null);
     setModalOpen(false);
     setInitialProjectId(null);
     setInitialStatus(null);
@@ -146,7 +144,6 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   useEffect(() => {
     const handleOpen = (event: Event) => {
       const detail = (event as CustomEvent<OpenCreateModalDetail>).detail;
-      setFormError(null);
       setInitialProjectId(detail?.projectId ?? null);
       setInitialStatus(detail?.status ?? null);
       setModalOpen(true);
@@ -194,32 +191,6 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  const handleCreateTask = async (data: Parameters<typeof createTaskAction>[0]) => {
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      const result = await createTaskAction(data);
-      if (!result.ok) {
-        if (isAuthRequiredError({ formError: result.formError ?? null })) {
-          showAuthRequiredToast();
-          return result;
-        }
-        setFormError(result.formError ?? "Не удалось создать тикет.");
-        return result;
-      }
-      return result;
-    } catch (error) {
-      console.error(error);
-      setFormError("Произошла ошибка при создании тикета.");
-      return {
-        ok: false as const,
-        formError: "Произошла ошибка при создании тикета.",
-      };
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -397,9 +368,6 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
       <CreateTaskModal
         isOpen={isModalOpen}
         onClose={closeModal}
-        onSubmit={handleCreateTask}
-        loading={isSubmitting}
-        errorMessage={formError}
         projects={writableProjects}
         users={users}
         initialProjectId={initialProjectId}

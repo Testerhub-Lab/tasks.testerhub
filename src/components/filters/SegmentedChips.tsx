@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { LayoutGroup, motion } from "framer-motion";
 import FilterChip from "./FilterChip";
 
 interface SegmentedOption {
@@ -30,8 +29,6 @@ const SegmentedChips: React.FC<SegmentedChipsProps> = ({
   groupId,
   multiple = false,
 }) => {
-  const layoutId = `chip-indicator-${groupId}`;
-
   const selectedSet = React.useMemo(() => {
     if (Array.isArray(value)) return new Set(value);
     if (typeof value === "string" && value !== "__all__") return new Set([value]);
@@ -67,38 +64,35 @@ const SegmentedChips: React.FC<SegmentedChipsProps> = ({
   };
 
   return (
-    <LayoutGroup id={groupId}>
-      <div className="relative inline-flex flex-nowrap items-center gap-1 rounded-full border border-white/10 p-1 overflow-hidden">
-        {options.map((option) => {
-          const selected = isSelected(option.value);
+    <div
+      className="relative inline-flex flex-nowrap items-center gap-1 rounded-full border border-white/10 p-1 overflow-hidden"
+      data-group-id={groupId}
+    >
+      {options.map((option) => {
+        const selected = isSelected(option.value);
 
-          return (
-            <FilterChip
-              key={option.value}
-              selected={selected}
-              className="relative z-10"
-              onClick={() => handleClick(option.value)}
-            >
-              {/* Single mode: one moving indicator (как было) */}
-              {!multiple && selected ? (
-                <motion.div
-                  layoutId={layoutId}
-                  className="absolute -inset-px rounded-full border border-cyan-400/60 bg-white/5 shadow-[0_0_12px_rgba(34,211,238,0.35)] backdrop-blur-md pointer-events-none"
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                />
-              ) : null}
+        return (
+          <FilterChip
+            key={option.value}
+            selected={selected}
+            className="relative z-10"
+            onClick={() => handleClick(option.value)}
+          >
+            {selected ? (
+              <span
+                className={[
+                  "absolute -inset-px rounded-full border bg-white/5",
+                  "shadow-[0_0_12px_rgba(34,211,238,0.28)] pointer-events-none",
+                  multiple ? "border-cyan-400/50" : "border-cyan-400/60 backdrop-blur-md",
+                ].join(" ")}
+              />
+            ) : null}
 
-              {/* Multi mode: статический highlight на каждый выбранный */}
-              {multiple && selected ? (
-                <span className="absolute -inset-px rounded-full border border-cyan-400/50 bg-white/5 shadow-[0_0_12px_rgba(34,211,238,0.20)] pointer-events-none" />
-              ) : null}
-
-              <span className="relative z-10">{option.label}</span>
-            </FilterChip>
-          );
-        })}
-      </div>
-    </LayoutGroup>
+            <span className="relative z-10">{option.label}</span>
+          </FilterChip>
+        );
+      })}
+    </div>
   );
 };
 
