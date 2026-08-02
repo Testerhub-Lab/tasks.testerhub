@@ -66,7 +66,10 @@ case "$command" in
     mkdir -p "$target"
     chmod 700 "$target"
     download_root="$(readlink -f "$target")"
-    docker_args+=(--volume "${download_root}:${download_root}:rw")
+    docker_args+=(
+      --user "$(id -u):$(id -g)"
+      --volume "${download_root}:${download_root}:rw"
+    )
     docker run "${docker_args[@]}" "$web_image" /app/s3-upload.mjs "$command" "$download_root"
     ;;
   *)
