@@ -67,13 +67,61 @@ A backup is accepted only when:
 
 ## Retention and automation
 
-Manual retention is intentional for the first routine version: these scripts do
-not delete older backups.
+Manual retention is intentionally conservative in `backup.sh` and
+`restore-check.sh`: they do not delete older backups.
 
-After the routine is accepted, add a separate automation step:
+Use the S3 automation wrapper after the manual routine is accepted:
 
-- scheduled daily/weekly backup;
-- off-server copy;
-- stale-backup alert;
-- periodic restore drill;
-- explicit retention policy.
+```bash
+infra/production/backup/backup-and-upload.sh
+```
+
+It creates a backup, runs restore-check, uploads the whole backup generation to
+S3, and applies retention under the configured backup prefix.
+
+Required env comes from `/srv/tasks/.env` by default:
+
+- `S3_ENDPOINT`
+- `S3_REGION`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+- `S3_BUCKET`
+- `S3_FORCE_PATH_STYLE`
+
+Optional backup-specific env:
+
+- `PULSAR_BACKUP_S3_BUCKET` — use a dedicated bucket; falls back to `S3_BUCKET`;
+- `PULSAR_BACKUP_S3_PREFIX` — default `backups/postgres`;
+- `PULSAR_BACKUP_KEEP_DAILY` — default `14`;
+- `PULSAR_BACKUP_KEEP_WEEKLY` — default `8`;
+- `PULSAR_BACKUP_KEEP_MONTHLY` — default `6`;
+- `PULSAR_BACKUP_RETENTION_DRY_RUN=1` — list retention impact without deleting.
+
+Install the deploy-user cron entry:
+
+```bash
+infra/production/backup/install-cron.sh
+```
+
+Default schedule is daily at `03:17` server time:
+
+```text
+17 3 * * *
+```
+
+Override if needed:
+
+```bash
+PULSAR_BACKUP_CRON_SCHEDULE="17 3 * * *" \
+  infra/production/backup/install-cron.sh
+```
+
+The cron installer manages only the block between:
+
+```text
+# BEGIN PULSAR PG18 BACKUP
+# END PULSAR PG18 BACKUP
+```
+
+Current retention deletes only objects under `PULSAR_BACKUP_S3_PREFIX` and only
+whole timestamped backup generations (`YYYYMMDDTHHMMSSZ`).

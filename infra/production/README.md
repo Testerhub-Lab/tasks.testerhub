@@ -103,6 +103,16 @@ infra/production/backup/restore-check.sh /home/deploy/pulsar-pg18-backups/<times
 The routine creates a custom-format dump, SHA-256 checksum, and restore-check
 summary without printing secrets.
 
+After the manual routine is verified, use the automated S3/off-server routine:
+
+```bash
+infra/production/backup/backup-and-upload.sh
+infra/production/backup/install-cron.sh
+```
+
+By default it uploads backup generations under `backups/postgres/` in the
+configured S3 bucket and retains 14 daily, 8 weekly, and 6 monthly generations.
+
 ## Validated baseline
 
 The side-by-side contour was validated on 2026-07-26 without changing the
