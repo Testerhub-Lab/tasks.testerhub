@@ -43,9 +43,9 @@ fi
 
 docker run \
   "${docker_args[@]}" \
-  --volume "${repo_root}:/workspace:ro" \
+  --volume "${repo_root}/infra/production/backup/s3-upload.mjs:/app/s3-upload.mjs:ro" \
   --volume "${backup_dir}:/backup:ro" \
   --workdir /app \
   --entrypoint node \
   "$web_image" \
-  /workspace/infra/production/backup/s3-upload.mjs upload-and-retain /backup
+  /app/s3-upload.mjs upload-and-retain /backup
