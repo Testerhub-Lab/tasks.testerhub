@@ -129,3 +129,38 @@ Current retention deletes only objects under `PULSAR_BACKUP_S3_PREFIX` and only
 whole timestamped backup generations (`YYYYMMDDTHHMMSSZ`). Local retention
 uses the same timestamped-generation rule and refuses broad roots such as `/`,
 `/home`, or `/home/deploy`.
+
+## Backup health check
+
+Run:
+
+```bash
+infra/production/backup/backup-health.sh
+```
+
+The script exits with code `0` only when:
+
+- the deploy-user cron block exists;
+- the latest local generation is not older than `PULSAR_BACKUP_MAX_AGE_HOURS`
+  (`36` by default);
+- the latest local generation has dump, checksum, manifest, and restore summary;
+- S3 has a complete latest generation under the configured backup prefix.
+
+The output is compact JSON and contains no secret values.
+
+## Restore drill from S3
+
+Run:
+
+```bash
+infra/production/backup/restore-from-s3.sh
+```
+
+The script downloads the latest complete S3 generation into
+`/home/deploy/pulsar-pg18-restore-drills`, verifies the adjacent checksum through
+`restore-check.sh`, and restores it into a disposable PostgreSQL 18 container.
+
+Optional env:
+
+- `PULSAR_RESTORE_DRILL_ROOT` — default `/home/deploy/pulsar-pg18-restore-drills`;
+- `PULSAR_RESTORE_DRILL_KEEP_LOCAL` — default `3`.

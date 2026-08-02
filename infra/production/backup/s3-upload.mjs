@@ -1,24 +1,37 @@
 #!/usr/bin/env node
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 
 const command = process.argv[2];
 const backupDir = process.argv[3];
 
-if (!["upload", "retention", "upload-and-retain"].includes(command)) {
+if (
+  ![
+    "upload",
+    "retention",
+    "upload-and-retain",
+    "status",
+    "download-latest",
+  ].includes(command)
+) {
   throw new Error(
-    "Usage: s3-upload.mjs upload|retention|upload-and-retain /backup"
+    "Usage: s3-upload.mjs upload|retention|upload-and-retain /backup | status | download-latest /target"
   );
 }
 if ((command === "upload" || command === "upload-and-retain") && !backupDir) {
   throw new Error("backup directory is required");
+}
+if (command === "download-latest" && !backupDir) {
+  throw new Error("download target directory is required");
 }
 
 const env = process.env;
@@ -64,6 +77,12 @@ if (command === "upload" || command === "upload-and-retain") {
 }
 if (command === "retention" || command === "upload-and-retain") {
   result.retention = await applyRetention();
+}
+if (command === "status") {
+  result.status = await getStatus();
+}
+if (command === "download-latest") {
+  result.download = await downloadLatestBackup(backupDir);
 }
 
 process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -154,17 +173,7 @@ async function listBackupObjects() {
 
 async function applyRetention() {
   const objects = await listBackupObjects();
-  const generations = new Map();
-
-  for (const object of objects) {
-    if (!object.Key) continue;
-    const rest = object.Key.slice(`${prefix}/`.length);
-    const generation = rest.split("/")[0];
-    if (!isBackupGeneration(generation)) continue;
-    const current = generations.get(generation) || [];
-    current.push(object.Key);
-    generations.set(generation, current);
-  }
+  const generations = groupGenerationKeys(objects);
 
   const keep = chooseGenerationsToKeep([...generations.keys()]);
   const deleteKeys = [];
@@ -201,6 +210,145 @@ async function applyRetention() {
     keepWeekly,
     keepMonthly,
   };
+}
+
+async function getStatus() {
+  const objects = await listBackupObjects();
+  const summaries = summarizeGenerations(objects);
+
+  return {
+    bucket,
+    prefix,
+    generationsSeen: summaries.length,
+    objectsSeen: objects.length,
+    latestGeneration: summaries[0] || null,
+    latestCompleteGeneration:
+      summaries.find((generation) => generation.complete) || null,
+  };
+}
+
+async function downloadLatestBackup(targetRoot) {
+  const resolvedTargetRoot = path.resolve(targetRoot);
+  const objects = await listBackupObjects();
+  const summaries = summarizeGenerations(objects);
+  const latestComplete = summaries.find((generation) => generation.complete);
+  if (!latestComplete) {
+    throw new Error(`No complete backup generation found under ${prefix}/`);
+  }
+
+  const generationRoot = path.join(resolvedTargetRoot, latestComplete.name);
+  await mkdir(generationRoot, { recursive: true });
+  const baseKey = `${prefix}/${latestComplete.name}/`;
+  let downloaded = 0;
+  let bytes = 0;
+
+  for (const object of objects) {
+    if (!object.Key || !object.Key.startsWith(baseKey)) continue;
+    const relative = object.Key.slice(baseKey.length);
+    const targetPath = path.resolve(generationRoot, ...relative.split("/"));
+    if (!targetPath.startsWith(`${generationRoot}${path.sep}`)) {
+      throw new Error(`Unsafe S3 object key: ${object.Key}`);
+    }
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: object.Key,
+      })
+    );
+    if (!response.Body) {
+      throw new Error(`Empty S3 object body: ${object.Key}`);
+    }
+    await pipeline(response.Body, createWriteStream(targetPath));
+    downloaded += 1;
+    bytes += object.Size || 0;
+  }
+
+  return {
+    bucket,
+    prefix,
+    backupName: latestComplete.name,
+    objectPrefix: baseKey,
+    targetDir: generationRoot,
+    dumpFile: path.join(
+      generationRoot,
+      latestComplete.dumpKey.slice(baseKey.length)
+    ),
+    downloaded,
+    bytes,
+  };
+}
+
+function groupGenerationKeys(objects) {
+  const generations = new Map();
+
+  for (const object of objects) {
+    if (!object.Key) continue;
+    const rest = object.Key.slice(`${prefix}/`.length);
+    const generation = rest.split("/")[0];
+    if (!isBackupGeneration(generation)) continue;
+    const current = generations.get(generation) || [];
+    current.push(object.Key);
+    generations.set(generation, current);
+  }
+
+  return generations;
+}
+
+function summarizeGenerations(objects) {
+  const byGeneration = new Map();
+  const listPrefix = `${prefix}/`;
+
+  for (const object of objects) {
+    if (!object.Key || !object.Key.startsWith(listPrefix)) continue;
+    const rest = object.Key.slice(listPrefix.length);
+    const generation = rest.split("/")[0];
+    if (!isBackupGeneration(generation)) continue;
+    const summary =
+      byGeneration.get(generation) ||
+      {
+        name: generation,
+        objectPrefix: `${listPrefix}${generation}/`,
+        objects: 0,
+        bytes: 0,
+        hasDump: false,
+        hasSha256: false,
+        hasManifest: false,
+        hasRestoreSummary: false,
+        dumpKey: null,
+        lastModified: null,
+      };
+    const relative = rest.slice(`${generation}/`.length);
+    summary.objects += 1;
+    summary.bytes += object.Size || 0;
+    if (/^pulsar-pg18-\d{8}T\d{6}Z\.dump$/.test(relative)) {
+      summary.hasDump = true;
+      summary.dumpKey = object.Key;
+    }
+    if (/^pulsar-pg18-\d{8}T\d{6}Z\.dump\.sha256$/.test(relative)) {
+      summary.hasSha256 = true;
+    }
+    if (relative === "manifest.json") {
+      summary.hasManifest = true;
+    }
+    if (/^restore-check-.+\/summary\.json$/.test(relative)) {
+      summary.hasRestoreSummary = true;
+    }
+    if (
+      object.LastModified &&
+      (!summary.lastModified || object.LastModified > new Date(summary.lastModified))
+    ) {
+      summary.lastModified = object.LastModified.toISOString();
+    }
+    byGeneration.set(generation, summary);
+  }
+
+  return [...byGeneration.values()]
+    .map((summary) => ({
+      ...summary,
+      complete: summary.hasDump && summary.hasSha256 && summary.hasManifest,
+    }))
+    .sort((a, b) => b.name.localeCompare(a.name));
 }
 
 function isBackupGeneration(value) {

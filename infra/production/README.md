@@ -114,6 +114,10 @@ By default it uploads backup generations under `backups/postgres/` in the
 configured S3 bucket, retains 14 daily, 8 weekly, and 6 monthly S3 generations,
 and keeps the latest 7 local generations on the production server.
 
+Use `backup-health.sh` to check that cron, local backup state, and S3 backup
+state are healthy. Use `restore-from-s3.sh` for an explicit restore drill from
+the off-server copy.
+
 ## Validated baseline
 
 The side-by-side contour was validated on 2026-07-26 without changing the
