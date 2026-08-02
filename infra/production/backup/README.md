@@ -77,7 +77,8 @@ infra/production/backup/backup-and-upload.sh
 ```
 
 It creates a backup, runs restore-check, uploads the whole backup generation to
-S3, and applies retention under the configured backup prefix.
+S3, applies retention under the configured backup prefix, and then removes stale
+local backup generations from the server.
 
 Required env comes from `/srv/tasks/.env` by default:
 
@@ -95,6 +96,7 @@ Optional backup-specific env:
 - `PULSAR_BACKUP_KEEP_DAILY` — default `14`;
 - `PULSAR_BACKUP_KEEP_WEEKLY` — default `8`;
 - `PULSAR_BACKUP_KEEP_MONTHLY` — default `6`;
+- `PULSAR_BACKUP_KEEP_LOCAL` — local server generations to keep, default `7`;
 - `PULSAR_BACKUP_RETENTION_DRY_RUN=1` — list retention impact without deleting.
 
 Install the deploy-user cron entry:
@@ -124,4 +126,6 @@ The cron installer manages only the block between:
 ```
 
 Current retention deletes only objects under `PULSAR_BACKUP_S3_PREFIX` and only
-whole timestamped backup generations (`YYYYMMDDTHHMMSSZ`).
+whole timestamped backup generations (`YYYYMMDDTHHMMSSZ`). Local retention
+uses the same timestamped-generation rule and refuses broad roots such as `/`,
+`/home`, or `/home/deploy`.

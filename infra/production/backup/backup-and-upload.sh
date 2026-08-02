@@ -20,8 +20,10 @@ PY
 
 restore_output="$("${script_dir}/restore-check.sh" "$dump_file")"
 s3_output="$("${script_dir}/s3-upload.sh" "$backup_dir")"
+local_retention_output="$("${script_dir}/local-retention.sh")"
 
-printf '{"backup":%s,"restore":%s,"s3":%s}\n' \
+printf '{"backup":%s,"restore":%s,"s3":%s,"localRetention":%s}\n' \
   "$backup_output" \
   "$restore_output" \
-  "$s3_output"
+  "$s3_output" \
+  "$local_retention_output"

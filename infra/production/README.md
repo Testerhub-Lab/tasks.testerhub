@@ -111,7 +111,8 @@ infra/production/backup/install-cron.sh
 ```
 
 By default it uploads backup generations under `backups/postgres/` in the
-configured S3 bucket and retains 14 daily, 8 weekly, and 6 monthly generations.
+configured S3 bucket, retains 14 daily, 8 weekly, and 6 monthly S3 generations,
+and keeps the latest 7 local generations on the production server.
 
 ## Validated baseline
 
