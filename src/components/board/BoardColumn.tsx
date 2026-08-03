@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import type { TaskStatus } from "../../server/validators/task";
+import type { TaskStatus } from "@/shared/taskEnums";
 
 interface BoardColumnProps {
   status: TaskStatus;

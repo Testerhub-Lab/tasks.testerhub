@@ -3,32 +3,27 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
-import { Priority, Status } from "@prisma/client";
 import { formatDate } from "./utils";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import {
+  DEFAULT_TASK_PRIORITY,
+  DEFAULT_TASK_STATUS,
+  TASK_PRIORITY_LABEL,
+  TASK_PRIORITY_VALUES,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_VALUES,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/shared/taskEnums";
 
-const statusLabel: Record<Status, string> = {
-  [Status.NEW]: "New",
-  [Status.TODO]: "To Do",
-  [Status.HOLD]: "Hold",
-  [Status.IN_PROGRESS]: "In Progress",
-  [Status.TESTING]: "Testing",
-  [Status.DONE]: "Done",
-  [Status.REJECT]: "Reject",
-};
-
-const priorityLabel: Record<Priority, string> = {
-  [Priority.LOW]: "Low",
-  [Priority.MEDIUM]: "Medium",
-  [Priority.HIGH]: "High",
-  [Priority.CRITICAL]: "Critical",
-};
+const statusLabel = TASK_STATUS_LABEL;
+const priorityLabel = TASK_PRIORITY_LABEL;
 
 interface IssueMetaPanelProps {
   id: string;
   projectLabel?: string | null;
-  status?: Status | null;
-  priority?: Priority | null;
+  status?: TaskStatus | null;
+  priority?: TaskPriority | null;
   environment?: string | null;
   reporterName?: string | null;
   assigneeId?: string | null;
@@ -73,7 +68,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
 
   const statusOptions = useMemo(
     () =>
-      (Object.values(Status) as Status[]).map((s) => ({
+      TASK_STATUS_VALUES.map((s) => ({
         value: s,
         label: statusLabel[s] ?? s,
       })),
@@ -82,16 +77,16 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
 
   const priorityOptions = useMemo(
     () =>
-      (Object.values(Priority) as Priority[]).map((p) => ({
+      TASK_PRIORITY_VALUES.map((p) => ({
         value: p,
         label: priorityLabel[p] ?? p,
       })),
     []
   );
 
-  const [currentStatus, setCurrentStatus] = useState<Status>(status ?? Status.NEW);
-  const [currentPriority, setCurrentPriority] = useState<Priority>(
-    priority ?? Priority.MEDIUM
+  const [currentStatus, setCurrentStatus] = useState<TaskStatus>(status ?? DEFAULT_TASK_STATUS);
+  const [currentPriority, setCurrentPriority] = useState<TaskPriority>(
+    priority ?? DEFAULT_TASK_PRIORITY
   );
   const [currentAssignee, setCurrentAssignee] = useState<string>(
     assigneeId ?? ""
@@ -104,11 +99,11 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   }, [assigneeId]);
 
   React.useEffect(() => {
-    setCurrentStatus(status ?? Status.NEW);
+    setCurrentStatus(status ?? DEFAULT_TASK_STATUS);
   }, [status]);
 
   React.useEffect(() => {
-    setCurrentPriority(priority ?? Priority.MEDIUM);
+    setCurrentPriority(priority ?? DEFAULT_TASK_PRIORITY);
   }, [priority]);
 
   React.useEffect(() => {
@@ -139,8 +134,8 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   }, [openMenu]);
 
   const handleUpdate = async (next: {
-    status?: Status;
-    priority?: Priority;
+    status?: TaskStatus;
+    priority?: TaskPriority;
     assigneeId?: string | null;
   }) => {
     setSaving(true);
@@ -169,13 +164,13 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   const priorityLevel = (() => {
     if (!currentPriority) return 0;
     switch (currentPriority) {
-      case Priority.CRITICAL:
+      case "CRITICAL":
         return 4;
-      case Priority.HIGH:
+      case "HIGH":
         return 3;
-      case Priority.MEDIUM:
+      case "MEDIUM":
         return 2;
-      case Priority.LOW:
+      case "LOW":
         return 1;
       default:
         return 0;

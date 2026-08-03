@@ -7,7 +7,7 @@ import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
   type IssuePageSize,
-} from "../../server/validators/issueFilters";
+} from "@/shared/issueFilterConfig";
 
 type IssuePaginationProps = {
   basePath: string;

@@ -16,12 +16,11 @@ import IssueCard from "./IssueCard";
 import BoardColumn from "./BoardColumn";
 import { updateTaskFieldsAction, updateTaskStatusAction } from "../../server/actions/tasks";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { TaskStatus } from "../../server/validators/task";
 import {
   BOARD_COLUMN_STATUSES,
   type BoardColumnStatus,
-} from "../../server/validators/issueFilters";
-import { Priority } from "@prisma/client";
+} from "@/shared/issueFilterConfig";
+import type { TaskPriority, TaskStatus } from "@/shared/taskEnums";
 import type { UserOption } from "../../server/queries/users";
 import { useBoardRealtime } from "@/hooks/useBoardRealtime";
 import type { RealtimeEvent } from "@/types/realtime";
@@ -37,7 +36,7 @@ type BoardTask = {
   title: string;
   type: string | null;
   description: string | null;
-  priority: Priority;
+  priority: TaskPriority;
   status: Status;
   createdAt?: string | Date | null;
   assignee: { id: string; name: string | null; email: string | null } | null;

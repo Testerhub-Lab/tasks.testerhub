@@ -1,6 +1,20 @@
 import { z } from "zod";
 import { taskStatusSchema } from "./task";
-import type { TaskPriority, TaskStatus } from "./task";
+import {
+  BOARD_COLUMN_LIMIT_DEFAULT,
+  BOARD_COLUMN_LIMIT_MAX,
+  BOARD_COLUMN_LIMIT_PARAM,
+  BOARD_COLUMN_STATUSES,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  resolveBoardColumnStatuses,
+  type BoardColumnLimits,
+  type BoardColumnStatus,
+  type IssueFilterPriority,
+  type IssueFilterStatus,
+  type IssueFilters,
+  type IssuePageSize,
+} from "../../shared/issueFilterConfig";
 
 const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 const viewSchema = z.enum(["board", "backlog", "issues"]);
@@ -31,45 +45,27 @@ const issueFiltersSchema = z.object({
   view: viewSchema.optional(),
 });
 
-export type IssueFilters = z.infer<typeof issueFiltersSchema>;
-export type IssueFilterStatus = TaskStatus;
-export type IssueFilterPriority = TaskPriority;
-
-export const PAGE_SIZE_OPTIONS = [10, 15, 20, 50] as const;
-export const DEFAULT_PAGE_SIZE = 20;
-export const BOARD_COLUMN_STATUSES = [
-  "TODO",
-  "IN_PROGRESS",
-  "TESTING",
-  "DONE",
-] as const;
-export const BOARD_COLUMN_LIMIT_DEFAULT = 20;
-export const BOARD_COLUMN_LIMIT_MAX = 50;
-
-export type IssuePageSize = (typeof PAGE_SIZE_OPTIONS)[number];
-export type BoardColumnStatus = (typeof BOARD_COLUMN_STATUSES)[number];
-
-export const resolveBoardColumnStatuses = (
-  filters: Pick<IssueFilters, "status">
-): BoardColumnStatus[] => {
-  if (!filters.status?.length) return [...BOARD_COLUMN_STATUSES];
-  return BOARD_COLUMN_STATUSES.filter((status) =>
-    filters.status?.includes(status)
-  );
+export type {
+  BoardColumnLimits,
+  BoardColumnStatus,
+  IssueFilterPriority,
+  IssueFilters,
+  IssueFilterStatus,
+  IssuePageSize,
+};
+export {
+  BOARD_COLUMN_LIMIT_DEFAULT,
+  BOARD_COLUMN_LIMIT_MAX,
+  BOARD_COLUMN_LIMIT_PARAM,
+  BOARD_COLUMN_STATUSES,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  resolveBoardColumnStatuses,
 };
 
 export type IssuePaginationInput = {
   page: number;
   pageSize: IssuePageSize;
-};
-
-export type BoardColumnLimits = Record<BoardColumnStatus, number>;
-
-export const BOARD_COLUMN_LIMIT_PARAM: Record<BoardColumnStatus, string> = {
-  TODO: "todoLimit",
-  IN_PROGRESS: "inProgressLimit",
-  TESTING: "testingLimit",
-  DONE: "doneLimit",
 };
 
 const firstParamValue = (value?: string | string[] | null) =>

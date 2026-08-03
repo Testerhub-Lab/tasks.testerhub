@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Card from "../ui/Card";
-import type { TaskPriority, TaskStatus } from "../../server/validators/task";
+import type { TaskPriority, TaskStatus } from "@/shared/taskEnums";
 import { getDisplayName } from "../../server/auth/displayName";
 
 type AssigneeOption = { id: string; name: string | null; email: string | null };

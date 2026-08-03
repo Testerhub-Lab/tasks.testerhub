@@ -7,7 +7,7 @@ import Input from "../ui/Input";
 import Select from "../ui/Select";
 import FilterChip from "./FilterChip";
 import SegmentedChips from "./SegmentedChips";
-import type { IssueFilters } from "../../server/validators/issueFilters";
+import type { IssueFilters } from "@/shared/issueFilterConfig";
 import { clearIssueFiltersHref } from "@/shared/issueNavigation";
 
 type FilterStatus = NonNullable<IssueFilters["status"]>[number];

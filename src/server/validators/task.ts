@@ -1,14 +1,17 @@
 import { z } from "zod";
-import { Priority, Status } from "@prisma/client";
+import {
+  DEFAULT_TASK_PRIORITY,
+  DEFAULT_TASK_STATUS,
+  TASK_PRIORITY_VALUES,
+  TASK_STATUS_VALUES,
+  type TaskPriority,
+  type TaskStatus,
+} from "../../shared/taskEnums";
 
-const statusValues = Object.values(Status) as [Status, ...Status[]];
-const priorityValues = Object.values(Priority) as [Priority, ...Priority[]];
+export const taskStatusSchema = z.enum(TASK_STATUS_VALUES);
+export const taskPrioritySchema = z.enum(TASK_PRIORITY_VALUES);
 
-export const taskStatusSchema = z.enum(statusValues);
-export const taskPrioritySchema = z.enum(priorityValues);
-
-export type TaskStatus = z.infer<typeof taskStatusSchema>;
-export type TaskPriority = z.infer<typeof taskPrioritySchema>;
+export type { TaskPriority, TaskStatus };
 
 const tagsInputSchema = z
   .union([z.array(z.string().min(1)), z.string(), z.undefined(), z.null()])
@@ -30,8 +33,8 @@ export const taskSchema = z
 
     type: z.string().min(1).default("TASK"),
 
-    priority: taskPrioritySchema.default(Priority.MEDIUM),
-    status: taskStatusSchema.optional().default(Status.NEW),
+    priority: taskPrioritySchema.default(DEFAULT_TASK_PRIORITY),
+    status: taskStatusSchema.optional().default(DEFAULT_TASK_STATUS),
 
     steps: z.string().max(2000).optional().nullable(),
     expected: z.string().max(2000).optional().nullable(),
