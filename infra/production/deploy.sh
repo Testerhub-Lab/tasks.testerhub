@@ -49,6 +49,35 @@ if ! docker inspect "$web_container" \
   exit 1
 fi
 
+app_port=$(
+  awk -F= '
+    $1 == "APP_PORT" {
+      gsub(/\r/, "", $2)
+      gsub(/^"|"$/, "", $2)
+      print $2
+    }
+  ' "$env_file" | tail -n 1
+)
+app_port=${app_port:-3012}
+health_url=${PULSAR_WEB_HEALTH_URL:-http://127.0.0.1:${app_port}/board}
+
+echo "Waiting for web HTTP readiness..."
+ready=
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status=$(curl -sS -o /dev/null -w '%{http_code}' "$health_url" || true)
+  case "$status" in
+    2*|3*|401)
+      ready=1
+      break
+      ;;
+  esac
+  sleep 5
+done
+
+if [ -z "$ready" ]; then
+  echo "Web did not become HTTP-ready at $health_url; last status: ${status:-none}" >&2
+  exit 1
+fi
+
 echo "Production web runtime contract is valid."
 compose ps
-
