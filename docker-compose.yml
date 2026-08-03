@@ -1,3 +1,10 @@
+#
+# Development/single-service compose only.
+#
+# Pulsar production after the PG18/Zero cutover is described by
+# infra/production/compose.yml and deployed through infra/production/deploy.sh.
+# Do not use this root compose file for the `pulsar-prod` project.
+#
 services:
   web:
     build: .

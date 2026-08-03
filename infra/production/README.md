@@ -82,6 +82,36 @@ Keep the legacy database and container intact until all smoke tests pass.
 Changing passwords in `production.env` does not rotate roles in an existing
 volume; password rotation requires an explicit `ALTER ROLE`.
 
+## Routine production deploy
+
+After the PG18/Zero cutover, production must be deployed only through the
+production Compose model:
+
+```bash
+cd /home/deploy/tasks-source
+git fetch origin main
+git reset --hard origin/main
+infra/production/deploy.sh
+```
+
+The wrapper uses:
+
+- Compose project: `pulsar-prod` by default;
+- interpolation env file: `/srv/tasks/production.env` by default;
+- Compose file: `infra/production/compose.yml`.
+
+Do not deploy Pulsar production with the repository-root `docker-compose.yml`.
+That file does not model the PG18/Zero runtime topology and must not be the
+source of truth for `pulsar-prod`.
+
+The wrapper validates the rendered Compose model, rebuilds and recreates `web`,
+then checks that the recreated container has:
+
+- `PULSAR_AUTH_STORE=zero`;
+- non-empty `DATABASE_URL`;
+- non-empty `ZERO_UPSTREAM_DB`;
+- attachment to the project `data` network required to reach PostgreSQL 18.
+
 ## Backup rule
 
 A named volume is persistence, not a backup. Before cutover, create a
