@@ -11,7 +11,11 @@ import {
 } from "@/server/auth/access";
 import prisma from "@/lib/prisma";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
-import { getWikiPageTree } from "@/server/knowledge/queries";
+import {
+  getProjectKnowledge,
+  getWikiPageTree,
+} from "@/server/knowledge/queries";
+import { KnowledgeProvider } from "@prisma/client";
 
 export default async function Sidebar() {
   const user = await getCurrentUser();
@@ -31,6 +35,16 @@ export default async function Sidebar() {
       ])
     )
   );
+  const wikiEnabledProjectIds = (
+    await Promise.all(
+      projects.map(async (project) => {
+        const configuration = await getProjectKnowledge(project.id);
+        return configuration.provider !== KnowledgeProvider.DISABLED
+          ? project.id
+          : null;
+      })
+    )
+  ).filter((projectId): projectId is string => Boolean(projectId));
   const workspaces = await getWorkspacesForUser(user.id);
   let backlogUnread = 0;
   let canManageWorkspace = false;
@@ -73,6 +87,7 @@ export default async function Sidebar() {
     <SidebarClient
       projects={projects}
       wikiPagesByProject={wikiPagesByProject}
+      wikiEnabledProjectIds={wikiEnabledProjectIds}
       issueViewPreferences={issueViewPreferences}
       backlogUnread={backlogUnread}
       workspaces={workspaces.map((m) => m.workspace)}

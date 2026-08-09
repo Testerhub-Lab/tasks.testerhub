@@ -402,22 +402,13 @@ body.is-dragging * {
   min-width: 0;
 }
 
-.sidebar__product-toggle {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar__product-children {
-  margin: 3px 0 7px 16px;
-  min-width: 0;
-}
-
 .sidebar__subitem {
   padding-left: 8px;
   font-size: 12px;
+}
+
+.sidebar__wiki-section {
+  min-width: 0;
 }
 
 .sidebar__wiki-root {
@@ -456,6 +447,27 @@ body.is-dragging * {
   padding-right: 24px;
 }
 
+.sidebar__wiki-root > .sidebar__item {
+  flex: 1 1 auto;
+}
+
+.sidebar__wiki-products {
+  margin: 4px 0 8px 18px;
+  min-width: 0;
+}
+
+.sidebar__wiki-product {
+  min-width: 0;
+}
+
+.sidebar__wiki-product + .sidebar__wiki-product {
+  margin-top: 2px;
+}
+
+.sidebar__wiki-product-link {
+  padding-left: 4px;
+}
+
 .sidebar__quick-add {
   position: absolute;
   right: 4px;
@@ -484,7 +496,7 @@ body.is-dragging * {
 .sidebar__wiki-tree {
   margin-top: 2px;
   min-width: 0;
-  padding-left: 8px;
+  padding-left: 20px;
 }
 
 .sidebar__projects-title {

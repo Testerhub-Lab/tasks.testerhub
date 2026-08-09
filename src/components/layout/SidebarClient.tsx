@@ -24,6 +24,7 @@ type WorkspaceOption = { id: string; name: string; slug: string };
 interface SidebarClientProps {
   projects: ProjectOption[];
   wikiPagesByProject: Record<string, WikiTreePage[]>;
+  wikiEnabledProjectIds: string[];
   issueViewPreferences: IssueViewPreference[];
   backlogUnread: number;
   workspaces: WorkspaceOption[];
@@ -46,6 +47,7 @@ const getBasePath = (pathname: string) => {
 const SidebarClient: React.FC<SidebarClientProps> = ({
   projects,
   wikiPagesByProject,
+  wikiEnabledProjectIds,
   issueViewPreferences,
   backlogUnread,
   workspaces,
@@ -92,13 +94,10 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     projects.find((project) => project.key === activeWikiProjectKey)?.id ??
     null;
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [manualExpandedProjectId, setManualExpandedProjectId] = useState<
+  const [wikiOpen, setWikiOpen] = useState(pathname.startsWith("/wiki"));
+  const [expandedWikiProjectId, setExpandedWikiProjectId] = useState<
     string | null
-  >(projects[0]?.id ?? null);
-  const [collapsedWikiProjectIds, setCollapsedWikiProjectIds] = useState(
-    () => new Set<string>()
-  );
-  const expandedProjectId = routeProjectId ?? manualExpandedProjectId;
+  >(routeProjectId ?? null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const handleWorkspaceChange = async (nextId: string) => {
@@ -276,12 +275,24 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
             </span>
             <span>Issues</span>
           </Link>
-          <Link
-            href="/wiki"
-            className={`sidebar__item ${
-              pathname.startsWith("/wiki") ? "is-active" : ""
-            }`}
-          >
+          <div className="sidebar__wiki-section">
+            <div className="sidebar__wiki-root">
+              <button
+                type="button"
+                className="sidebar__wiki-toggle"
+                onClick={() => setWikiOpen((current) => !current)}
+                aria-label={wikiOpen ? "Свернуть Wiki" : "Развернуть Wiki"}
+                aria-expanded={wikiOpen}
+              >
+                {wikiOpen ? "▼" : "▶"}
+              </button>
+              <Link
+                href="/wiki"
+                className={`sidebar__item ${
+                  pathname.startsWith("/wiki") ? "is-active" : ""
+                }`}
+                onClick={() => setWikiOpen((current) => !current)}
+              >
             <span className="sidebar__icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
@@ -289,105 +300,64 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               </svg>
             </span>
             <span>Wiki</span>
-          </Link>
-        </nav>
-      </div>
-
-      {showProductsSection ? (
-        <div className="sidebar__section sidebar__projects">
-          <div className="sidebar__title sidebar__projects-title">
-            <span>Products</span>
-            <span className="sidebar__count">{projects.length}</span>
-          </div>
-          <nav className="sidebar__list sidebar__projects-list">
-            {projects.map((project) => {
-              const isActive =
-                activeProjectId === project.id ||
-                activeWikiProjectKey === project.key;
-              const isExpanded = expandedProjectId === project.id;
-              const isWikiExpanded = !collapsedWikiProjectIds.has(project.id);
-              const projectPages = wikiPagesByProject[project.id] ?? [];
-              const firstWikiPage = projectPages[0];
-              return (
-                <div key={project.id} className="sidebar__product">
-                  <button
-                    type="button"
-                    className={`sidebar__item sidebar__product-toggle ${
-                      isActive ? "is-context-active" : ""
-                    }`}
-                    onClick={() =>
-                      setManualExpandedProjectId((current) =>
-                        current === project.id ? null : project.id
-                      )
-                    }
-                    aria-expanded={isExpanded}
-                    title={`${project.key} — ${project.name}`}
-                  >
-                    <span className="sidebar__caret" aria-hidden="true">
-                      {isExpanded ? "▼" : "▶"}
-                    </span>
-                    <span className="sidebar__project-copy">
-                      <span className="sidebar__project-name">{project.name}</span>
-                      <span className="sidebar__project-key">
-                        {project.key.toUpperCase()}
-                      </span>
-                    </span>
-                  </button>
-                  {isExpanded ? (
-                    <div className="sidebar__product-children">
-                      <div className="sidebar__wiki-node">
-                        <div className="group/wiki-root sidebar__wiki-root">
+              </Link>
+            </div>
+            {wikiOpen ? (
+              <div className="sidebar__wiki-products">
+                {projects
+                  .filter((project) => wikiEnabledProjectIds.includes(project.id))
+                  .map((project) => {
+                    const isExpanded = expandedWikiProjectId === project.id;
+                    const projectPages = wikiPagesByProject[project.id] ?? [];
+                    const firstWikiPage = projectPages[0];
+                    const isActive = activeWikiProjectKey === project.key;
+                    return (
+                      <div key={project.id} className="sidebar__wiki-product">
+                        <div className="sidebar__wiki-root">
                           <button
                             type="button"
                             className="sidebar__wiki-toggle"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              setCollapsedWikiProjectIds((current) => {
-                                const next = new Set(current);
-                                if (next.has(project.id)) next.delete(project.id);
-                                else next.add(project.id);
-                                return next;
-                              });
-                            }}
-                            aria-label={
-                              isWikiExpanded
-                                ? "Свернуть страницы Wiki"
-                                : "Развернуть страницы Wiki"
+                            onClick={() =>
+                              setExpandedWikiProjectId((current) =>
+                                current === project.id ? null : project.id
+                              )
                             }
-                            aria-expanded={isWikiExpanded}
+                            aria-label={
+                              isExpanded
+                                ? "Свернуть страницы продукта"
+                                : "Развернуть страницы продукта"
+                            }
+                            aria-expanded={isExpanded}
                           >
-                            {isWikiExpanded ? "▼" : "▶"}
+                            {isExpanded ? "▼" : "▶"}
                           </button>
-                        <Link
-                          href={
-                            firstWikiPage
-                              ? `/wiki/${encodeURIComponent(project.key)}/${firstWikiPage.id}`
-                              : `/wiki/${encodeURIComponent(project.key)}`
-                          }
-                          className={`sidebar__item sidebar__subitem ${
-                            activeWikiProjectKey === project.key ? "is-active" : ""
-                          }`}
-                          onClick={() =>
-                            setCollapsedWikiProjectIds((current) => {
-                              const next = new Set(current);
-                              if (next.has(project.id)) next.delete(project.id);
-                              else next.add(project.id);
-                              return next;
-                            })
-                          }
-                        >
-                          <span className="min-w-0 flex-1">Wiki</span>
-                        </Link>
-                        <Link
-                          href={`/wiki/${encodeURIComponent(project.key)}#new-page`}
-                          className="sidebar__quick-add"
-                          aria-label={`Создать страницу Wiki в ${project.name}`}
-                          title="Новая страница"
-                        >
-                          +
-                        </Link>
+                          <Link
+                            href={
+                              firstWikiPage
+                                ? `/wiki/${encodeURIComponent(project.key)}/${firstWikiPage.id}`
+                                : `/wiki/${encodeURIComponent(project.key)}`
+                            }
+                            className={`sidebar__item sidebar__wiki-product-link ${
+                              isActive ? "is-context-active" : ""
+                            }`}
+                            title={`${project.key} — ${project.name}`}
+                            onClick={() =>
+                              setExpandedWikiProjectId((current) =>
+                                current === project.id ? null : project.id
+                              )
+                            }
+                          >
+                            <span className="sidebar__project-copy">
+                              <span className="sidebar__project-name">
+                                {project.name}
+                              </span>
+                              <span className="sidebar__project-key">
+                                {project.key.toUpperCase()}
+                              </span>
+                            </span>
+                          </Link>
                         </div>
-                        {isWikiExpanded && projectPages.length > 0 ? (
+                        {isExpanded && projectPages.length > 0 ? (
                           <div className="sidebar__wiki-tree">
                             <WikiTree
                               projectKey={project.key}
@@ -405,9 +375,41 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                           </div>
                         ) : null}
                       </div>
-                    </div>
-                  ) : null}
-                </div>
+                    );
+                  })}
+              </div>
+            ) : null}
+          </div>
+        </nav>
+      </div>
+
+      {showProductsSection ? (
+        <div className="sidebar__section sidebar__projects">
+          <div className="sidebar__title sidebar__projects-title">
+            <span>Products</span>
+            <span className="sidebar__count">{projects.length}</span>
+          </div>
+          <nav className="sidebar__list sidebar__projects-list">
+            {projects.map((project) => {
+              const isActive =
+                activeProjectId === project.id ||
+                activeWikiProjectKey === project.key;
+              return (
+                <Link
+                  key={project.id}
+                  href={buildHref(project.id, project.key)}
+                  className={`sidebar__item ${
+                    isActive ? "is-context-active" : ""
+                  }`}
+                  title={`${project.key} — ${project.name}`}
+                >
+                    <span className="sidebar__project-copy">
+                      <span className="sidebar__project-name">{project.name}</span>
+                      <span className="sidebar__project-key">
+                        {project.key.toUpperCase()}
+                      </span>
+                    </span>
+                </Link>
               );
             })}
             <Link
