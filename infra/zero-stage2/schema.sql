@@ -338,6 +338,11 @@ CREATE TABLE wiki_pages (
   content_markdown text NOT NULL DEFAULT '',
   sort_order integer NOT NULL DEFAULT 0,
   version integer NOT NULL DEFAULT 1,
+  workflow_status text NOT NULL DEFAULT 'DRAFT',
+  review_version integer,
+  approved_version integer,
+  review_requested_by_id uuid REFERENCES users (id) ON DELETE SET NULL,
+  review_requested_at timestamptz,
   created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
   updated_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -355,6 +360,12 @@ CREATE TABLE wiki_pages (
     CHECK (char_length(slug) BETWEEN 1 AND 200),
   CONSTRAINT wiki_pages_sort_order CHECK (sort_order >= 0),
   CONSTRAINT wiki_pages_version CHECK (version > 0),
+  CONSTRAINT wiki_pages_workflow_status
+    CHECK (workflow_status IN ('DRAFT', 'IN_REVIEW', 'APPROVED')),
+  CONSTRAINT wiki_pages_review_version
+    CHECK (review_version IS NULL OR review_version > 0),
+  CONSTRAINT wiki_pages_approved_version
+    CHECK (approved_version IS NULL OR approved_version > 0),
   UNIQUE (project_id, slug),
   UNIQUE (workspace_id, project_id, id)
 );
@@ -384,6 +395,96 @@ CREATE TABLE wiki_page_revisions (
 
 CREATE INDEX wiki_page_revisions_page_created_idx
   ON wiki_page_revisions (page_id, version DESC);
+
+CREATE TABLE wiki_review_decisions (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  page_id uuid NOT NULL,
+  revision_id uuid NOT NULL REFERENCES wiki_page_revisions (id) ON DELETE CASCADE,
+  reviewer_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  decision text NOT NULL,
+  comment text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT wiki_review_decisions_page_fk
+    FOREIGN KEY (workspace_id, project_id, page_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE CASCADE,
+  CONSTRAINT wiki_review_decisions_decision
+    CHECK (decision IN ('APPROVED', 'CHANGES_REQUESTED')),
+  CONSTRAINT wiki_review_decisions_comment_length
+    CHECK (comment IS NULL OR char_length(comment) <= 20000)
+);
+
+CREATE INDEX wiki_review_decisions_page_created_idx
+  ON wiki_review_decisions (page_id, created_at DESC, id);
+
+CREATE TABLE wiki_comment_threads (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  page_id uuid NOT NULL,
+  revision_id uuid NOT NULL REFERENCES wiki_page_revisions (id) ON DELETE CASCADE,
+  anchor_quote text,
+  status text NOT NULL DEFAULT 'OPEN',
+  created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  resolved_by_id uuid REFERENCES users (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz,
+  archived_at timestamptz,
+  CONSTRAINT wiki_comment_threads_page_fk
+    FOREIGN KEY (workspace_id, project_id, page_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE CASCADE,
+  CONSTRAINT wiki_comment_threads_status
+    CHECK (status IN ('OPEN', 'RESOLVED')),
+  CONSTRAINT wiki_comment_threads_anchor_length
+    CHECK (anchor_quote IS NULL OR char_length(anchor_quote) BETWEEN 1 AND 2000)
+);
+
+CREATE INDEX wiki_comment_threads_page_created_idx
+  ON wiki_comment_threads (page_id, status, created_at, id)
+  WHERE archived_at IS NULL;
+
+CREATE TABLE wiki_comments (
+  id uuid PRIMARY KEY,
+  thread_id uuid NOT NULL REFERENCES wiki_comment_threads (id) ON DELETE CASCADE,
+  author_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  body text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
+  CONSTRAINT wiki_comments_body_length CHECK (char_length(body) BETWEEN 1 AND 20000)
+);
+
+CREATE INDEX wiki_comments_thread_created_idx
+  ON wiki_comments (thread_id, created_at, id)
+  WHERE archived_at IS NULL;
+
+CREATE TABLE wiki_attachments (
+  id uuid PRIMARY KEY,
+  workspace_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  page_id uuid NOT NULL,
+  object_key text NOT NULL UNIQUE,
+  file_name text NOT NULL,
+  content_type text NOT NULL,
+  size_bytes integer NOT NULL,
+  uploaded_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
+  CONSTRAINT wiki_attachments_page_fk
+    FOREIGN KEY (workspace_id, project_id, page_id)
+    REFERENCES wiki_pages (workspace_id, project_id, id) ON DELETE CASCADE,
+  CONSTRAINT wiki_attachments_object_key_length
+    CHECK (char_length(object_key) BETWEEN 1 AND 1024),
+  CONSTRAINT wiki_attachments_file_name_length
+    CHECK (char_length(file_name) BETWEEN 1 AND 255),
+  CONSTRAINT wiki_attachments_size CHECK (size_bytes BETWEEN 1 AND 2147483647)
+);
+
+CREATE INDEX wiki_attachments_page_created_idx
+  ON wiki_attachments (page_id, created_at, id)
+  WHERE archived_at IS NULL;
 
 CREATE TABLE issue_wiki_links (
   id uuid PRIMARY KEY,

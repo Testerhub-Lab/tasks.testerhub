@@ -51,6 +51,16 @@
   padding: 1rem;
 }
 .wiki-markdown pre code { background: transparent; padding: 0; }
+.wiki-mermaid {
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+}
+.wiki-mermaid svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.wiki-mermaid--loading { color: rgba(255, 255, 255, 0.45); font-size: 0.875rem; }
+.wiki-mermaid--error { border-color: rgba(251, 191, 36, 0.2); color: rgba(254, 243, 199, 0.8); }
 .wiki-markdown table { width: 100%; border-collapse: collapse; }
 .wiki-markdown th,
 .wiki-markdown td {

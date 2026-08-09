@@ -259,6 +259,7 @@ export async function createPresignedAttachmentDownload(input: {
   objectKey: string;
   fileName: string;
   contentType: string;
+  disposition?: "attachment" | "inline";
 }) {
   const config = readAttachmentStorageConfig();
   const { presigner } = storageClients(config);
@@ -268,7 +269,7 @@ export async function createPresignedAttachmentDownload(input: {
       Bucket: config.bucket,
       Key: input.objectKey,
       ResponseContentDisposition:
-        `attachment; filename*=UTF-8''${encodeURIComponent(input.fileName)}`,
+        `${input.disposition ?? "attachment"}; filename*=UTF-8''${encodeURIComponent(input.fileName)}`,
       ResponseContentType: input.contentType,
     }),
     { expiresIn: PRESIGNED_URL_TTL_SECONDS }

@@ -10,20 +10,23 @@ import { toast } from "@/components/ui/toast";
 type ParentOption = {
   id: string;
   title: string;
+  depth: number;
 };
 
 type WikiCreatePageFormProps = {
   projectId: string;
   parents: ParentOption[];
+  initialParentId?: string;
 };
 
 export default function WikiCreatePageForm({
   projectId,
   parents,
+  initialParentId = "",
 }: WikiCreatePageFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [parentId, setParentId] = useState("");
+  const [parentId, setParentId] = useState(initialParentId);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -69,6 +72,7 @@ export default function WikiCreatePageForm({
         <option value="">В корне продукта</option>
         {parents.map((page) => (
           <option key={page.id} value={page.id}>
+            {"— ".repeat(page.depth)}
             {page.title}
           </option>
         ))}

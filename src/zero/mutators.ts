@@ -682,12 +682,15 @@ export const zeroMutators = defineMutators({
           revisionID: id,
           title: z.string().trim().min(1).max(160).optional(),
           contentMarkdown: z.string().max(200000).optional(),
+          parentID: id.nullable().optional(),
           expectedVersion: z.number().int().positive().optional(),
         })
         .refine(
           (value) =>
-            value.title !== undefined || value.contentMarkdown !== undefined,
-          "Wiki title or content is required"
+            value.title !== undefined ||
+            value.contentMarkdown !== undefined ||
+            value.parentID !== undefined,
+          "Wiki title, content or parent is required"
         ),
       async ({ args, ctx, tx }) => {
         const { page } = await getWikiPageForWrite(
@@ -720,12 +723,60 @@ export const zeroMutators = defineMutators({
         const title = args.title ?? page.title;
         const contentMarkdown =
           args.contentMarkdown ?? page.contentMarkdown;
+        let nextParentID = page.parentID ?? null;
+        let nextSortOrder = page.sortOrder;
+        if (args.parentID !== undefined) {
+          if (args.parentID === page.id) {
+            throw new Error("Wiki page cannot be its own parent");
+          }
+          const pages = await tx.run(
+            zql.wikiPage.where("projectID", page.projectID)
+          );
+          const byID = new Map(
+            pages.map((candidate) => [candidate.id, candidate])
+          );
+          if (args.parentID) {
+            const parent = byID.get(args.parentID);
+            if (!parent || parent.archivedAt) {
+              throw new Error("Wiki parent access denied");
+            }
+            const visited = new Set<string>();
+            let ancestor: typeof parent | undefined = parent;
+            while (ancestor && !visited.has(ancestor.id)) {
+              if (ancestor.id === page.id) {
+                throw new Error("Wiki parent cycle");
+              }
+              visited.add(ancestor.id);
+              ancestor = ancestor.parentID
+                ? byID.get(ancestor.parentID)
+                : undefined;
+            }
+          }
+          nextParentID = args.parentID;
+          if (nextParentID !== (page.parentID ?? null)) {
+            nextSortOrder =
+              pages
+                .filter(
+                  (candidate) =>
+                    candidate.id !== page.id &&
+                    (candidate.parentID ?? null) === nextParentID
+                )
+                .reduce(
+                  (maximum, candidate) =>
+                    Math.max(maximum, candidate.sortOrder),
+                  -1
+                ) + 1;
+          }
+        }
         const nextVersion = currentVersion + 1;
         const now = Date.now();
         await tx.mutate.wikiPage.update({
           id: page.id,
           title,
           contentMarkdown,
+          ...(args.parentID !== undefined
+            ? { parentID: nextParentID, sortOrder: nextSortOrder }
+            : {}),
           version: nextVersion,
           updatedByID: ctx.userID,
           updatedAt: now,
@@ -741,6 +792,15 @@ export const zeroMutators = defineMutators({
           createdByID: ctx.userID,
           createdAt: now,
         });
+        if (tx.location === "server") {
+          await tx.dbTransaction.query(
+            `UPDATE wiki_pages
+             SET workflow_status = 'DRAFT', review_version = NULL,
+                 review_requested_by_id = NULL, review_requested_at = NULL
+             WHERE id = $1`,
+            [page.id]
+          );
+        }
         await recordAudit(tx, {
           workspaceID: page.workspaceID,
           actorID: ctx.userID,
@@ -750,6 +810,10 @@ export const zeroMutators = defineMutators({
           changes: {
             fromVersion: currentVersion,
             toVersion: nextVersion,
+            parentId:
+              args.parentID !== undefined
+                ? nextParentID
+                : page.parentID ?? null,
           },
         });
       }

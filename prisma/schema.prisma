@@ -87,17 +87,23 @@ model User {
 
   comments Comment[]
 
-  createdTasks         Task[]             @relation("TaskCreator")
-  reportedTasks        Task[]             @relation("TaskReporter")
-  assignedTasks        Task[]             @relation("TaskAssignee")
+  createdTasks         Task[]               @relation("TaskCreator")
+  reportedTasks        Task[]               @relation("TaskReporter")
+  assignedTasks        Task[]               @relation("TaskAssignee")
   activities           TaskActivity[]
   workspaceMemberships WorkspaceMember[]
   projectMemberships   ProjectMember[]
   uploads              Upload[]
-  workspaceInvites     WorkspaceInvite[]  @relation("WorkspaceInviteCreator")
-  createdWikiPages     WikiPage[]         @relation("WikiPageCreatedBy")
-  updatedWikiPages     WikiPage[]         @relation("WikiPageUpdatedBy")
+  workspaceInvites     WorkspaceInvite[]    @relation("WorkspaceInviteCreator")
+  createdWikiPages     WikiPage[]           @relation("WikiPageCreatedBy")
+  updatedWikiPages     WikiPage[]           @relation("WikiPageUpdatedBy")
+  requestedWikiReviews WikiPage[]           @relation("WikiReviewRequestedBy")
   wikiRevisions        WikiPageRevision[]
+  wikiReviewDecisions  WikiReviewDecision[]
+  createdWikiThreads   WikiCommentThread[]  @relation("WikiThreadCreatedBy")
+  resolvedWikiThreads  WikiCommentThread[]  @relation("WikiThreadResolvedBy")
+  wikiComments         WikiComment[]
+  wikiAttachments      WikiAttachment[]
   knowledgeLinks       KnowledgeLink[]
 
   sessions Session[]
@@ -215,26 +221,35 @@ model ProjectKnowledge {
 }
 
 model WikiPage {
-  id              String    @id @default(cuid())
-  projectId       String
-  parentId        String?
-  title           String
-  slug            String
-  contentMarkdown String    @default("") @db.Text
-  sortOrder       Int       @default(0)
-  version         Int       @default(1)
-  createdById     String?
-  updatedById     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  archivedAt      DateTime?
+  id                  String             @id @default(cuid())
+  projectId           String
+  parentId            String?
+  title               String
+  slug                String
+  contentMarkdown     String             @default("") @db.Text
+  sortOrder           Int                @default(0)
+  version             Int                @default(1)
+  workflowStatus      WikiWorkflowStatus @default(DRAFT)
+  reviewVersion       Int?
+  approvedVersion     Int?
+  reviewRequestedById String?
+  reviewRequestedAt   DateTime?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  archivedAt          DateTime?
 
-  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent    WikiPage?          @relation("WikiPageTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children  WikiPage[]         @relation("WikiPageTree")
-  createdBy User?              @relation("WikiPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy User?              @relation("WikiPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  revisions WikiPageRevision[]
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent            WikiPage?            @relation("WikiPageTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children          WikiPage[]           @relation("WikiPageTree")
+  createdBy         User?                @relation("WikiPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy         User?                @relation("WikiPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  reviewRequestedBy User?                @relation("WikiReviewRequestedBy", fields: [reviewRequestedById], references: [id], onDelete: SetNull)
+  revisions         WikiPageRevision[]
+  reviewDecisions   WikiReviewDecision[]
+  commentThreads    WikiCommentThread[]
+  attachments       WikiAttachment[]
 
   @@unique([projectId, slug])
   @@index([projectId, parentId, archivedAt, sortOrder])
@@ -249,10 +264,82 @@ model WikiPageRevision {
   createdById     String?
   createdAt       DateTime @default(now())
 
-  page      WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  page            WikiPage             @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy       User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  reviewDecisions WikiReviewDecision[]
+  commentThreads  WikiCommentThread[]
 
   @@unique([pageId, version])
+  @@index([pageId, createdAt])
+}
+
+model WikiReviewDecision {
+  id         String                 @id @default(uuid())
+  pageId     String
+  revisionId String
+  reviewerId String
+  decision   WikiReviewDecisionType
+  comment    String?                @db.Text
+  createdAt  DateTime               @default(now())
+
+  page     WikiPage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  revision WikiPageRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  reviewer User             @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([pageId, createdAt])
+}
+
+model WikiCommentThread {
+  id           String                  @id @default(uuid())
+  pageId       String
+  revisionId   String
+  anchorQuote  String?                 @db.Text
+  status       WikiCommentThreadStatus @default(OPEN)
+  createdById  String
+  resolvedById String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  resolvedAt   DateTime?
+  archivedAt   DateTime?
+
+  page       WikiPage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  revision   WikiPageRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  createdBy  User             @relation("WikiThreadCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  resolvedBy User?            @relation("WikiThreadResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  comments   WikiComment[]
+
+  @@index([pageId, status, createdAt])
+}
+
+model WikiComment {
+  id         String    @id @default(uuid())
+  threadId   String
+  authorId   String
+  body       String    @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  thread WikiCommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([threadId, createdAt])
+}
+
+model WikiAttachment {
+  id           String    @id @default(uuid())
+  pageId       String
+  objectKey    String    @unique
+  fileName     String
+  contentType  String
+  sizeBytes    Int
+  uploadedById String
+  createdAt    DateTime  @default(now())
+  archivedAt   DateTime?
+
+  page       WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  uploadedBy User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
   @@index([pageId, createdAt])
 }
 
@@ -312,6 +399,22 @@ enum KnowledgeProvider {
   DISABLED
   NATIVE
   EXTERNAL
+}
+
+enum WikiWorkflowStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+}
+
+enum WikiReviewDecisionType {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum WikiCommentThreadStatus {
+  OPEN
+  RESOLVED
 }
 
 enum ActivityType {

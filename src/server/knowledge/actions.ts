@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { KnowledgeProvider, ProjectRole } from "@prisma/client";
+import {
+  KnowledgeProvider,
+  ProjectRole,
+  WikiReviewDecisionType,
+  WikiWorkflowStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/server/auth/session";
@@ -10,10 +15,14 @@ import { createWikiSlug } from "./slug";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
 import {
   addZeroTaskKnowledgeLink,
+  addZeroWikiCommentReply,
+  createZeroWikiCommentThread,
   createZeroWikiPageForUI,
   removeZeroTaskKnowledgeLink,
   restoreZeroWikiRevision,
+  resolveZeroWikiCommentThread,
   setZeroWikiPageArchived,
+  updateZeroWikiWorkflow,
   updateZeroProjectKnowledge,
   updateZeroWikiPageForUI,
 } from "@/server/ui/zero-wiki-actions";
@@ -55,6 +64,8 @@ const updatePageSchema = z.object({
   pageId: z.string().min(1),
   title: z.string().trim().min(1).max(160),
   contentMarkdown: z.string().max(200_000),
+  parentId: z.string().min(1).optional().nullable(),
+  expectedVersion: z.number().int().positive(),
 });
 
 const pageStateSchema = z.object({
@@ -74,6 +85,38 @@ const linkSchema = z.object({
 
 const removeLinkSchema = z.object({
   linkId: z.string().min(1),
+});
+
+const workflowSchema = z
+  .object({
+    pageId: z.string().min(1),
+    action: z.enum(["SUBMIT", "APPROVE", "REQUEST_CHANGES"]),
+    comment: z.string().trim().max(20_000).optional().nullable(),
+  })
+  .superRefine((value, context) => {
+    if (value.action === "REQUEST_CHANGES" && !value.comment) {
+      context.addIssue({
+        code: "custom",
+        path: ["comment"],
+        message: "Укажите, что нужно изменить",
+      });
+    }
+  });
+
+const createWikiCommentSchema = z.object({
+  pageId: z.string().min(1),
+  body: z.string().trim().min(1).max(20_000),
+  anchorQuote: z.string().trim().min(1).max(2_000).optional().nullable(),
+});
+
+const replyWikiCommentSchema = z.object({
+  threadId: z.string().min(1),
+  body: z.string().trim().min(1).max(20_000),
+});
+
+const resolveWikiCommentSchema = z.object({
+  threadId: z.string().min(1),
+  resolved: z.boolean(),
 });
 
 async function requireProjectRole(projectId: string, role: ProjectRole) {
@@ -280,6 +323,8 @@ export async function updateWikiPageAction(input: {
   pageId: string;
   title: string;
   contentMarkdown: string;
+  parentId?: string | null;
+  expectedVersion: number;
 }) {
   const parsed = updatePageSchema.safeParse(input);
   if (!parsed.success) {
@@ -297,10 +342,23 @@ export async function updateWikiPageAction(input: {
         pageID: parsed.data.pageId,
         title: parsed.data.title,
         contentMarkdown: parsed.data.contentMarkdown,
+        parentID: parsed.data.parentId ?? null,
+        expectedVersion: parsed.data.expectedVersion,
       });
       revalidateWiki(updated.project.key, updated.id);
       return { ok: true as const, version: updated.version };
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Wiki version conflict:")
+      ) {
+        return {
+          ok: false as const,
+          formError:
+            "Страница изменилась после открытия редактора. Обновите страницу и повторите изменения.",
+          conflict: true as const,
+        };
+      }
       return { ok: false as const, formError: "Не удалось сохранить страницу" };
     }
   }
@@ -310,6 +368,8 @@ export async function updateWikiPageAction(input: {
     select: {
       id: true,
       projectId: true,
+      parentId: true,
+      version: true,
       archivedAt: true,
       project: { select: { key: true } },
     },
@@ -323,39 +383,80 @@ export async function updateWikiPageAction(input: {
     return { ok: false as const, formError: "Wiki недоступна для редактирования" };
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const next = await tx.wikiPage.update({
-      where: { id: page.id },
-      data: {
-        title: parsed.data.title,
-        contentMarkdown: parsed.data.contentMarkdown,
-        updatedById: context.user.id,
-        version: { increment: 1 },
-      },
-      select: { version: true },
+  if (parsed.data.parentId) {
+    const pages = await prisma.wikiPage.findMany({
+      where: { projectId: page.projectId, archivedAt: null },
+      select: { id: true, parentId: true },
     });
-    await tx.wikiPageRevision.create({
-      data: {
-        pageId: page.id,
-        version: next.version,
-        title: parsed.data.title,
-        contentMarkdown: parsed.data.contentMarkdown,
-        createdById: context.user.id,
-      },
-    });
-    await tx.knowledgeLink.updateMany({
-      where: {
-        projectId: page.projectId,
-        provider: KnowledgeProvider.NATIVE,
-        documentKey: page.id,
-      },
-      data: { title: parsed.data.title },
-    });
-    return next;
-  });
+    const byId = new Map(pages.map((candidate) => [candidate.id, candidate]));
+    let candidate = byId.get(parsed.data.parentId);
+    const visited = new Set<string>();
+    while (candidate && !visited.has(candidate.id)) {
+      if (candidate.id === page.id) {
+        return {
+          ok: false as const,
+          formError: "Страница не может быть вложена в собственную ветку",
+        };
+      }
+      visited.add(candidate.id);
+      candidate = candidate.parentId ? byId.get(candidate.parentId) : undefined;
+    }
+    if (!byId.has(parsed.data.parentId)) {
+      return { ok: false as const, formError: "Родительская страница не найдена" };
+    }
+  }
 
-  revalidateWiki(page.project.key, page.id);
-  return { ok: true as const, version: updated.version };
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.wikiPage.updateMany({
+        where: { id: page.id, version: parsed.data.expectedVersion },
+        data: {
+          title: parsed.data.title,
+          contentMarkdown: parsed.data.contentMarkdown,
+          parentId: parsed.data.parentId ?? null,
+          workflowStatus: WikiWorkflowStatus.DRAFT,
+          reviewVersion: null,
+          reviewRequestedById: null,
+          reviewRequestedAt: null,
+          updatedById: context.user.id,
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) throw new Error("Wiki version conflict");
+      const nextVersion = parsed.data.expectedVersion + 1;
+      await tx.wikiPageRevision.create({
+        data: {
+          pageId: page.id,
+          version: nextVersion,
+          title: parsed.data.title,
+          contentMarkdown: parsed.data.contentMarkdown,
+          createdById: context.user.id,
+        },
+      });
+      await tx.knowledgeLink.updateMany({
+        where: {
+          projectId: page.projectId,
+          provider: KnowledgeProvider.NATIVE,
+          documentKey: page.id,
+        },
+        data: { title: parsed.data.title },
+      });
+      return { version: nextVersion };
+    });
+
+    revalidateWiki(page.project.key, page.id);
+    return { ok: true as const, version: updated.version };
+  } catch (error) {
+    if (error instanceof Error && error.message === "Wiki version conflict") {
+      return {
+        ok: false as const,
+        formError:
+          "Страница изменилась после открытия редактора. Обновите страницу и повторите изменения.",
+        conflict: true as const,
+      };
+    }
+    return { ok: false as const, formError: "Не удалось сохранить страницу" };
+  }
 }
 
 export async function setWikiPageArchivedAction(input: {
@@ -486,6 +587,10 @@ export async function restoreWikiRevisionAction(input: {
       data: {
         title: revision.title,
         contentMarkdown: revision.contentMarkdown,
+        workflowStatus: WikiWorkflowStatus.DRAFT,
+        reviewVersion: null,
+        reviewRequestedById: null,
+        reviewRequestedAt: null,
         updatedById: context.user.id,
         version: { increment: 1 },
       },
@@ -513,6 +618,319 @@ export async function restoreWikiRevisionAction(input: {
 
   revalidateWiki(revision.page.project.key, revision.page.id);
   return { ok: true as const, version: restored.version };
+}
+
+export async function updateWikiWorkflowAction(input: {
+  pageId: string;
+  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES";
+  comment?: string | null;
+}) {
+  const parsed = workflowSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false as const,
+      formError: parsed.error.issues[0]?.message ?? "Неверные данные",
+    };
+  }
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+  if (usesZeroUiStore()) {
+    try {
+      const updated = await updateZeroWikiWorkflow({
+        userID: user.id,
+        pageID: parsed.data.pageId,
+        action: parsed.data.action,
+        comment: parsed.data.comment ?? null,
+      });
+      revalidateWiki(updated.projectKey, parsed.data.pageId);
+      return { ok: true as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "Wiki page is already in review") {
+        return { ok: false as const, formError: "Страница уже на проверке" };
+      }
+      if (message === "Wiki review is stale") {
+        return {
+          ok: false as const,
+          formError: "После запроса проверки появилась новая версия страницы",
+        };
+      }
+      return { ok: false as const, formError: "Не удалось изменить статус" };
+    }
+  }
+
+  const page = await prisma.wikiPage.findUnique({
+    where: { id: parsed.data.pageId },
+    select: {
+      id: true,
+      projectId: true,
+      version: true,
+      workflowStatus: true,
+      reviewVersion: true,
+      archivedAt: true,
+      project: { select: { key: true } },
+    },
+  });
+  if (!page || page.archivedAt) {
+    return { ok: false as const, formError: "Страница не найдена" };
+  }
+  const requiredRole =
+    parsed.data.action === "SUBMIT" ? ProjectRole.MEMBER : ProjectRole.ADMIN;
+  const context = await requireProjectRole(page.projectId, requiredRole);
+  if (!context || !(await requireNativeWiki(page.projectId))) {
+    return { ok: false as const, formError: "Недостаточно прав" };
+  }
+
+  if (parsed.data.action === "SUBMIT") {
+    if (page.workflowStatus === WikiWorkflowStatus.IN_REVIEW) {
+      return { ok: false as const, formError: "Страница уже на проверке" };
+    }
+    const submitted = await prisma.wikiPage.updateMany({
+      where: {
+        id: page.id,
+        version: page.version,
+        workflowStatus: { not: WikiWorkflowStatus.IN_REVIEW },
+      },
+      data: {
+        workflowStatus: WikiWorkflowStatus.IN_REVIEW,
+        reviewVersion: page.version,
+        reviewRequestedById: context.user.id,
+        reviewRequestedAt: new Date(),
+      },
+    });
+    if (submitted.count !== 1) {
+      return {
+        ok: false as const,
+        formError: "Страница изменилась — обновите её перед отправкой",
+      };
+    }
+  } else {
+    if (
+      page.workflowStatus !== WikiWorkflowStatus.IN_REVIEW ||
+      page.reviewVersion !== page.version
+    ) {
+      return {
+        ok: false as const,
+        formError: "После запроса проверки появилась новая версия страницы",
+      };
+    }
+    const revision = await prisma.wikiPageRevision.findUnique({
+      where: { pageId_version: { pageId: page.id, version: page.version } },
+      select: { id: true },
+    });
+    if (!revision) return { ok: false as const, formError: "Версия не найдена" };
+    const approved = parsed.data.action === "APPROVE";
+    const transitioned = await prisma.$transaction(async (tx) => {
+      const updated = await tx.wikiPage.updateMany({
+        where: {
+          id: page.id,
+          version: page.version,
+          workflowStatus: WikiWorkflowStatus.IN_REVIEW,
+          reviewVersion: page.version,
+        },
+        data: {
+          ...(approved
+            ? {
+                workflowStatus: WikiWorkflowStatus.APPROVED,
+                approvedVersion: page.version,
+              }
+            : {
+                workflowStatus: WikiWorkflowStatus.DRAFT,
+                reviewVersion: null,
+                reviewRequestedById: null,
+                reviewRequestedAt: null,
+              }),
+        },
+      });
+      if (updated.count !== 1) return false;
+      await tx.wikiReviewDecision.create({
+        data: {
+          pageId: page.id,
+          revisionId: revision.id,
+          reviewerId: context.user.id,
+          decision: approved
+            ? WikiReviewDecisionType.APPROVED
+            : WikiReviewDecisionType.CHANGES_REQUESTED,
+          comment: parsed.data.comment ?? null,
+        },
+      });
+      return true;
+    });
+    if (!transitioned) {
+      return {
+        ok: false as const,
+        formError: "Проверка уже завершена или страница изменилась",
+      };
+    }
+  }
+
+  revalidateWiki(page.project.key, page.id);
+  return { ok: true as const };
+}
+
+export async function createWikiCommentThreadAction(input: {
+  pageId: string;
+  body: string;
+  anchorQuote?: string | null;
+}) {
+  const parsed = createWikiCommentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, formError: "Проверьте текст комментария" };
+  }
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+
+  if (usesZeroUiStore()) {
+    try {
+      const created = await createZeroWikiCommentThread({
+        userID: user.id,
+        pageID: parsed.data.pageId,
+        body: parsed.data.body,
+        anchorQuote: parsed.data.anchorQuote ?? null,
+      });
+      revalidateWiki(created.projectKey, parsed.data.pageId);
+      return { ok: true as const, threadId: created.threadID };
+    } catch {
+      return { ok: false as const, formError: "Не удалось добавить комментарий" };
+    }
+  }
+
+  const page = await prisma.wikiPage.findUnique({
+    where: { id: parsed.data.pageId },
+    select: {
+      id: true,
+      projectId: true,
+      version: true,
+      archivedAt: true,
+      project: { select: { key: true } },
+    },
+  });
+  if (!page || page.archivedAt) {
+    return { ok: false as const, formError: "Страница не найдена" };
+  }
+  const context = await requireProjectRole(page.projectId, ProjectRole.MEMBER);
+  if (!context || !(await requireNativeWiki(page.projectId))) {
+    return { ok: false as const, formError: "Недостаточно прав" };
+  }
+  const revision = await prisma.wikiPageRevision.findUnique({
+    where: { pageId_version: { pageId: page.id, version: page.version } },
+    select: { id: true },
+  });
+  if (!revision) return { ok: false as const, formError: "Версия не найдена" };
+  const thread = await prisma.wikiCommentThread.create({
+    data: {
+      pageId: page.id,
+      revisionId: revision.id,
+      anchorQuote: parsed.data.anchorQuote ?? null,
+      createdById: context.user.id,
+      comments: {
+        create: { authorId: context.user.id, body: parsed.data.body },
+      },
+    },
+    select: { id: true },
+  });
+  revalidateWiki(page.project.key, page.id);
+  return { ok: true as const, threadId: thread.id };
+}
+
+export async function addWikiCommentReplyAction(input: {
+  threadId: string;
+  body: string;
+}) {
+  const parsed = replyWikiCommentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, formError: "Проверьте текст ответа" };
+  }
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+  if (usesZeroUiStore()) {
+    try {
+      const updated = await addZeroWikiCommentReply({
+        userID: user.id,
+        threadID: parsed.data.threadId,
+        body: parsed.data.body,
+      });
+      revalidateWiki(updated.projectKey, updated.pageID);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Не удалось добавить ответ" };
+    }
+  }
+  const thread = await prisma.wikiCommentThread.findUnique({
+    where: { id: parsed.data.threadId },
+    select: {
+      pageId: true,
+      page: { select: { projectId: true, project: { select: { key: true } } } },
+    },
+  });
+  if (!thread) return { ok: false as const, formError: "Обсуждение не найдено" };
+  const context = await requireProjectRole(
+    thread.page.projectId,
+    ProjectRole.MEMBER
+  );
+  if (!context || !(await requireNativeWiki(thread.page.projectId))) {
+    return { ok: false as const, formError: "Недостаточно прав" };
+  }
+  await prisma.wikiComment.create({
+    data: {
+      threadId: parsed.data.threadId,
+      authorId: context.user.id,
+      body: parsed.data.body,
+    },
+  });
+  revalidateWiki(thread.page.project.key, thread.pageId);
+  return { ok: true as const };
+}
+
+export async function resolveWikiCommentThreadAction(input: {
+  threadId: string;
+  resolved: boolean;
+}) {
+  const parsed = resolveWikiCommentSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, formError: "Неверные данные" };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, formError: "Требуется авторизация" };
+  if (usesZeroUiStore()) {
+    try {
+      const updated = await resolveZeroWikiCommentThread({
+        userID: user.id,
+        threadID: parsed.data.threadId,
+        resolved: parsed.data.resolved,
+      });
+      revalidateWiki(updated.projectKey, updated.pageID);
+      return { ok: true as const };
+    } catch {
+      return { ok: false as const, formError: "Не удалось обновить обсуждение" };
+    }
+  }
+  const thread = await prisma.wikiCommentThread.findUnique({
+    where: { id: parsed.data.threadId },
+    select: {
+      pageId: true,
+      page: { select: { projectId: true, project: { select: { key: true } } } },
+    },
+  });
+  if (!thread) return { ok: false as const, formError: "Обсуждение не найдено" };
+  const context = await requireProjectRole(
+    thread.page.projectId,
+    ProjectRole.MEMBER
+  );
+  if (!context || !(await requireNativeWiki(thread.page.projectId))) {
+    return { ok: false as const, formError: "Недостаточно прав" };
+  }
+  await prisma.wikiCommentThread.update({
+    where: { id: parsed.data.threadId },
+    data: parsed.data.resolved
+      ? {
+          status: "RESOLVED",
+          resolvedById: context.user.id,
+          resolvedAt: new Date(),
+        }
+      : { status: "OPEN", resolvedById: null, resolvedAt: null },
+  });
+  revalidateWiki(thread.page.project.key, thread.pageId);
+  return { ok: true as const };
 }
 
 export async function addTaskKnowledgeLinkAction(input: {

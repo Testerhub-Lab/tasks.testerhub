@@ -9,8 +9,10 @@ import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import {
   getProjectKnowledge,
   getWikiPage,
+  getWikiPageTree,
 } from "@/server/knowledge/queries";
 import { getProjectByKey } from "@/server/queries/projects";
+import { getWikiParentOptions } from "@/server/knowledge/tree";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +41,13 @@ export default async function EditWikiPage({ params }: EditWikiPageProps) {
   });
   if (!access) notFound();
 
-  const [configuration, page] = await Promise.all([
+  const [configuration, page, pages] = await Promise.all([
     getProjectKnowledge(project.id),
     getWikiPage(project.id, pageId),
+    getWikiPageTree(project.id),
   ]);
   if (configuration.provider !== KnowledgeProvider.NATIVE || !page) notFound();
+  const parentOptions = getWikiParentOptions(pages, page.id);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -65,6 +69,9 @@ export default async function EditWikiPage({ params }: EditWikiPageProps) {
           pageId={page.id}
           initialTitle={page.title}
           initialMarkdown={page.contentMarkdown}
+          initialParentId={page.parentId}
+          initialVersion={page.version}
+          parents={parentOptions}
         />
       </Card>
     </div>

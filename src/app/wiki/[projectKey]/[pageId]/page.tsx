@@ -6,6 +6,9 @@ import MarkdownView from "@/components/wiki/MarkdownView";
 import WikiPageActions from "@/components/wiki/WikiPageActions";
 import WikiRevisionActions from "@/components/wiki/WikiRevisionActions";
 import WikiTree from "@/components/wiki/WikiTree";
+import WikiReviewSurface from "@/components/wiki/WikiReviewSurface";
+import WikiWorkflowPanel from "@/components/wiki/WikiWorkflowPanel";
+import WikiTableOfContents from "@/components/wiki/WikiTableOfContents";
 import {
   getProjectAccess,
   projectRoleAtLeast,
@@ -14,11 +17,14 @@ import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import {
   getProjectKnowledge,
+  getWikiCommentThreads,
   getWikiPage,
   getWikiPageRevisions,
   getWikiPageTree,
+  getWikiReviewDecisions,
 } from "@/server/knowledge/queries";
 import { getProjectByKey } from "@/server/queries/projects";
+import { getWikiBreadcrumbs } from "@/server/knowledge/tree";
 
 export const dynamic = "force-dynamic";
 
@@ -50,19 +56,25 @@ export default async function WikiDocumentPage({
   });
   if (!access) notFound();
 
-  const [configuration, page, pages, revisions] = await Promise.all([
+  const [configuration, page, pages, revisions, decisions, commentThreads] = await Promise.all([
     getProjectKnowledge(project.id),
     getWikiPage(project.id, pageId),
     getWikiPageTree(project.id),
     getWikiPageRevisions(pageId),
+    getWikiReviewDecisions(pageId),
+    getWikiCommentThreads(pageId),
   ]);
   if (!page) notFound();
 
   const canEdit =
     configuration.provider === KnowledgeProvider.NATIVE &&
     projectRoleAtLeast(access.role, ProjectRole.MEMBER);
+  const canApprove =
+    configuration.provider === KnowledgeProvider.NATIVE &&
+    projectRoleAtLeast(access.role, ProjectRole.ADMIN);
   const author =
     page.updatedBy?.name || page.updatedBy?.email || "Неизвестный пользователь";
+  const breadcrumbs = getWikiBreadcrumbs(pages, page.id);
 
   return (
     <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -90,6 +102,25 @@ export default async function WikiDocumentPage({
           </div>
         ) : null}
         <Card>
+          {breadcrumbs.length > 1 ? (
+            <nav className="mb-4 flex flex-wrap items-center gap-1 text-xs text-white/40" aria-label="Путь Wiki-страницы">
+              {breadcrumbs.map((breadcrumb, index) => (
+                <span key={breadcrumb.id} className="flex items-center gap-1">
+                  {index > 0 ? <span aria-hidden="true">/</span> : null}
+                  {breadcrumb.id === page.id ? (
+                    <span className="text-white/60">{breadcrumb.title}</span>
+                  ) : (
+                    <Link
+                      href={`/wiki/${encodeURIComponent(project.key)}/${breadcrumb.id}`}
+                      className="hover:text-white/70"
+                    >
+                      {breadcrumb.title}
+                    </Link>
+                  )}
+                </span>
+              ))}
+            </nav>
+          ) : null}
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/6 pb-4">
             <div>
               <h1 className="text-2xl font-semibold text-white">{page.title}</h1>
@@ -105,9 +136,50 @@ export default async function WikiDocumentPage({
             />
           </div>
           <div className="pt-6">
-            <MarkdownView markdown={page.contentMarkdown} />
+            <WikiTableOfContents markdown={page.contentMarkdown} />
+            <WikiReviewSurface
+              pageId={page.id}
+              currentMarkdown={page.contentMarkdown}
+              canComment={canEdit}
+              threads={commentThreads.map((thread) => ({
+                id: thread.id,
+                revisionVersion: thread.revisionVersion,
+                anchorQuote: thread.anchorQuote,
+                status: thread.status,
+                createdAt: thread.createdAt.toISOString(),
+                createdByName: thread.createdBy.name,
+                resolvedAt: thread.resolvedAt?.toISOString() ?? null,
+                comments: thread.comments.map((comment) => ({
+                  id: comment.id,
+                  body: comment.body,
+                  createdAt: comment.createdAt.toISOString(),
+                  authorName: comment.author.name,
+                })),
+              }))}
+            >
+              <MarkdownView markdown={page.contentMarkdown} />
+            </WikiReviewSurface>
           </div>
         </Card>
+
+        <WikiWorkflowPanel
+          pageId={page.id}
+          status={page.workflowStatus}
+          reviewVersion={page.reviewVersion}
+          approvedVersion={page.approvedVersion}
+          requestedByName={page.reviewRequestedBy?.name ?? null}
+          requestedAt={page.reviewRequestedAt?.toISOString() ?? null}
+          canEdit={canEdit}
+          canApprove={canApprove}
+          decisions={decisions.map((decision) => ({
+            id: decision.id,
+            decision: decision.decision,
+            comment: decision.comment,
+            createdAt: decision.createdAt.toISOString(),
+            version: decision.version,
+            reviewerName: decision.reviewer.name,
+          }))}
+        />
 
         <details className="surface rounded-[var(--radius-md)] p-4">
           <summary className="cursor-pointer text-sm font-medium text-white/70">

@@ -102,12 +102,13 @@ export async function updateZeroWikiPageForUI(input: {
   pageID: string;
   title: string;
   contentMarkdown: string;
+  parentID: string | null;
+  expectedVersion: number;
 }) {
   const page = await getZeroPool().query<{
     project_id: string;
-    version: number;
   }>(
-    `SELECT project_id, version
+    `SELECT project_id
      FROM wiki_pages
      WHERE id = $1 AND archived_at IS NULL`,
     [input.pageID]
@@ -125,7 +126,8 @@ export async function updateZeroWikiPageForUI(input: {
   return updateApiWikiPage(actor(input.user), input.pageID, {
     title: input.title,
     contentMarkdown: input.contentMarkdown,
-    expectedVersion: row.version,
+    parentId: input.parentID,
+    expectedVersion: input.expectedVersion,
   });
 }
 
@@ -241,6 +243,297 @@ export async function restoreZeroWikiRevision(input: {
     expectedVersion: row.version,
   });
   return { ...restored, projectKey: row.project_key };
+}
+
+export async function updateZeroWikiWorkflow(input: {
+  userID: string;
+  pageID: string;
+  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES";
+  comment: string | null;
+}) {
+  const lookup = await getZeroPool().query<{
+    project_id: string;
+    project_key: string;
+  }>(
+    `SELECT page.project_id, project.key AS project_key
+     FROM wiki_pages AS page
+     JOIN projects AS project ON project.id = page.project_id
+     WHERE page.id = $1 AND page.archived_at IS NULL`,
+    [input.pageID]
+  );
+  const match = lookup.rows[0];
+  if (!match) throw new Error("Wiki page not found");
+  const requiredRole = input.action === "SUBMIT" ? "MEMBER" : "ADMIN";
+  const project = await requireZeroWikiProject({
+    userID: input.userID,
+    projectID: match.project_id,
+    role: requiredRole,
+  });
+  if (project.knowledge_provider !== "NATIVE") {
+    throw new Error("Native Wiki is disabled");
+  }
+
+  const client = await getZeroPool().connect();
+  try {
+    await client.query("BEGIN");
+    const locked = await client.query<{
+      workspace_id: string;
+      project_id: string;
+      version: number;
+      workflow_status: "DRAFT" | "IN_REVIEW" | "APPROVED";
+      review_version: number | null;
+      revision_id: string;
+    }>(
+      `SELECT
+         page.workspace_id,
+         page.project_id,
+         page.version,
+         page.workflow_status,
+         page.review_version,
+         revision.id AS revision_id
+       FROM wiki_pages AS page
+       JOIN wiki_page_revisions AS revision
+         ON revision.page_id = page.id AND revision.version = page.version
+       WHERE page.id = $1 AND page.archived_at IS NULL
+       FOR UPDATE OF page`,
+      [input.pageID]
+    );
+    const page = locked.rows[0];
+    if (!page) throw new Error("Wiki page not found");
+
+    if (input.action === "SUBMIT") {
+      if (page.workflow_status === "IN_REVIEW") {
+        throw new Error("Wiki page is already in review");
+      }
+      await client.query(
+        `UPDATE wiki_pages
+         SET workflow_status = 'IN_REVIEW', review_version = version,
+             review_requested_by_id = $2, review_requested_at = now(),
+             updated_at = now()
+         WHERE id = $1`,
+        [input.pageID, input.userID]
+      );
+    } else {
+      if (
+        page.workflow_status !== "IN_REVIEW" ||
+        page.review_version !== page.version
+      ) {
+        throw new Error("Wiki review is stale");
+      }
+      const decision =
+        input.action === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED";
+      await client.query(
+        `INSERT INTO wiki_review_decisions (
+           id, workspace_id, project_id, page_id, revision_id,
+           reviewer_id, decision, comment
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          randomUUID(),
+          page.workspace_id,
+          page.project_id,
+          input.pageID,
+          page.revision_id,
+          input.userID,
+          decision,
+          input.comment,
+        ]
+      );
+      if (decision === "APPROVED") {
+        await client.query(
+          `UPDATE wiki_pages
+           SET workflow_status = 'APPROVED', approved_version = version,
+               updated_at = now()
+           WHERE id = $1`,
+          [input.pageID]
+        );
+      } else {
+        await client.query(
+          `UPDATE wiki_pages
+           SET workflow_status = 'DRAFT', review_version = NULL,
+               review_requested_by_id = NULL, review_requested_at = NULL,
+               updated_at = now()
+           WHERE id = $1`,
+          [input.pageID]
+        );
+      }
+    }
+
+    await client.query(
+      `INSERT INTO audit_events (
+         id, workspace_id, actor_id, action, entity_type, entity_id, changes
+       ) VALUES ($1, $2, $3, $4, 'wiki_page', $5, $6::jsonb)`,
+      [
+        randomUUID(),
+        page.workspace_id,
+        input.userID,
+        `wiki_page.${input.action.toLowerCase()}`,
+        input.pageID,
+        JSON.stringify({ version: page.version }),
+      ]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return { projectKey: match.project_key };
+}
+
+export async function createZeroWikiCommentThread(input: {
+  userID: string;
+  pageID: string;
+  body: string;
+  anchorQuote: string | null;
+}) {
+  const pageResult = await getZeroPool().query<{
+    workspace_id: string;
+    project_id: string;
+    project_key: string;
+    revision_id: string;
+  }>(
+    `SELECT
+       page.workspace_id,
+       page.project_id,
+       project.key AS project_key,
+       revision.id AS revision_id
+     FROM wiki_pages AS page
+     JOIN projects AS project ON project.id = page.project_id
+     JOIN wiki_page_revisions AS revision
+       ON revision.page_id = page.id AND revision.version = page.version
+     WHERE page.id = $1 AND page.archived_at IS NULL`,
+    [input.pageID]
+  );
+  const page = pageResult.rows[0];
+  if (!page) throw new Error("Wiki page not found");
+  const project = await requireZeroWikiProject({
+    userID: input.userID,
+    projectID: page.project_id,
+    role: "MEMBER",
+  });
+  if (project.knowledge_provider !== "NATIVE") {
+    throw new Error("Native Wiki is disabled");
+  }
+
+  const threadID = randomUUID();
+  const client = await getZeroPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO wiki_comment_threads (
+         id, workspace_id, project_id, page_id, revision_id,
+         anchor_quote, created_by_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        threadID,
+        page.workspace_id,
+        page.project_id,
+        input.pageID,
+        page.revision_id,
+        input.anchorQuote,
+        input.userID,
+      ]
+    );
+    await client.query(
+      `INSERT INTO wiki_comments (id, thread_id, author_id, body)
+       VALUES ($1, $2, $3, $4)`,
+      [randomUUID(), threadID, input.userID, input.body]
+    );
+    await client.query(
+      `INSERT INTO audit_events (
+         id, workspace_id, actor_id, action, entity_type, entity_id, changes
+       ) VALUES ($1, $2, $3, 'wiki_comment.created', 'wiki_page', $4, $5::jsonb)`,
+      [
+        randomUUID(),
+        page.workspace_id,
+        input.userID,
+        input.pageID,
+        JSON.stringify({ threadId: threadID, inline: Boolean(input.anchorQuote) }),
+      ]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return { projectKey: page.project_key, threadID };
+}
+
+export async function addZeroWikiCommentReply(input: {
+  userID: string;
+  threadID: string;
+  body: string;
+}) {
+  const result = await getZeroPool().query<{
+    project_id: string;
+    project_key: string;
+    page_id: string;
+  }>(
+    `SELECT thread.project_id, project.key AS project_key, thread.page_id
+     FROM wiki_comment_threads AS thread
+     JOIN projects AS project ON project.id = thread.project_id
+     WHERE thread.id = $1 AND thread.archived_at IS NULL`,
+    [input.threadID]
+  );
+  const thread = result.rows[0];
+  if (!thread) throw new Error("Wiki comment thread not found");
+  const project = await requireZeroWikiProject({
+    userID: input.userID,
+    projectID: thread.project_id,
+    role: "MEMBER",
+  });
+  if (project.knowledge_provider !== "NATIVE") {
+    throw new Error("Native Wiki is disabled");
+  }
+  await getZeroPool().query(
+    `INSERT INTO wiki_comments (id, thread_id, author_id, body)
+     VALUES ($1, $2, $3, $4)`,
+    [randomUUID(), input.threadID, input.userID, input.body]
+  );
+  return { projectKey: thread.project_key, pageID: thread.page_id };
+}
+
+export async function resolveZeroWikiCommentThread(input: {
+  userID: string;
+  threadID: string;
+  resolved: boolean;
+}) {
+  const result = await getZeroPool().query<{
+    project_id: string;
+    project_key: string;
+    page_id: string;
+  }>(
+    `SELECT thread.project_id, project.key AS project_key, thread.page_id
+     FROM wiki_comment_threads AS thread
+     JOIN projects AS project ON project.id = thread.project_id
+     WHERE thread.id = $1 AND thread.archived_at IS NULL`,
+    [input.threadID]
+  );
+  const thread = result.rows[0];
+  if (!thread) throw new Error("Wiki comment thread not found");
+  const project = await requireZeroWikiProject({
+    userID: input.userID,
+    projectID: thread.project_id,
+    role: "MEMBER",
+  });
+  if (project.knowledge_provider !== "NATIVE") {
+    throw new Error("Native Wiki is disabled");
+  }
+  await getZeroPool().query(
+    `UPDATE wiki_comment_threads
+     SET status = $2, resolved_by_id = $3, resolved_at = $4, updated_at = now()
+     WHERE id = $1`,
+    [
+      input.threadID,
+      input.resolved ? "RESOLVED" : "OPEN",
+      input.resolved ? input.userID : null,
+      input.resolved ? new Date() : null,
+    ]
+  );
+  return { projectKey: thread.project_key, pageID: thread.page_id };
 }
 
 export async function addZeroTaskKnowledgeLink(input: {

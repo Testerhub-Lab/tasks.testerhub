@@ -79,13 +79,15 @@ export const updateWikiPageApiSchema = z
   .object({
     title: z.string().trim().min(1).max(160).optional(),
     contentMarkdown: z.string().max(200_000).optional(),
+    parentId: z.string().uuid().optional().nullable(),
     expectedVersion: z.number().int().positive().optional(),
   })
   .refine(
     (value) =>
       typeof value.title !== "undefined" ||
-      typeof value.contentMarkdown !== "undefined",
-    "Нужно передать заголовок или содержимое"
+      typeof value.contentMarkdown !== "undefined" ||
+      typeof value.parentId !== "undefined",
+    "Нужно передать заголовок, содержимое или родительскую страницу"
   );
 
 export const linkWikiPageApiSchema = z.object({

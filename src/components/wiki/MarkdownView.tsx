@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { createWikiMarkdownComponents } from "./wikiMarkdownComponents";
 
 type MarkdownViewProps = {
   markdown: string;
@@ -13,18 +14,13 @@ export default function MarkdownView({ markdown }: MarkdownViewProps) {
       </p>
     );
   }
+  const components = createWikiMarkdownComponents();
 
   return (
     <div className="wiki-markdown">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ children, ...props }) => (
-            <a {...props} target="_blank" rel="noreferrer">
-              {children}
-            </a>
-          ),
-        }}
+        components={components}
       >
         {markdown}
       </ReactMarkdown>

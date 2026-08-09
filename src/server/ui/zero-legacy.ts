@@ -1125,6 +1125,11 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
     slug: string;
     content_markdown: string;
     version: number;
+    workflow_status: "DRAFT" | "IN_REVIEW" | "APPROVED";
+    review_version: number | null;
+    approved_version: number | null;
+    review_requested_at: Date | null;
+    review_requested_by_name: string | null;
     created_at: Date;
     updated_at: Date;
     created_by_id: string;
@@ -1142,6 +1147,11 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
        page.slug,
        page.content_markdown,
        page.version,
+       page.workflow_status,
+       page.review_version,
+       page.approved_version,
+       page.review_requested_at,
+       requester.display_name AS review_requested_by_name,
        page.created_at,
        page.updated_at,
        page.created_by_id,
@@ -1153,6 +1163,7 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
      FROM wiki_pages AS page
      JOIN users AS creator ON creator.id = page.created_by_id
      JOIN users AS updater ON updater.id = page.updated_by_id
+     LEFT JOIN users AS requester ON requester.id = page.review_requested_by_id
      LEFT JOIN LATERAL (
        SELECT provider_subject
        FROM auth_identities
@@ -1183,6 +1194,13 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
         slug: row.slug,
         contentMarkdown: row.content_markdown,
         version: row.version,
+        workflowStatus: row.workflow_status,
+        reviewVersion: row.review_version,
+        approvedVersion: row.approved_version,
+        reviewRequestedAt: row.review_requested_at,
+        reviewRequestedBy: row.review_requested_by_name
+          ? { name: row.review_requested_by_name }
+          : null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         createdBy: {
@@ -1267,6 +1285,120 @@ export async function getZeroWikiPageRevisions(pageID: string) {
       email: row.created_by_email ?? "",
     },
   }));
+}
+
+export async function getZeroWikiReviewDecisions(pageID: string) {
+  const result = await getZeroPool().query<{
+    id: string;
+    decision: "APPROVED" | "CHANGES_REQUESTED";
+    comment: string | null;
+    created_at: Date;
+    version: number;
+    reviewer_name: string | null;
+  }>(
+    `SELECT
+       decision.id,
+       decision.decision,
+       decision.comment,
+       decision.created_at,
+       revision.version,
+       reviewer.display_name AS reviewer_name
+     FROM wiki_review_decisions AS decision
+     JOIN wiki_page_revisions AS revision ON revision.id = decision.revision_id
+     JOIN users AS reviewer ON reviewer.id = decision.reviewer_id
+     WHERE decision.page_id = $1
+     ORDER BY decision.created_at DESC, decision.id DESC`,
+    [pageID]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    decision: row.decision,
+    comment: row.comment,
+    createdAt: row.created_at,
+    version: row.version,
+    reviewer: { name: row.reviewer_name },
+  }));
+}
+
+export async function getZeroWikiCommentThreads(pageID: string) {
+  const result = await getZeroPool().query<{
+    thread_id: string;
+    revision_id: string;
+    revision_version: number;
+    anchor_quote: string | null;
+    status: "OPEN" | "RESOLVED";
+    thread_created_at: Date;
+    created_by_name: string | null;
+    resolved_at: Date | null;
+    comment_id: string;
+    comment_body: string;
+    comment_created_at: Date;
+    comment_author_name: string | null;
+  }>(
+    `SELECT
+       thread.id AS thread_id,
+       thread.revision_id,
+       revision.version AS revision_version,
+       thread.anchor_quote,
+       thread.status,
+       thread.created_at AS thread_created_at,
+       creator.display_name AS created_by_name,
+       thread.resolved_at,
+       comment.id AS comment_id,
+       comment.body AS comment_body,
+       comment.created_at AS comment_created_at,
+       author.display_name AS comment_author_name
+     FROM wiki_comment_threads AS thread
+     JOIN wiki_page_revisions AS revision ON revision.id = thread.revision_id
+     JOIN users AS creator ON creator.id = thread.created_by_id
+     JOIN wiki_comments AS comment
+       ON comment.thread_id = thread.id AND comment.archived_at IS NULL
+     JOIN users AS author ON author.id = comment.author_id
+     WHERE thread.page_id = $1 AND thread.archived_at IS NULL
+     ORDER BY thread.created_at, thread.id, comment.created_at, comment.id`,
+    [pageID]
+  );
+
+  const threads = new Map<
+    string,
+    {
+      id: string;
+      revisionId: string;
+      revisionVersion: number;
+      anchorQuote: string | null;
+      status: "OPEN" | "RESOLVED";
+      createdAt: Date;
+      createdBy: { name: string | null };
+      resolvedAt: Date | null;
+      comments: Array<{
+        id: string;
+        body: string;
+        createdAt: Date;
+        author: { name: string | null };
+      }>;
+    }
+  >();
+  for (const row of result.rows) {
+    const thread = threads.get(row.thread_id) ?? {
+      id: row.thread_id,
+      revisionId: row.revision_id,
+      revisionVersion: row.revision_version,
+      anchorQuote: row.anchor_quote,
+      status: row.status,
+      createdAt: row.thread_created_at,
+      createdBy: { name: row.created_by_name },
+      resolvedAt: row.resolved_at,
+      comments: [],
+    };
+    thread.comments.push({
+      id: row.comment_id,
+      body: row.comment_body,
+      createdAt: row.comment_created_at,
+      author: { name: row.comment_author_name },
+    });
+    threads.set(row.thread_id, thread);
+  }
+  return [...threads.values()];
 }
 
 export async function getZeroTaskKnowledgeLinks(taskID: string) {

@@ -17,12 +17,13 @@ import {
   searchWikiPages,
 } from "@/server/knowledge/queries";
 import { getProjectByKey } from "@/server/queries/projects";
+import { getWikiParentOptions } from "@/server/knowledge/tree";
 
 export const dynamic = "force-dynamic";
 
 type ProjectWikiPageProps = {
   params: Promise<{ projectKey: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; parentId?: string }>;
 };
 
 function getSearchExcerpt(markdown: string, query: string) {
@@ -36,7 +37,10 @@ export default async function ProjectWikiPage({
   params,
   searchParams,
 }: ProjectWikiPageProps) {
-  const [{ projectKey }, { q = "" }] = await Promise.all([params, searchParams]);
+  const [{ projectKey }, { q = "", parentId = "" }] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const user = await getCurrentUser();
   if (!user) {
     redirect(
@@ -117,6 +121,10 @@ export default async function ProjectWikiPage({
     (page) =>
       page.archivedAt && (!page.parentId || !archivedIds.has(page.parentId))
   );
+  const parentOptions = getWikiParentOptions(pages);
+  const initialParentId = pages.some((page) => page.id === parentId)
+    ? parentId
+    : "";
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -151,13 +159,11 @@ export default async function ProjectWikiPage({
       </form>
 
       {canWrite ? (
-        <Card padding="md">
+        <Card padding="md" id="new-page">
           <WikiCreatePageForm
             projectId={project.id}
-            parents={pages.map((page) => ({
-              id: page.id,
-              title: page.title,
-            }))}
+            parents={parentOptions}
+            initialParentId={initialParentId}
           />
         </Card>
       ) : null}

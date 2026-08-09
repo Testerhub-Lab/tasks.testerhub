@@ -14,7 +14,15 @@ are intentionally excluded:
 - `sessions` (session token hashes and request metadata);
 - `audit_events` (potentially sensitive change payloads);
 - `api_tokens`, `api_idempotency_keys` and `api_audit_logs` (REST secrets and
-  security records).
+  security records);
+- `wiki_review_decisions`, `wiki_comment_threads`, `wiki_comments` and
+  `wiki_attachments` (revision-bound review data and private object metadata).
+
+Wiki workflow state is stored on `wiki_pages`. Review decisions and comment
+threads are read and changed only through authenticated server actions; they
+are deliberately absent from the Zero publication. Wiki attachment bytes use
+the same private S3-compatible storage and presigned URL flow as issue
+attachments.
 
 The temporary PULSAR-6 spike table and UI remain available in branch history,
 but are not part of the active Zero schema or publication.

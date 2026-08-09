@@ -94,6 +94,12 @@ git reset --hard origin/main
 infra/production/deploy.sh
 ```
 
+Schema migrations in `infra/production/postgres/migrations` are not applied by
+the deploy wrapper. Apply each new migration to the production PostgreSQL
+database before recreating the web container. The Wiki review release requires
+`20260809_wiki_review_workflow.sql`; take a backup and rehearse it against a
+restored production snapshot before applying it to the live database.
+
 The wrapper uses:
 
 - Compose project: `pulsar-prod` by default;

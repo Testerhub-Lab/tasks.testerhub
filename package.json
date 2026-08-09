@@ -33,6 +33,7 @@
     "@uiw/react-md-editor": "^4.1.1",
     "dotenv": "^17.2.3",
     "framer-motion": "^11.3.30",
+    "mermaid": "^11.16.1",
     "next": "16.2.12",
     "pg": "^8.17.2",
     "react": "19.2.8",

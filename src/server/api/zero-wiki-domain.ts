@@ -310,6 +310,7 @@ export async function updateApiWikiPage(
           revisionID: randomUUID(),
           title: input.title,
           contentMarkdown: input.contentMarkdown,
+          parentID: input.parentId,
           expectedVersion: input.expectedVersion,
         },
         ctx: { userID: user.id },

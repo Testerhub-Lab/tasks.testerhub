@@ -44,6 +44,12 @@ export default function WikiPageActions({
   return (
     <div className="flex items-center gap-2">
       <Link
+        href={`/wiki/${encodeURIComponent(projectKey)}?parentId=${pageId}#new-page`}
+        className="button button--ghost"
+      >
+        Дочерняя страница
+      </Link>
+      <Link
         href={`/wiki/${encodeURIComponent(projectKey)}/${pageId}/edit`}
         className="button button--primary"
       >
