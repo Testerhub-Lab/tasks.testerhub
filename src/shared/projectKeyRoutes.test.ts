@@ -17,11 +17,15 @@ describe("project key routes", () => {
     );
   });
 
-  it("extracts project keys only from issue view paths", () => {
+  it("extracts project keys from issue and wiki paths", () => {
     expect(getProjectKeyFromPathname("/pulsar/board")).toBe("pulsar");
     expect(getProjectKeyFromPathname("/pulsar/issues/PULSAR-30")).toBe(
       "pulsar"
     );
+    expect(getProjectKeyFromPathname("/wiki/finpeace/page-1")).toBe(
+      "finpeace"
+    );
+    expect(getProjectKeyFromPathname("/wiki")).toBeNull();
     expect(getProjectKeyFromPathname("/settings/workspace")).toBeNull();
   });
 
@@ -34,6 +38,11 @@ describe("project key routes", () => {
     expect(
       findProjectByRouteContext(projects, {
         pathname: "/load10k/board",
+      })
+    ).toEqual(projects[1]);
+    expect(
+      findProjectByRouteContext(projects, {
+        pathname: "/wiki/load10k/overview",
       })
     ).toEqual(projects[1]);
     expect(

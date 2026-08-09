@@ -24,6 +24,10 @@ export function buildProjectIssueDetailPath(projectKey: string, ref: string) {
 
 export function getProjectKeyFromPathname(pathname: string) {
   const [, rawProjectKey, rawView] = pathname.split("/");
+  if (rawProjectKey === "wiki") {
+    const [, , rawWikiProjectKey] = pathname.split("/");
+    return rawWikiProjectKey || null;
+  }
   if (!rawProjectKey || !rawView || !PROJECT_VIEW_SEGMENTS.has(rawView)) {
     return null;
   }
