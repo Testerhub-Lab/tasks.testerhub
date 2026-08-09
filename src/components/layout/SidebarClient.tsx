@@ -95,6 +95,9 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const [manualExpandedProjectId, setManualExpandedProjectId] = useState<
     string | null
   >(projects[0]?.id ?? null);
+  const [collapsedWikiProjectIds, setCollapsedWikiProjectIds] = useState(
+    () => new Set<string>()
+  );
   const expandedProjectId = routeProjectId ?? manualExpandedProjectId;
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
@@ -302,6 +305,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                 activeProjectId === project.id ||
                 activeWikiProjectKey === project.key;
               const isExpanded = expandedProjectId === project.id;
+              const isWikiExpanded = !collapsedWikiProjectIds.has(project.id);
               const projectPages = wikiPagesByProject[project.id] ?? [];
               const firstWikiPage = projectPages[0];
               return (
@@ -331,36 +335,29 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                   </button>
                   {isExpanded ? (
                     <div className="sidebar__product-children">
-                      <Link
-                        href={buildProjectIssueViewHref(
-                          project.key,
-                          "/board",
-                          searchParams
-                        )}
-                        className={`sidebar__item sidebar__subitem ${
-                          pathname === `/${project.key}/board` ? "is-active" : ""
-                        }`}
-                      >
-                        Board
-                      </Link>
-                      <Link
-                        href={buildProjectIssueViewHref(
-                          project.key,
-                          resolveIssueViewPath(
-                            { scope: "project", projectId: project.id },
-                            issueViewPreferences
-                          ),
-                          searchParams
-                        )}
-                        className={`sidebar__item sidebar__subitem ${
-                          activeProjectId === project.id && isIssueViewPath
-                            ? "is-active"
-                            : ""
-                        }`}
-                      >
-                        List
-                      </Link>
-                      <div className="group/wiki-root sidebar__wiki-root">
+                      <div className="sidebar__wiki-node">
+                        <div className="group/wiki-root sidebar__wiki-root">
+                          <button
+                            type="button"
+                            className="sidebar__wiki-toggle"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              setCollapsedWikiProjectIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(project.id)) next.delete(project.id);
+                                else next.add(project.id);
+                                return next;
+                              });
+                            }}
+                            aria-label={
+                              isWikiExpanded
+                                ? "Свернуть страницы Wiki"
+                                : "Развернуть страницы Wiki"
+                            }
+                            aria-expanded={isWikiExpanded}
+                          >
+                            {isWikiExpanded ? "▼" : "▶"}
+                          </button>
                         <Link
                           href={
                             firstWikiPage
@@ -370,8 +367,15 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                           className={`sidebar__item sidebar__subitem ${
                             activeWikiProjectKey === project.key ? "is-active" : ""
                           }`}
+                          onClick={() =>
+                            setCollapsedWikiProjectIds((current) => {
+                              const next = new Set(current);
+                              if (next.has(project.id)) next.delete(project.id);
+                              else next.add(project.id);
+                              return next;
+                            })
+                          }
                         >
-                          <span className="sidebar__caret" aria-hidden="true">▼</span>
                           <span className="min-w-0 flex-1">Wiki</span>
                         </Link>
                         <Link
@@ -382,24 +386,25 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
                         >
                           +
                         </Link>
-                      </div>
-                      {projectPages.length > 0 ? (
-                        <div className="sidebar__wiki-tree">
-                          <WikiTree
-                            projectKey={project.key}
-                            pages={projectPages}
-                            activePageId={
-                              activeWikiProjectKey === project.key
-                                ? activeWikiPageId
-                                : undefined
-                            }
-                            compact
-                            createHref={(parentId) =>
-                              `/wiki/${encodeURIComponent(project.key)}?parentId=${encodeURIComponent(parentId ?? "")}#new-page`
-                            }
-                          />
                         </div>
-                      ) : null}
+                        {isWikiExpanded && projectPages.length > 0 ? (
+                          <div className="sidebar__wiki-tree">
+                            <WikiTree
+                              projectKey={project.key}
+                              pages={projectPages}
+                              activePageId={
+                                activeWikiProjectKey === project.key
+                                  ? activeWikiPageId
+                                  : undefined
+                              }
+                              compact
+                              createHref={(parentId) =>
+                                `/wiki/${encodeURIComponent(project.key)}?parentId=${encodeURIComponent(parentId ?? "")}#new-page`
+                              }
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </div>

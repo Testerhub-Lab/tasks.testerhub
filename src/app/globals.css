@@ -427,6 +427,30 @@ body.is-dragging * {
   align-items: center;
 }
 
+.sidebar__wiki-node {
+  min-width: 0;
+}
+
+.sidebar__wiki-toggle {
+  display: grid;
+  width: 20px;
+  height: 28px;
+  flex: 0 0 20px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.52);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sidebar__wiki-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .sidebar__wiki-root .sidebar__subitem {
   flex: 1 1 auto;
   padding-right: 24px;
