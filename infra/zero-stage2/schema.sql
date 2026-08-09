@@ -342,6 +342,7 @@ CREATE TABLE wiki_pages (
   review_version integer,
   approved_version integer,
   review_requested_by_id uuid REFERENCES users (id) ON DELETE SET NULL,
+  review_assignee_id uuid REFERENCES users (id) ON DELETE SET NULL,
   review_requested_at timestamptz,
   created_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
   updated_by_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
@@ -631,7 +632,9 @@ CREATE PUBLICATION pulsar_zero_data FOR TABLE
   ),
   wiki_pages (
     id, workspace_id, project_id, parent_id, title, slug, content_markdown,
-    sort_order, version, created_by_id, updated_by_id,
+    sort_order, version, workflow_status, review_version, approved_version,
+    review_requested_by_id, review_assignee_id, review_requested_at,
+    created_by_id, updated_by_id,
     created_at, updated_at, archived_at
   ),
   wiki_page_revisions (

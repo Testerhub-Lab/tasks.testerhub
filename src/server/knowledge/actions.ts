@@ -90,7 +90,8 @@ const removeLinkSchema = z.object({
 const workflowSchema = z
   .object({
     pageId: z.string().min(1),
-    action: z.enum(["SUBMIT", "APPROVE", "REQUEST_CHANGES"]),
+    action: z.enum(["SUBMIT", "ASSIGN_REVIEWER", "APPROVE", "REQUEST_CHANGES"]),
+    assigneeId: z.string().min(1).optional().nullable(),
     comment: z.string().trim().max(20_000).optional().nullable(),
   })
   .superRefine((value, context) => {
@@ -99,6 +100,16 @@ const workflowSchema = z
         code: "custom",
         path: ["comment"],
         message: "Укажите, что нужно изменить",
+      });
+    }
+    if (
+      (value.action === "SUBMIT" || value.action === "ASSIGN_REVIEWER") &&
+      !value.assigneeId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["assigneeId"],
+        message: "Выберите согласующего",
       });
     }
   });
@@ -417,6 +428,7 @@ export async function updateWikiPageAction(input: {
           workflowStatus: WikiWorkflowStatus.DRAFT,
           reviewVersion: null,
           reviewRequestedById: null,
+          reviewAssigneeId: null,
           reviewRequestedAt: null,
           updatedById: context.user.id,
           version: { increment: 1 },
@@ -590,6 +602,7 @@ export async function restoreWikiRevisionAction(input: {
         workflowStatus: WikiWorkflowStatus.DRAFT,
         reviewVersion: null,
         reviewRequestedById: null,
+        reviewAssigneeId: null,
         reviewRequestedAt: null,
         updatedById: context.user.id,
         version: { increment: 1 },
@@ -622,7 +635,8 @@ export async function restoreWikiRevisionAction(input: {
 
 export async function updateWikiWorkflowAction(input: {
   pageId: string;
-  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES";
+  action: "SUBMIT" | "ASSIGN_REVIEWER" | "APPROVE" | "REQUEST_CHANGES";
+  assigneeId?: string | null;
   comment?: string | null;
 }) {
   const parsed = workflowSchema.safeParse(input);
@@ -641,6 +655,7 @@ export async function updateWikiWorkflowAction(input: {
         userID: user.id,
         pageID: parsed.data.pageId,
         action: parsed.data.action,
+        assigneeID: parsed.data.assigneeId ?? null,
         comment: parsed.data.comment ?? null,
       });
       revalidateWiki(updated.projectKey, parsed.data.pageId);
@@ -668,6 +683,7 @@ export async function updateWikiWorkflowAction(input: {
       version: true,
       workflowStatus: true,
       reviewVersion: true,
+      reviewAssigneeId: true,
       archivedAt: true,
       project: { select: { key: true } },
     },
@@ -676,13 +692,59 @@ export async function updateWikiWorkflowAction(input: {
     return { ok: false as const, formError: "Страница не найдена" };
   }
   const requiredRole =
-    parsed.data.action === "SUBMIT" ? ProjectRole.MEMBER : ProjectRole.ADMIN;
+    parsed.data.action === "SUBMIT" || parsed.data.action === "ASSIGN_REVIEWER"
+      ? ProjectRole.MEMBER
+      : ProjectRole.ADMIN;
   const context = await requireProjectRole(page.projectId, requiredRole);
-  if (!context || !(await requireNativeWiki(page.projectId))) {
+  const isAssignedReviewer =
+    parsed.data.action !== "SUBMIT" &&
+    parsed.data.action !== "ASSIGN_REVIEWER" &&
+    page.reviewAssigneeId === user.id;
+  const reviewerContext = context ?? (
+    isAssignedReviewer
+      ? await requireProjectRole(page.projectId, ProjectRole.MEMBER)
+      : null
+  );
+  if (!reviewerContext || !(await requireNativeWiki(page.projectId))) {
     return { ok: false as const, formError: "Недостаточно прав" };
   }
 
-  if (parsed.data.action === "SUBMIT") {
+  if (parsed.data.action === "SUBMIT" || parsed.data.action === "ASSIGN_REVIEWER") {
+    const assignee = await prisma.user.findFirst({
+      where: {
+        id: parsed.data.assigneeId ?? "",
+        OR: [
+          {
+            workspaceMemberships: {
+              some: { workspaceId: reviewerContext.access.workspaceId, role: "ADMIN" },
+            },
+          },
+          {
+            projectMemberships: {
+              some: {
+                projectId: page.projectId,
+                role: "ADMIN",
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!assignee) {
+      return { ok: false as const, formError: "Согласующий не найден" };
+    }
+
+    if (parsed.data.action === "ASSIGN_REVIEWER") {
+      await prisma.wikiPage.update({
+        where: { id: page.id },
+        data: { reviewAssigneeId: assignee.id },
+      });
+      revalidateWiki(page.project.key, page.id);
+      return { ok: true as const };
+    }
+
     if (page.workflowStatus === WikiWorkflowStatus.IN_REVIEW) {
       return { ok: false as const, formError: "Страница уже на проверке" };
     }
@@ -695,7 +757,8 @@ export async function updateWikiWorkflowAction(input: {
       data: {
         workflowStatus: WikiWorkflowStatus.IN_REVIEW,
         reviewVersion: page.version,
-        reviewRequestedById: context.user.id,
+        reviewRequestedById: reviewerContext.user.id,
+        reviewAssigneeId: assignee.id,
         reviewRequestedAt: new Date(),
       },
     });
@@ -728,6 +791,10 @@ export async function updateWikiWorkflowAction(input: {
           version: page.version,
           workflowStatus: WikiWorkflowStatus.IN_REVIEW,
           reviewVersion: page.version,
+          OR: [
+            { reviewAssigneeId: null },
+            { reviewAssigneeId: reviewerContext.user.id },
+          ],
         },
         data: {
           ...(approved
@@ -739,6 +806,7 @@ export async function updateWikiWorkflowAction(input: {
                 workflowStatus: WikiWorkflowStatus.DRAFT,
                 reviewVersion: null,
                 reviewRequestedById: null,
+                reviewAssigneeId: null,
                 reviewRequestedAt: null,
               }),
         },
@@ -748,7 +816,7 @@ export async function updateWikiWorkflowAction(input: {
         data: {
           pageId: page.id,
           revisionId: revision.id,
-          reviewerId: context.user.id,
+          reviewerId: reviewerContext.user.id,
           decision: approved
             ? WikiReviewDecisionType.APPROVED
             : WikiReviewDecisionType.CHANGES_REQUESTED,

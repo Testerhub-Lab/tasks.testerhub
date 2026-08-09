@@ -85,6 +85,8 @@ export async function getWikiPage(projectId: string, pageId: string) {
       approvedVersion: true,
       reviewRequestedAt: true,
       reviewRequestedBy: { select: { name: true } },
+      reviewAssigneeId: true,
+      reviewAssignee: { select: { id: true, name: true, email: true } },
       createdAt: true,
       updatedAt: true,
       createdBy: { select: { id: true, name: true, email: true } },

@@ -98,6 +98,7 @@ model User {
   createdWikiPages     WikiPage[]           @relation("WikiPageCreatedBy")
   updatedWikiPages     WikiPage[]           @relation("WikiPageUpdatedBy")
   requestedWikiReviews WikiPage[]           @relation("WikiReviewRequestedBy")
+  assignedWikiReviews  WikiPage[]           @relation("WikiReviewAssignee")
   wikiRevisions        WikiPageRevision[]
   wikiReviewDecisions  WikiReviewDecision[]
   createdWikiThreads   WikiCommentThread[]  @relation("WikiThreadCreatedBy")
@@ -233,6 +234,7 @@ model WikiPage {
   reviewVersion       Int?
   approvedVersion     Int?
   reviewRequestedById String?
+  reviewAssigneeId    String?
   reviewRequestedAt   DateTime?
   createdById         String?
   updatedById         String?
@@ -246,6 +248,7 @@ model WikiPage {
   createdBy         User?                @relation("WikiPageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy         User?                @relation("WikiPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   reviewRequestedBy User?                @relation("WikiReviewRequestedBy", fields: [reviewRequestedById], references: [id], onDelete: SetNull)
+  reviewAssignee    User?                @relation("WikiReviewAssignee", fields: [reviewAssigneeId], references: [id], onDelete: SetNull)
   revisions         WikiPageRevision[]
   reviewDecisions   WikiReviewDecision[]
   commentThreads    WikiCommentThread[]

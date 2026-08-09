@@ -1130,6 +1130,9 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
     approved_version: number | null;
     review_requested_at: Date | null;
     review_requested_by_name: string | null;
+    review_assignee_id: string | null;
+    review_assignee_name: string | null;
+    review_assignee_email: string | null;
     created_at: Date;
     updated_at: Date;
     created_by_id: string;
@@ -1152,6 +1155,9 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
        page.approved_version,
        page.review_requested_at,
        requester.display_name AS review_requested_by_name,
+       page.review_assignee_id,
+       assignee.display_name AS review_assignee_name,
+       assignee_identity.provider_subject AS review_assignee_email,
        page.created_at,
        page.updated_at,
        page.created_by_id,
@@ -1164,6 +1170,14 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
      JOIN users AS creator ON creator.id = page.created_by_id
      JOIN users AS updater ON updater.id = page.updated_by_id
      LEFT JOIN users AS requester ON requester.id = page.review_requested_by_id
+     LEFT JOIN users AS assignee ON assignee.id = page.review_assignee_id
+     LEFT JOIN LATERAL (
+       SELECT provider_subject
+       FROM auth_identities
+       WHERE user_id = assignee.id AND provider = 'password'
+       ORDER BY created_at
+       LIMIT 1
+     ) AS assignee_identity ON true
      LEFT JOIN LATERAL (
        SELECT provider_subject
        FROM auth_identities
@@ -1200,6 +1214,14 @@ export async function getZeroWikiPage(projectID: string, pageID: string) {
         reviewRequestedAt: row.review_requested_at,
         reviewRequestedBy: row.review_requested_by_name
           ? { name: row.review_requested_by_name }
+          : null,
+        reviewAssigneeId: row.review_assignee_id,
+        reviewAssignee: row.review_assignee_id
+          ? {
+              id: row.review_assignee_id,
+              name: row.review_assignee_name,
+              email: row.review_assignee_email ?? "",
+            }
           : null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,

@@ -248,7 +248,8 @@ export async function restoreZeroWikiRevision(input: {
 export async function updateZeroWikiWorkflow(input: {
   userID: string;
   pageID: string;
-  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES";
+  action: "SUBMIT" | "ASSIGN_REVIEWER" | "APPROVE" | "REQUEST_CHANGES";
+  assigneeID: string | null;
   comment: string | null;
 }) {
   const lookup = await getZeroPool().query<{
@@ -263,7 +264,10 @@ export async function updateZeroWikiWorkflow(input: {
   );
   const match = lookup.rows[0];
   if (!match) throw new Error("Wiki page not found");
-  const requiredRole = input.action === "SUBMIT" ? "MEMBER" : "ADMIN";
+  const requiredRole =
+    input.action === "SUBMIT" || input.action === "ASSIGN_REVIEWER"
+      ? "MEMBER"
+      : "ADMIN";
   const project = await requireZeroWikiProject({
     userID: input.userID,
     projectID: match.project_id,
@@ -282,6 +286,7 @@ export async function updateZeroWikiWorkflow(input: {
       version: number;
       workflow_status: "DRAFT" | "IN_REVIEW" | "APPROVED";
       review_version: number | null;
+      review_assignee_id: string | null;
       revision_id: string;
     }>(
       `SELECT
@@ -290,6 +295,7 @@ export async function updateZeroWikiWorkflow(input: {
          page.version,
          page.workflow_status,
          page.review_version,
+         page.review_assignee_id,
          revision.id AS revision_id
        FROM wiki_pages AS page
        JOIN wiki_page_revisions AS revision
@@ -301,17 +307,43 @@ export async function updateZeroWikiWorkflow(input: {
     const page = locked.rows[0];
     if (!page) throw new Error("Wiki page not found");
 
-    if (input.action === "SUBMIT") {
+    if (input.action === "SUBMIT" || input.action === "ASSIGN_REVIEWER") {
+      if (!input.assigneeID) throw new Error("Wiki reviewer is required");
+      const assignee = await client.query<{ id: string }>(
+        `SELECT user_row.id
+         FROM users AS user_row
+         JOIN workspace_members AS membership
+           ON membership.workspace_id = $2
+          AND membership.user_id = user_row.id
+          AND membership.role IN ('OWNER', 'ADMIN')
+         WHERE user_row.id = $1
+         LIMIT 1`,
+        [input.assigneeID, page.workspace_id]
+      );
+      if (!assignee.rows[0]) throw new Error("Wiki reviewer not found");
+
+      if (input.action === "ASSIGN_REVIEWER") {
+        await client.query(
+          `UPDATE wiki_pages
+           SET review_assignee_id = $2, updated_at = now()
+           WHERE id = $1`,
+          [input.pageID, input.assigneeID]
+        );
+        await client.query("COMMIT");
+        return { projectKey: match.project_key };
+      }
+
       if (page.workflow_status === "IN_REVIEW") {
         throw new Error("Wiki page is already in review");
       }
       await client.query(
         `UPDATE wiki_pages
          SET workflow_status = 'IN_REVIEW', review_version = version,
-             review_requested_by_id = $2, review_requested_at = now(),
+             review_requested_by_id = $2, review_assignee_id = $3,
+             review_requested_at = now(),
              updated_at = now()
          WHERE id = $1`,
-        [input.pageID, input.userID]
+        [input.pageID, input.userID, input.assigneeID]
       );
     } else {
       if (
@@ -319,6 +351,9 @@ export async function updateZeroWikiWorkflow(input: {
         page.review_version !== page.version
       ) {
         throw new Error("Wiki review is stale");
+      }
+      if (page.review_assignee_id && page.review_assignee_id !== input.userID) {
+        throw new Error("Wiki review assigned to another user");
       }
       const decision =
         input.action === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED";
@@ -350,7 +385,8 @@ export async function updateZeroWikiWorkflow(input: {
         await client.query(
           `UPDATE wiki_pages
            SET workflow_status = 'DRAFT', review_version = NULL,
-               review_requested_by_id = NULL, review_requested_at = NULL,
+               review_requested_by_id = NULL, review_assignee_id = NULL,
+               review_requested_at = NULL,
                updated_at = now()
            WHERE id = $1`,
           [input.pageID]

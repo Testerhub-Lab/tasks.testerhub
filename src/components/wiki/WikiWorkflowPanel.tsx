@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Button from "@/components/ui/Button";
 import { toast } from "@/components/ui/toast";
 import { updateWikiWorkflowAction } from "@/server/knowledge/actions";
 
@@ -24,6 +23,8 @@ type WikiWorkflowPanelProps = {
   approvedVersion: number | null;
   requestedByName: string | null;
   requestedAt: string | null;
+  assignee: { id: string; name: string | null; email: string } | null;
+  reviewers: Array<{ id: string; name: string | null; email: string }>;
   canEdit: boolean;
   canApprove: boolean;
   decisions: ReviewDecision[];
@@ -42,22 +43,32 @@ export default function WikiWorkflowPanel({
   approvedVersion,
   requestedByName,
   requestedAt,
+  assignee,
+  reviewers,
   canEdit,
   canApprove,
   decisions,
 }: WikiWorkflowPanelProps) {
   const router = useRouter();
   const [comment, setComment] = useState("");
+  const [reviewerId, setReviewerId] = useState(assignee?.id ?? "");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const runAction = async (
-    action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES"
+    action: "SUBMIT" | "ASSIGN_REVIEWER" | "APPROVE" | "REQUEST_CHANGES"
   ) => {
+    const rejectionComment =
+      action === "REQUEST_CHANGES"
+        ? window.prompt("Комментарий к отклонению")
+        : null;
+    if (action === "REQUEST_CHANGES" && !rejectionComment?.trim()) return;
     setSubmitting(true);
     const result = await updateWikiWorkflowAction({
       pageId,
       action,
-      comment: comment || null,
+      assigneeId: reviewerId || assignee?.id || null,
+      comment: rejectionComment || comment || null,
     });
     setSubmitting(false);
     if (!result.ok) {
@@ -65,9 +76,12 @@ export default function WikiWorkflowPanel({
       return;
     }
     setComment("");
+    setPickerOpen(false);
     toast.success(
       action === "SUBMIT"
         ? "Документ отправлен на проверку"
+        : action === "ASSIGN_REVIEWER"
+          ? "Согласующий назначен"
         : action === "APPROVE"
           ? "Версия утверждена"
           : "Запрошены изменения"
@@ -75,10 +89,12 @@ export default function WikiWorkflowPanel({
     router.refresh();
   };
 
+  const assigneeLabel = assignee?.name || assignee?.email || "Согласующий";
+  const assigneeInitials = assigneeLabel.slice(0, 2).toUpperCase();
+
   return (
-    <section className="surface rounded-[var(--radius-md)] p-4" aria-label="Статус документа">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+    <section className="min-w-0" aria-label="Статус документа">
+      <div className="flex flex-wrap items-center gap-2">
           <span
             className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
               status === "APPROVED"
@@ -101,43 +117,85 @@ export default function WikiWorkflowPanel({
           ) : null}
           {approvedVersion ? (
             <span className="text-xs text-white/40">
-              Последняя утверждённая версия: {approvedVersion}
+              Утверждена v{approvedVersion}
             </span>
           ) : null}
-        </div>
-        {canEdit && status !== "IN_REVIEW" ? (
-          <Button onClick={() => runAction("SUBMIT")} disabled={submitting}>
-            {submitting ? "Отправляем…" : "Отправить на проверку"}
-          </Button>
-        ) : null}
-      </div>
-
-      {canApprove && status === "IN_REVIEW" ? (
-        <div className="mt-4 space-y-3 border-t border-white/6 pt-4">
-          <textarea
-            value={comment}
-            onChange={(event) => setComment(event.target.value)}
-            className="input min-h-24 w-full resize-y py-2"
-            placeholder="Комментарий к решению (для запроса изменений обязателен)"
-            maxLength={20_000}
-          />
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => runAction("REQUEST_CHANGES")}
-              disabled={submitting || !comment.trim()}
+          {assignee ? (
+            <span
+              className="inline-flex size-7 items-center justify-center rounded-full bg-cyan-300/15 text-[10px] font-semibold text-cyan-100"
+              title={assigneeLabel}
             >
-              Запросить изменения
-            </Button>
-            <Button onClick={() => runAction("APPROVE")} disabled={submitting}>
-              Утвердить версию {reviewVersion}
-            </Button>
+              {assigneeInitials}
+            </span>
+          ) : null}
+          {canEdit ? (
+            <span className="relative">
+              <button
+                type="button"
+                className="grid size-7 place-items-center rounded-[var(--radius-sm)] bg-white/5 text-sm text-white/65 hover:bg-white/8 hover:text-white"
+                onClick={() => setPickerOpen((current) => !current)}
+                aria-label="Назначить согласующего"
+                aria-expanded={pickerOpen}
+              >
+                +
+              </button>
+              {pickerOpen ? (
+                <span className="absolute right-0 z-30 mt-2 block w-64 rounded-[var(--radius-md)] border border-white/10 bg-slate-950/95 p-2 shadow-xl">
+                  <select
+                    className="input"
+                    value={reviewerId}
+                    onChange={(event) => setReviewerId(event.target.value)}
+                    aria-label="Согласующий"
+                  >
+                    <option value="">Выберите согласующего</option>
+                    {reviewers.map((reviewer) => (
+                      <option key={reviewer.id} value={reviewer.id}>
+                        {reviewer.name || reviewer.email}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="button button--primary mt-2 w-full"
+                    disabled={submitting || !reviewerId}
+                    onClick={() =>
+                      runAction(status === "IN_REVIEW" ? "ASSIGN_REVIEWER" : "SUBMIT")
+                    }
+                  >
+                    {status === "IN_REVIEW" ? "Назначить" : "На согласование"}
+                  </button>
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+          {canApprove && status === "IN_REVIEW" ? (
+            <span className="flex items-center gap-1">
+              <button
+                type="button"
+                className="grid size-7 place-items-center rounded-[var(--radius-sm)] bg-emerald-300/10 text-emerald-200 hover:bg-emerald-300/18"
+                onClick={() => runAction("APPROVE")}
+                disabled={submitting}
+                aria-label={`Утвердить версию ${reviewVersion}`}
+                title={`Утвердить версию ${reviewVersion}`}
+              >
+                ✓
+              </button>
+              <button
+                type="button"
+                className="grid size-7 place-items-center rounded-[var(--radius-sm)] bg-red-300/10 text-red-200 hover:bg-red-300/18"
+                onClick={() => runAction("REQUEST_CHANGES")}
+                disabled={submitting}
+                aria-label="Отклонить"
+                title="Отклонить"
+              >
+                ×
+              </button>
+            </span>
+          ) : null}
           </div>
-        </div>
-      ) : null}
 
       {decisions.length > 0 ? (
-        <details className="mt-4 border-t border-white/6 pt-3">
+        <details className="mt-2">
           <summary className="cursor-pointer text-xs text-white/50">
             История согласований ({decisions.length})
           </summary>

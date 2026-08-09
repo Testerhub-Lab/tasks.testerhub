@@ -36,3 +36,35 @@ export async function getUsersForAssignee(
     orderBy: [{ name: "asc" }, { email: "asc" }],
   });
 }
+
+export async function getWikiReviewersForProject(
+  workspaceId: string,
+  projectId: string
+): Promise<UserOption[]> {
+  if (usesZeroUiStore()) {
+    return getZeroUsersForAssignee(workspaceId);
+  }
+  const now = new Date();
+  return prisma.user.findMany({
+    where: {
+      OR: [
+        {
+          workspaceMemberships: {
+            some: { workspaceId, role: "ADMIN" },
+          },
+        },
+        {
+          projectMemberships: {
+            some: {
+              projectId,
+              role: "ADMIN",
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+}

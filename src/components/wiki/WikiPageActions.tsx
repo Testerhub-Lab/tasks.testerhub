@@ -44,24 +44,33 @@ export default function WikiPageActions({
   return (
     <div className="flex items-center gap-2">
       <Link
-        href={`/wiki/${encodeURIComponent(projectKey)}?parentId=${pageId}#new-page`}
-        className="button button--ghost"
-      >
-        Дочерняя страница
-      </Link>
-      <Link
         href={`/wiki/${encodeURIComponent(projectKey)}/${pageId}/edit`}
-        className="button button--primary"
+        className="button button--primary ui-tooltip"
+        data-tooltip="Редактировать"
+        aria-label="Редактировать страницу"
       >
-        Редактировать
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
       </Link>
       <Button
         variant="ghost"
-        className="text-red-300"
+        className="ui-tooltip text-red-300"
+        data-tooltip="В архив"
+        aria-label="Переместить страницу в архив"
         onClick={handleArchive}
         disabled={archiving}
       >
-        {archiving ? "Архивируем…" : "В архив"}
+        {archiving ? (
+          <span className="block size-4 animate-spin rounded-full border border-current border-t-transparent" />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M4 7h16" />
+            <path d="M9 7V5h6v2" />
+            <path d="M7 7l1 12h8l1-12" />
+          </svg>
+        )}
       </Button>
     </div>
   );

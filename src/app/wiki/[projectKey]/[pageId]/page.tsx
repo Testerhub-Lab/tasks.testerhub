@@ -23,6 +23,7 @@ import {
   getWikiReviewDecisions,
 } from "@/server/knowledge/queries";
 import { getProjectByKey } from "@/server/queries/projects";
+import { getWikiReviewersForProject } from "@/server/queries/users";
 import { getWikiBreadcrumbs } from "@/server/knowledge/tree";
 
 export const dynamic = "force-dynamic";
@@ -55,13 +56,14 @@ export default async function WikiDocumentPage({
   });
   if (!access) notFound();
 
-  const [configuration, page, pages, revisions, decisions, commentThreads] = await Promise.all([
+  const [configuration, page, pages, revisions, decisions, commentThreads, reviewers] = await Promise.all([
     getProjectKnowledge(project.id),
     getWikiPage(project.id, pageId),
     getWikiPageTree(project.id),
     getWikiPageRevisions(pageId),
     getWikiReviewDecisions(pageId),
     getWikiCommentThreads(pageId),
+    getWikiReviewersForProject(workspaceId, project.id),
   ]);
   if (!page) notFound();
 
@@ -70,7 +72,8 @@ export default async function WikiDocumentPage({
     projectRoleAtLeast(access.role, ProjectRole.MEMBER);
   const canApprove =
     configuration.provider === KnowledgeProvider.NATIVE &&
-    projectRoleAtLeast(access.role, ProjectRole.ADMIN);
+    (projectRoleAtLeast(access.role, ProjectRole.ADMIN) ||
+      page.reviewAssigneeId === user.id);
   const author =
     page.updatedBy?.name || page.updatedBy?.email || "Неизвестный пользователь";
   const breadcrumbs = getWikiBreadcrumbs(pages, page.id);
@@ -112,11 +115,33 @@ export default async function WikiDocumentPage({
                 {page.updatedAt.toLocaleString("ru-RU")}
               </p>
             </div>
-            <WikiPageActions
-              projectKey={project.key}
-              pageId={page.id}
-              canEdit={canEdit}
-            />
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <WikiWorkflowPanel
+                pageId={page.id}
+                status={page.workflowStatus}
+                reviewVersion={page.reviewVersion}
+                approvedVersion={page.approvedVersion}
+                requestedByName={page.reviewRequestedBy?.name ?? null}
+                requestedAt={page.reviewRequestedAt?.toISOString() ?? null}
+                assignee={page.reviewAssignee}
+                reviewers={reviewers}
+                canEdit={canEdit}
+                canApprove={canApprove}
+                decisions={decisions.map((decision) => ({
+                  id: decision.id,
+                  decision: decision.decision,
+                  comment: decision.comment,
+                  createdAt: decision.createdAt.toISOString(),
+                  version: decision.version,
+                  reviewerName: decision.reviewer.name,
+                }))}
+              />
+              <WikiPageActions
+                projectKey={project.key}
+                pageId={page.id}
+                canEdit={canEdit}
+              />
+            </div>
           </div>
           <div className="grid gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_240px]">
             <div className="min-w-0">
@@ -150,25 +175,6 @@ export default async function WikiDocumentPage({
             </aside>
           </div>
         </Card>
-
-        <WikiWorkflowPanel
-          pageId={page.id}
-          status={page.workflowStatus}
-          reviewVersion={page.reviewVersion}
-          approvedVersion={page.approvedVersion}
-          requestedByName={page.reviewRequestedBy?.name ?? null}
-          requestedAt={page.reviewRequestedAt?.toISOString() ?? null}
-          canEdit={canEdit}
-          canApprove={canApprove}
-          decisions={decisions.map((decision) => ({
-            id: decision.id,
-            decision: decision.decision,
-            comment: decision.comment,
-            createdAt: decision.createdAt.toISOString(),
-            version: decision.version,
-            reviewerName: decision.reviewer.name,
-          }))}
-        />
 
         <details className="surface rounded-[var(--radius-md)] p-4">
           <summary className="cursor-pointer text-sm font-medium text-white/70">
