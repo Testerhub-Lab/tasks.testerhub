@@ -5,7 +5,6 @@ import Card from "@/components/ui/Card";
 import MarkdownView from "@/components/wiki/MarkdownView";
 import WikiPageActions from "@/components/wiki/WikiPageActions";
 import WikiRevisionActions from "@/components/wiki/WikiRevisionActions";
-import WikiTree from "@/components/wiki/WikiTree";
 import WikiReviewSurface from "@/components/wiki/WikiReviewSurface";
 import WikiWorkflowPanel from "@/components/wiki/WikiWorkflowPanel";
 import WikiTableOfContents from "@/components/wiki/WikiTableOfContents";
@@ -77,23 +76,7 @@ export default async function WikiDocumentPage({
   const breadcrumbs = getWikiBreadcrumbs(pages, page.id);
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="h-fit lg:sticky lg:top-24">
-        <Card padding="md">
-          <Link
-            href={`/wiki/${project.key}`}
-            className="mb-3 block text-xs font-semibold text-cyan-300/75 hover:text-cyan-200"
-          >
-            {project.key} · {project.name}
-          </Link>
-          <WikiTree
-            projectKey={project.key}
-            pages={pages}
-            activePageId={page.id}
-          />
-        </Card>
-      </aside>
-
+    <div className="mx-auto max-w-7xl">
       <main className="min-w-0 space-y-4">
         {configuration.provider !== KnowledgeProvider.NATIVE ? (
           <div className="rounded-md border border-amber-300/15 bg-amber-300/5 px-4 py-3 text-sm text-amber-100/75">
@@ -135,30 +118,36 @@ export default async function WikiDocumentPage({
               canEdit={canEdit}
             />
           </div>
-          <div className="pt-6">
-            <WikiTableOfContents markdown={page.contentMarkdown} />
-            <WikiReviewSurface
-              pageId={page.id}
-              currentMarkdown={page.contentMarkdown}
-              canComment={canEdit}
-              threads={commentThreads.map((thread) => ({
-                id: thread.id,
-                revisionVersion: thread.revisionVersion,
-                anchorQuote: thread.anchorQuote,
-                status: thread.status,
-                createdAt: thread.createdAt.toISOString(),
-                createdByName: thread.createdBy.name,
-                resolvedAt: thread.resolvedAt?.toISOString() ?? null,
-                comments: thread.comments.map((comment) => ({
-                  id: comment.id,
-                  body: comment.body,
-                  createdAt: comment.createdAt.toISOString(),
-                  authorName: comment.author.name,
-                })),
-              }))}
-            >
-              <MarkdownView markdown={page.contentMarkdown} />
-            </WikiReviewSurface>
+          <div className="grid gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_240px]">
+            <div className="min-w-0">
+              <WikiReviewSurface
+                pageId={page.id}
+                currentMarkdown={page.contentMarkdown}
+                canComment={canEdit}
+                threads={commentThreads.map((thread) => ({
+                  id: thread.id,
+                  revisionVersion: thread.revisionVersion,
+                  anchorQuote: thread.anchorQuote,
+                  status: thread.status,
+                  createdAt: thread.createdAt.toISOString(),
+                  createdByName: thread.createdBy.name,
+                  resolvedAt: thread.resolvedAt?.toISOString() ?? null,
+                  comments: thread.comments.map((comment) => ({
+                    id: comment.id,
+                    body: comment.body,
+                    createdAt: comment.createdAt.toISOString(),
+                    authorName: comment.author.name,
+                  })),
+                }))}
+              >
+                <MarkdownView markdown={page.contentMarkdown} />
+              </WikiReviewSurface>
+            </div>
+            <aside className="hidden xl:block">
+              <div className="sticky top-24">
+                <WikiTableOfContents markdown={page.contentMarkdown} />
+              </div>
+            </aside>
           </div>
         </Card>
 

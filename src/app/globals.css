@@ -398,6 +398,71 @@ body.is-dragging * {
   line-height: 1.2;
 }
 
+.sidebar__product {
+  min-width: 0;
+}
+
+.sidebar__product-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__product-children {
+  margin: 3px 0 7px 16px;
+  min-width: 0;
+}
+
+.sidebar__subitem {
+  padding-left: 8px;
+  font-size: 12px;
+}
+
+.sidebar__wiki-root {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.sidebar__wiki-root .sidebar__subitem {
+  flex: 1 1 auto;
+  padding-right: 24px;
+}
+
+.sidebar__quick-add {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  text-decoration: none;
+}
+
+.sidebar__quick-add:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #67e8f9;
+}
+
+.sidebar__wiki-root:hover .sidebar__quick-add,
+.sidebar__wiki-root:focus-within .sidebar__quick-add {
+  opacity: 1;
+}
+
+.sidebar__wiki-tree {
+  margin-top: 2px;
+  min-width: 0;
+  padding-left: 8px;
+}
+
 .sidebar__projects-title {
   display: flex;
   align-items: center;

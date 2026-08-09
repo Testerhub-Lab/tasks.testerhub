@@ -14,6 +14,8 @@ type WikiTreeProps = {
   projectKey: string;
   pages: WikiTreePage[];
   activePageId?: string;
+  createHref?: (parentId: string | null) => string;
+  compact?: boolean;
 };
 
 function WikiTreeBranch({
@@ -25,6 +27,8 @@ function WikiTreeBranch({
   byParent,
   expanded,
   onToggle,
+  createHref,
+  compact = false,
 }: WikiTreeProps & {
   parentId: string | null;
   depth: number;
@@ -36,26 +40,28 @@ function WikiTreeBranch({
   if (children.length === 0) return null;
 
   return (
-    <ul className={depth === 0 ? "space-y-1" : "ml-4 mt-1 space-y-1"}>
+    <ul className={depth === 0 ? "space-y-1" : "ml-3 mt-1 space-y-1"}>
       {children.map((page) => (
         <li key={page.id}>
-          <div className="flex items-center gap-1">
+          <div className="group/wiki-tree flex items-center gap-1">
             {(byParent.get(page.id)?.length ?? 0) > 0 ? (
               <button
                 type="button"
                 onClick={() => onToggle(page.id)}
-                className="grid size-6 shrink-0 place-items-center rounded text-xs text-white/40 hover:bg-white/5 hover:text-white/70"
+                className="grid size-5 shrink-0 place-items-center rounded text-[10px] text-white/40 hover:bg-white/5 hover:text-white/70"
                 aria-label={expanded.has(page.id) ? "Свернуть ветку" : "Развернуть ветку"}
                 aria-expanded={expanded.has(page.id)}
               >
                 {expanded.has(page.id) ? "▾" : "▸"}
               </button>
             ) : (
-              <span className="block size-6 shrink-0" />
+              <span className="block size-5 shrink-0" />
             )}
             <Link
               href={`/wiki/${encodeURIComponent(projectKey)}/${page.id}`}
-              className={`min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-sm transition-colors ${
+              className={`min-w-0 flex-1 truncate rounded-md px-2 transition-colors ${
+                compact ? "py-1 text-xs" : "py-1.5 text-sm"
+              } ${
                 activePageId === page.id
                   ? "bg-cyan-400/10 text-cyan-200"
                   : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -64,6 +70,16 @@ function WikiTreeBranch({
             >
               {page.title}
             </Link>
+            {createHref ? (
+              <Link
+                href={createHref(page.id)}
+                className="grid size-5 shrink-0 place-items-center rounded text-xs text-white/35 opacity-0 hover:bg-white/5 hover:text-cyan-200 group-hover/wiki-tree:opacity-100"
+                aria-label={`Создать дочернюю страницу для ${page.title}`}
+                title="Новая дочерняя страница"
+              >
+                +
+              </Link>
+            ) : null}
           </div>
           {expanded.has(page.id) ? (
             <WikiTreeBranch
@@ -75,6 +91,8 @@ function WikiTreeBranch({
               byParent={byParent}
               expanded={expanded}
               onToggle={onToggle}
+              createHref={createHref}
+              compact={compact}
             />
           ) : null}
         </li>

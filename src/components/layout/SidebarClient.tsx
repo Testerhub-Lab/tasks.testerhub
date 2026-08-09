@@ -16,12 +16,14 @@ import {
   buildProjectIssueViewPath,
   findProjectByRouteContext,
 } from "@/shared/projectKeyRoutes";
+import WikiTree, { type WikiTreePage } from "@/components/wiki/WikiTree";
 
 type ProjectOption = { id: string; name: string; key: string };
 type WorkspaceOption = { id: string; name: string; slug: string };
 
 interface SidebarClientProps {
   projects: ProjectOption[];
+  wikiPagesByProject: Record<string, WikiTreePage[]>;
   issueViewPreferences: IssueViewPreference[];
   backlogUnread: number;
   workspaces: WorkspaceOption[];
@@ -43,6 +45,7 @@ const getBasePath = (pathname: string) => {
 
 const SidebarClient: React.FC<SidebarClientProps> = ({
   projects,
+  wikiPagesByProject,
   issueViewPreferences,
   backlogUnread,
   workspaces,
@@ -64,6 +67,9 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const activeWikiProjectKey = pathname.startsWith("/wiki/")
     ? decodeURIComponent(pathname.split("/")[2] ?? "")
     : null;
+  const activeWikiPageId = pathname.startsWith("/wiki/")
+    ? decodeURIComponent(pathname.split("/")[3] ?? "")
+    : undefined;
   const isProjectContext =
     pathname.startsWith("/board") ||
     pathname.startsWith("/backlog") ||
@@ -81,7 +87,15 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   const isBacklogPath =
     pathname.startsWith("/backlog") ||
     /^\/[^/]+\/backlog(?:\/|$)/.test(pathname);
+  const routeProjectId =
+    activeProjectId ??
+    projects.find((project) => project.key === activeWikiProjectKey)?.id ??
+    null;
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [manualExpandedProjectId, setManualExpandedProjectId] = useState<
+    string | null
+  >(projects[0]?.id ?? null);
+  const expandedProjectId = routeProjectId ?? manualExpandedProjectId;
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const handleWorkspaceChange = async (nextId: string) => {
@@ -287,20 +301,108 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               const isActive =
                 activeProjectId === project.id ||
                 activeWikiProjectKey === project.key;
+              const isExpanded = expandedProjectId === project.id;
+              const projectPages = wikiPagesByProject[project.id] ?? [];
+              const firstWikiPage = projectPages[0];
               return (
-                <Link
-                  key={project.id}
-                  href={buildHref(project.id, project.key)}
-                  className={`sidebar__item ${isActive ? "is-context-active" : ""}`}
-                  title={`${project.key} — ${project.name}`}
-                >
-                  <span className="sidebar__project-copy">
-                    <span className="sidebar__project-name">{project.name}</span>
-                    <span className="sidebar__project-key">
-                      {project.key.toUpperCase()}
+                <div key={project.id} className="sidebar__product">
+                  <button
+                    type="button"
+                    className={`sidebar__item sidebar__product-toggle ${
+                      isActive ? "is-context-active" : ""
+                    }`}
+                    onClick={() =>
+                      setManualExpandedProjectId((current) =>
+                        current === project.id ? null : project.id
+                      )
+                    }
+                    aria-expanded={isExpanded}
+                    title={`${project.key} — ${project.name}`}
+                  >
+                    <span className="sidebar__caret" aria-hidden="true">
+                      {isExpanded ? "▼" : "▶"}
                     </span>
-                  </span>
-                </Link>
+                    <span className="sidebar__project-copy">
+                      <span className="sidebar__project-name">{project.name}</span>
+                      <span className="sidebar__project-key">
+                        {project.key.toUpperCase()}
+                      </span>
+                    </span>
+                  </button>
+                  {isExpanded ? (
+                    <div className="sidebar__product-children">
+                      <Link
+                        href={buildProjectIssueViewHref(
+                          project.key,
+                          "/board",
+                          searchParams
+                        )}
+                        className={`sidebar__item sidebar__subitem ${
+                          pathname === `/${project.key}/board` ? "is-active" : ""
+                        }`}
+                      >
+                        Board
+                      </Link>
+                      <Link
+                        href={buildProjectIssueViewHref(
+                          project.key,
+                          resolveIssueViewPath(
+                            { scope: "project", projectId: project.id },
+                            issueViewPreferences
+                          ),
+                          searchParams
+                        )}
+                        className={`sidebar__item sidebar__subitem ${
+                          activeProjectId === project.id && isIssueViewPath
+                            ? "is-active"
+                            : ""
+                        }`}
+                      >
+                        List
+                      </Link>
+                      <div className="group/wiki-root sidebar__wiki-root">
+                        <Link
+                          href={
+                            firstWikiPage
+                              ? `/wiki/${encodeURIComponent(project.key)}/${firstWikiPage.id}`
+                              : `/wiki/${encodeURIComponent(project.key)}`
+                          }
+                          className={`sidebar__item sidebar__subitem ${
+                            activeWikiProjectKey === project.key ? "is-active" : ""
+                          }`}
+                        >
+                          <span className="sidebar__caret" aria-hidden="true">▼</span>
+                          <span className="min-w-0 flex-1">Wiki</span>
+                        </Link>
+                        <Link
+                          href={`/wiki/${encodeURIComponent(project.key)}#new-page`}
+                          className="sidebar__quick-add"
+                          aria-label={`Создать страницу Wiki в ${project.name}`}
+                          title="Новая страница"
+                        >
+                          +
+                        </Link>
+                      </div>
+                      {projectPages.length > 0 ? (
+                        <div className="sidebar__wiki-tree">
+                          <WikiTree
+                            projectKey={project.key}
+                            pages={projectPages}
+                            activePageId={
+                              activeWikiProjectKey === project.key
+                                ? activeWikiPageId
+                                : undefined
+                            }
+                            compact
+                            createHref={(parentId) =>
+                              `/wiki/${encodeURIComponent(project.key)}?parentId=${encodeURIComponent(parentId ?? "")}#new-page`
+                            }
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
             <Link
