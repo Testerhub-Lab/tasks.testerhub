@@ -129,7 +129,7 @@ export default function BacklogListClient({
 
       {selectedCount > 0 ? (
         <div
-          className="fixed bottom-6 left-[calc(50%+115px)] z-40 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-slate-950/95 px-2.5 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl max-lg:left-1/2"
+          className="fixed bottom-6 left-[calc(50%+115px)] z-40 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-[var(--surface-popover)] px-2.5 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl max-lg:left-1/2"
           role="toolbar"
           aria-label="Bulk backlog actions"
         >

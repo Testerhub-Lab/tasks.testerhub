@@ -224,7 +224,7 @@ export default function WikiMarkdownEditor({
       ) : null}
       <div
         data-color-mode="dark"
-        className="overflow-hidden rounded-[var(--radius-md)] border border-white/10 bg-white/[0.02]"
+        className="pulsar-markdown-editor overflow-hidden rounded-[var(--radius-md)] border border-white/10 bg-white/[0.02]"
         onDragOver={(event) => {
           if (event.dataTransfer.types.includes("Files")) event.preventDefault();
         }}

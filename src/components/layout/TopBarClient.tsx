@@ -9,7 +9,6 @@ import React, {
   useTransition,
 } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "../ui/Button";
@@ -125,6 +124,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
     const qs = searchParams.toString();
     return qs ? `${pathname}?${qs}` : pathname;
   }, [pathname, searchParams]);
+  const activeProjectName = projects.find((project) => project.id === activeProject?.id)?.name;
   const signInUrl = useMemo(
     () => `/signin?redirect=${encodeURIComponent(currentPath)}`,
     [currentPath]
@@ -242,14 +242,11 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   return (
     <header className="topbar">
       <div className="topbar__left">
-        <div className="flex items-center gap-3">
-          <Image src="/next.svg" alt="Logo" width={28} height={28} />
-          <span className="text-sm font-semibold tracking-wide text-white">
-            TesterHub
-          </span>
+        <div className="topbar__context" title={activeProjectName}>
+          {activeProjectName ?? (pathname.startsWith("/wiki") ? "Wiki" : pathname.startsWith("/backlog") ? "Backlog" : pathname.startsWith("/settings") ? "Settings" : pathname.startsWith("/trash") ? "Trash" : "Issues")}
         </div>
 
-        <nav className="inline-flex items-center gap-1 rounded-md border border-white/10 p-1">
+        <nav className="topbar__views" aria-label="Issue view">
           {viewTabs.map((tab) => {
             const isActive = activeLayout === tab.layout;
             const href = activeProject
@@ -293,6 +290,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
             ref={searchRef}
             type="text"
             placeholder="Search issues  ⌘/"
+            aria-label="Search issues"
             value={q.value}
             onChange={(event) => q.setValue(event.target.value)}
             onKeyDown={(event) => {
@@ -310,12 +308,15 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
         </div>
 
         <Button
-          variant="primary"
+          variant="secondary"
           onClick={openModal}
-          className="cursor-pointer"
+          className="topbar__create cursor-pointer"
+          aria-label="Create issue"
+          title="Create issue"
           disabled={writableProjects.length === 0}
         >
-          Create
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 5v14M5 12h14" /></svg>
+          <span>Create</span>
         </Button>
 
         {loading ? (
@@ -325,12 +326,15 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
             <button
               type="button"
               onClick={() => setUserMenuOpen((v) => !v)}
-              className="ml-2 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-sm text-slate-200/90 hover:bg-white/5 cursor-pointer"
+              className="topbar__user cursor-pointer"
+              title={getDisplayName({ user, fallbackName: null })}
+              aria-label={`Account: ${getDisplayName({ user, fallbackName: null })}`}
+              aria-expanded={isUserMenuOpen}
             >
-              {getDisplayName({ user, fallbackName: null })}
+              {getDisplayName({ user, fallbackName: null }).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
             </button>
             {isUserMenuOpen ? (
-              <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-slate-950/90 p-1 shadow-lg backdrop-blur">
+              <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-lg backdrop-blur">
                 <Link
                   href="/settings/integrations"
                   onClick={() => setUserMenuOpen(false)}

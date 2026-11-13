@@ -819,7 +819,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
               …
             </button>
             {actionsOpen ? (
-              <div className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-lg border border-white/[0.1] bg-[#191c22] p-1 shadow-[0_18px_55px_rgba(0,0,0,0.6)]">
+              <div className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-lg border border-white/[0.1] bg-[var(--surface-popover)] p-1 shadow-[0_18px_55px_rgba(0,0,0,0.6)]">
                 <button
                   type="button"
                   onClick={() => {
@@ -1007,7 +1007,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                     id="description-slash-menu"
                     role="listbox"
                     aria-label="Formatting commands"
-                    className="absolute z-30 max-h-[320px] w-72 overflow-y-auto rounded-lg border border-white/[0.1] bg-[#191c22] p-1 shadow-[0_20px_60px_rgba(0,0,0,0.58)]"
+                    className="absolute z-30 max-h-[320px] w-72 overflow-y-auto rounded-lg border border-white/[0.1] bg-[var(--surface-popover)] p-1 shadow-[0_20px_60px_rgba(0,0,0,0.58)]"
                     style={{ top: slashMenu.top, left: slashMenu.left }}
                   >
                     <div className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/30">
@@ -1204,7 +1204,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
       </div>
       {deleteConfirmOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <Card className="w-full max-w-md space-y-4 border border-white/12 bg-[rgba(12,16,28,0.96)] p-5">
+          <Card className="w-full max-w-md space-y-4 border border-white/12 bg-[var(--surface-dialog)] p-5">
             <h3 className="text-base font-semibold text-white">Удалить задачу?</h3>
             <p className="text-sm text-white/75">
               Она попадёт в Корзину и её можно будет восстановить.

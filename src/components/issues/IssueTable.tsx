@@ -29,7 +29,7 @@ const IssueTable: React.FC<IssueTableProps> = ({ items }) => {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--color-card-border)]">
       <table className="w-full text-left text-sm">
-        <thead className="bg-[rgba(18,24,46,0.8)] text-[var(--color-text-secondary)]">
+        <thead className="bg-[var(--surface-2)] text-[var(--color-text-secondary)]">
           <tr>
             <th className="px-4 py-3 font-medium">Title</th>
             <th className="px-4 py-3 font-medium">Status</th>

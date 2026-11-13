@@ -1,0 +1,113 @@
+name: pulsar-design-zero
+
+services:
+  postgres:
+    image: postgres:18.4-trixie
+    environment:
+      POSTGRES_DB: pulsar
+      POSTGRES_USER: pulsar_zero
+      POSTGRES_PASSWORD: ${PULSAR_ZERO_DB_PASSWORD:?Set PULSAR_ZERO_DB_PASSWORD}
+      PULSAR_APP_DB_PASSWORD: ${PULSAR_APP_DB_PASSWORD:?Set PULSAR_APP_DB_PASSWORD}
+    command: [postgres, -c, wal_level=logical, -c, max_replication_slots=10, -c, max_wal_senders=10, -c, max_connections=100]
+    shm_size: 256mb
+    ports: ["127.0.0.1:55433:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ../production/postgres/init/001-app-role.sh:/docker-entrypoint-initdb.d/001-app-role.sh:ro
+      - ../zero-stage2/schema.sql:/docker-entrypoint-initdb.d/002-zero-schema.sql:ro
+      - ../production/postgres/init/003-app-grants.sql:/docker-entrypoint-initdb.d/003-app-grants.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U pulsar_zero -d pulsar"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [edge, data]
+
+  s3:
+    image: localstack/localstack:4.14.0
+    environment:
+      SERVICES: s3
+      GATEWAY_LISTEN: 0.0.0.0:4566
+      AWS_DEFAULT_REGION: us-east-1
+      PERSISTENCE: "1"
+      S3_SKIP_SIGNATURE_VALIDATION: "0"
+    ports: ["127.0.0.1:9010:4566"]
+    volumes: [s3-data:/var/lib/localstack]
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:4566/_localstack/health]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [edge, data]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: pulsar-design-zero:local
+    environment:
+      DATABASE_URL: postgresql://pulsar_app:${PULSAR_APP_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_UPSTREAM_DB: postgresql://pulsar_app:${PULSAR_APP_DB_PASSWORD}@postgres:5432/pulsar
+      PULSAR_AUTH_STORE: zero
+      NEXT_PUBLIC_ZERO_CACHE_URL: http://127.0.0.1:4849
+      COOKIE_SAMESITE: lax
+      S3_ENDPOINT: http://s3:4566
+      S3_PUBLIC_ENDPOINT: http://127.0.0.1:9010
+      S3_REGION: us-east-1
+      S3_BUCKET: pulsar-local-attachments
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: "true"
+    ports: ["127.0.0.1:3014:3000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      s3: {condition: service_healthy}
+    networks: [edge, data]
+
+  zero-cache:
+    image: rocicorp/zero:1.8.0
+    environment:
+      NODE_ENV: production
+      ZERO_APP_ID: pulsar_design_local
+      ZERO_APP_PUBLICATIONS: pulsar_zero_data
+      ZERO_UPSTREAM_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_CVR_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_CHANGE_DB: postgresql://pulsar_zero:${PULSAR_ZERO_DB_PASSWORD}@postgres:5432/pulsar
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?Set ZERO_ADMIN_PASSWORD}
+      ZERO_QUERY_URL: http://web:3000/api/zero/query
+      ZERO_MUTATE_URL: http://web:3000/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: ""
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ""
+      OTEL_METRICS_EXPORTER: ""
+      OTEL_LOGS_EXPORTER: ""
+      OTEL_TRACES_EXPORTER: ""
+    ports: ["127.0.0.1:4849:4848"]
+    volumes: [zero-cache-data:/data]
+    depends_on:
+      postgres: {condition: service_healthy}
+      web: {condition: service_started}
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:4848/keepalive]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 2m
+    networks: [edge, data]
+
+volumes:
+  postgres-data:
+  zero-cache-data:
+  s3-data:
+
+networks:
+  edge:
+  data:
+    internal: true

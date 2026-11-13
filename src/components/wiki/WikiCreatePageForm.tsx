@@ -66,7 +66,7 @@ export default function WikiCreatePageForm({
       <select
         value={parentId}
         onChange={(event) => setParentId(event.target.value)}
-        className="h-10 rounded-md border border-white/10 bg-[#11162a] px-3 text-sm text-white"
+        className="h-10 rounded-md border border-white/10 bg-[var(--surface-2)] px-3 text-sm text-white"
         aria-label="Родительская страница"
       >
         <option value="">В корне продукта</option>

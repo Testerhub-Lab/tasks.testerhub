@@ -131,7 +131,7 @@ export default function ApiTokensClient({
                   : (Number(value) as 30 | 90 | 365)
               );
             }}
-            className="h-10 rounded-md border border-white/10 bg-[#11162a] px-3 text-sm text-white"
+            className="h-10 rounded-md border border-white/10 bg-[var(--surface-2)] px-3 text-sm text-white"
             aria-label="Срок действия"
           >
             <option value="30">30 дней</option>

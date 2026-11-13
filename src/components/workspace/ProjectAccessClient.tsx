@@ -182,7 +182,7 @@ export default function ProjectAccessClient({
         <select
           value={projectId}
           onChange={(event) => setProjectId(event.target.value)}
-          className="h-8 rounded-md border border-white/10 bg-[#11162a] px-2 text-xs text-white"
+          className="h-8 rounded-md border border-white/10 bg-[var(--surface-2)] px-2 text-xs text-white"
         >
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
@@ -195,7 +195,7 @@ export default function ProjectAccessClient({
           onChange={(event) =>
             setInviteRole(event.target.value as "MEMBER" | "VIEWER")
           }
-          className="h-8 rounded-md border border-white/10 bg-[#11162a] px-2 text-xs text-white"
+          className="h-8 rounded-md border border-white/10 bg-[var(--surface-2)] px-2 text-xs text-white"
         >
           <option value="MEMBER">Member</option>
           <option value="VIEWER">Viewer</option>
@@ -203,7 +203,7 @@ export default function ProjectAccessClient({
         <select
           value={inviteDuration}
           onChange={(event) => setInviteDuration(event.target.value)}
-          className="h-8 rounded-md border border-white/10 bg-[#11162a] px-2 text-xs text-white"
+          className="h-8 rounded-md border border-white/10 bg-[var(--surface-2)] px-2 text-xs text-white"
         >
           {durationOptions.map((option) => (
             <option key={option.value} value={option.value}>
@@ -261,7 +261,7 @@ export default function ProjectAccessClient({
                         event.target.value as ProjectRole
                       )
                     }
-                    className="h-7 rounded-md border border-white/10 bg-[#11162a] px-2 text-xs text-white disabled:opacity-50"
+                    className="h-7 rounded-md border border-white/10 bg-[var(--surface-2)] px-2 text-xs text-white disabled:opacity-50"
                   >
                     <option value="ADMIN">Admin</option>
                     <option value="MEMBER">Member</option>
@@ -285,7 +285,7 @@ export default function ProjectAccessClient({
                         void handleExpiryChange(member.id, event.target.value);
                         event.target.value = "";
                       }}
-                      className="h-6 rounded-md border border-white/10 bg-[#11162a] px-1 text-[11px] text-white/70 disabled:opacity-50"
+                      className="h-6 rounded-md border border-white/10 bg-[var(--surface-2)] px-1 text-[11px] text-white/70 disabled:opacity-50"
                     >
                       <option value="">Изменить…</option>
                       {durationOptions.map((option) => (

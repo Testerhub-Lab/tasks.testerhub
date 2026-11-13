@@ -198,7 +198,7 @@ function CompactSelect<T extends string>({
         modal={false}
         className={cn(
           "z-[70] mt-1 max-h-[260px] min-w-[170px] overflow-y-auto rounded-lg",
-          "border border-white/[0.11] bg-[#1a1d23] p-1 text-[12px] text-white/75",
+          "border border-white/[0.11] bg-[var(--surface-popover)] p-1 text-[12px] text-white/75",
           "shadow-[0_18px_55px_rgba(0,0,0,0.65)] focus:outline-none"
         )}
       >
@@ -621,7 +621,7 @@ export default function CreateTaskModal({
       <button
         type="button"
         aria-label="Close modal"
-        className="absolute inset-0 bg-black/60"
+        className="ui-backdrop absolute inset-0"
         onClick={close}
       />
 
@@ -631,9 +631,9 @@ export default function CreateTaskModal({
           aria-modal="true"
           aria-labelledby="create-issue-title"
           className={cn(
-            "w-full max-w-[780px] overflow-visible",
+            "ui-issue-editor w-full max-w-[760px] overflow-visible",
             "rounded-xl border border-white/[0.11]",
-            "bg-[#111318]/95 shadow-[0_24px_90px_rgba(0,0,0,0.62)] backdrop-blur-md",
+            "bg-[var(--surface-dialog)] shadow-[0_24px_90px_rgba(0,0,0,0.62)] backdrop-blur-md",
             "max-h-[94vh] sm:max-h-[80vh]"
           )}
         >
@@ -683,7 +683,7 @@ export default function CreateTaskModal({
 
             {dragOver ? (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-4 pt-12">
-                <div className="w-full rounded-xl border border-cyan-300/20 bg-[#161a20]/95 shadow-xl">
+                <div className="w-full rounded-xl border border-cyan-300/20 bg-[var(--surface-dialog)] shadow-xl">
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70">
                       📎
@@ -707,8 +707,9 @@ export default function CreateTaskModal({
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
+              aria-label="Issue title"
               className={cn(
-                "w-full bg-transparent",
+                "ui-issue-editor__title w-full bg-transparent",
                 "text-[21px] font-medium leading-8 text-white/95",
                 "placeholder:text-white/25",
                 "focus:outline-none"
@@ -719,12 +720,13 @@ export default function CreateTaskModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add description…"
+              aria-label="Issue description"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
               rows={2}
               className={cn(
-                "mt-1 min-h-[68px] max-h-[220px] w-full resize-none overflow-y-auto bg-transparent",
+                "ui-issue-editor__description mt-1 min-h-[90px] max-h-[220px] w-full resize-none overflow-y-auto bg-transparent",
                 "text-[14px] leading-6 text-white/75 placeholder:text-white/25",
                 "[field-sizing:content] focus:outline-none"
               )}
@@ -892,7 +894,7 @@ export default function CreateTaskModal({
                   disabled={
                     busy || title.trim().length < 3 || !effectiveProjectId
                   }
-                  className="h-8 rounded-md bg-cyan-400/20 px-3 text-[12px] text-cyan-50 hover:bg-cyan-400/25"
+                  className="h-8 rounded-md px-3 text-[12px]"
                 >
                   {busy ? "Creating…" : "Create issue"}
                 </Button>

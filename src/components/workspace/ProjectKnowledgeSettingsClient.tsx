@@ -75,7 +75,7 @@ export default function ProjectKnowledgeSettingsClient({
         <select
           value={projectId}
           onChange={(event) => handleProjectChange(event.target.value)}
-          className="h-10 rounded-md border border-white/10 bg-[#11162a] px-3 text-sm text-white"
+          className="h-10 rounded-md border border-white/10 bg-[var(--surface-2)] px-3 text-sm text-white"
         >
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
@@ -87,7 +87,7 @@ export default function ProjectKnowledgeSettingsClient({
         <select
           value={provider}
           onChange={(event) => setProvider(event.target.value as Provider)}
-          className="h-10 rounded-md border border-white/10 bg-[#11162a] px-3 text-sm text-white"
+          className="h-10 rounded-md border border-white/10 bg-[var(--surface-2)] px-3 text-sm text-white"
         >
           <option value="DISABLED">Отключена</option>
           <option value="NATIVE">Нативная Pulsar</option>

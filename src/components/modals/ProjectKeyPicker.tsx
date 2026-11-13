@@ -102,7 +102,7 @@ export default function ProjectKeyPicker({ projects, value, onChange, className 
           className={cn(
             "absolute left-0 top-[calc(100%+8px)] z-50 w-[220px]",
             "overflow-hidden rounded-xl border border-white/10",
-            "bg-slate-950/70 backdrop-blur-xl shadow-[0_16px_60px_rgba(0,0,0,0.55)]"
+            "bg-[var(--surface-popover)] backdrop-blur-xl shadow-[0_16px_60px_rgba(0,0,0,0.55)]"
           )}
         >
           <div className="max-h-72 overflow-auto py-1">

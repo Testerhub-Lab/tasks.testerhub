@@ -164,7 +164,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
                 {assigneeInitials ?? "—"}
               </button>
               {canEdit && assigneeOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+                <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"

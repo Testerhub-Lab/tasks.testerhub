@@ -265,7 +265,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               <span className="max-w-[160px] min-w-0 text-right truncate">{assigneeLabel}</span>
             </button>
             {openMenu === "assignee" ? (
-              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white/80 hover:bg-white/5"
@@ -353,7 +353,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               <span className="truncate">{statusLabel[currentStatus] ?? currentStatus}</span>
             </button>
             {openMenu === "status" ? (
-              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
                 {statusOptions.map((opt) => (
                   <button
                     key={opt.value}
@@ -410,7 +410,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
               <span className="truncate">{priorityLabel[currentPriority] ?? currentPriority}</span>
             </button>
             {openMenu === "priority" ? (
-              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[rgba(6,10,20,0.92)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
+              <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur">
                 {priorityOptions.map((opt) => (
                   <button
                     key={opt.value}

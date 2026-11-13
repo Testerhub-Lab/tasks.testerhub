@@ -100,6 +100,13 @@ database before recreating the web container. The Wiki review release requires
 `20260809_wiki_review_workflow.sql`; take a backup and rehearse it against a
 restored production snapshot before applying it to the live database.
 
+Zero 1.8 custom mutations also require
+`20261113_zero_mutator_permissions.sql`. Apply it after zero-cache has created
+`pulsar_production_0`. It grants the non-superuser web role only schema usage
+and the client/mutation acknowledgement table privileges used by the server
+adapter. Without these privileges, reads work but custom mutations roll back
+with `permission denied for schema pulsar_production_0`.
+
 The wrapper uses:
 
 - Compose project: `pulsar-prod` by default;

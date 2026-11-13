@@ -7,8 +7,9 @@ import {
   DragEndEvent,
   DragOverlay,
   PointerSensor,
-  defaultDropAnimation,
+  pointerWithin,
   useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -317,22 +318,21 @@ const BoardClient: React.FC<BoardClientProps> = ({
       columnView.filter(
         (column) =>
           filteredStatusSet?.has(column.status) ??
-          (isDragging ||
-            column.count > 0 ||
+          (column.count > 0 ||
             revealedEmptyStatuses.includes(column.status))
       ),
-    [columnView, filteredStatusSet, isDragging, revealedEmptyStatuses]
+    [columnView, filteredStatusSet, revealedEmptyStatuses]
   );
   const hiddenColumns = useMemo(
     () =>
-      isDragging || filteredStatusSet
+      filteredStatusSet
         ? []
         : columnView.filter(
             (column) =>
               column.count === 0 &&
               !revealedEmptyStatuses.includes(column.status)
           ),
-    [columnView, filteredStatusSet, isDragging, revealedEmptyStatuses]
+    [columnView, filteredStatusSet, revealedEmptyStatuses]
   );
 
   const revealEmptyColumn = React.useCallback((status: BoardColumnStatus) => {
@@ -387,8 +387,8 @@ const BoardClient: React.FC<BoardClientProps> = ({
     setErrorMessage(null);
 
     const { active, over } = event;
+    cleanupDragState();
     if (!over) {
-      cleanupDragState();
       return;
     }
 
@@ -467,9 +467,9 @@ const BoardClient: React.FC<BoardClientProps> = ({
   };
 
   const columnsMarkup = (
-    <div className="flex items-start gap-3 overflow-x-auto pb-3">
+    <div className="board-lanes flex items-start gap-3 overflow-x-auto pb-3">
       {visibleColumns.map((column) => (
-        <div key={column.status} className="w-[328px] shrink-0">
+        <div key={column.status} className="board-lane shrink-0">
           <BoardColumn
             status={column.status}
             title={column.title}
@@ -551,24 +551,13 @@ const BoardClient: React.FC<BoardClientProps> = ({
           </div>
           <div className="space-y-2">
             {hiddenColumns.map((column) => (
-              <button
+              <HiddenColumn
                 key={column.status}
-                type="button"
-                onClick={() => revealEmptyColumn(column.status)}
-                className="flex h-10 w-full items-center gap-2 rounded-md border border-white/[0.07] bg-white/[0.025] px-3 text-left text-xs text-white/70 transition-colors hover:border-white/10 hover:bg-white/[0.045] hover:text-white/90"
-                title={`Show ${column.title} column`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-3 w-3 rounded-full border-2 ${
-                    hiddenColumnTone[column.status]
-                  }`}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  {column.title}
-                </span>
-                <span className="text-[11px] text-white/30">0</span>
-              </button>
+                status={column.status}
+                title={column.title}
+                disabled={!isMounted}
+                onReveal={() => revealEmptyColumn(column.status)}
+              />
             ))}
           </div>
         </aside>
@@ -588,6 +577,7 @@ const BoardClient: React.FC<BoardClientProps> = ({
         <DndContext
           key={dndSyncKey}
           sensors={sensors}
+          collisionDetection={pointerWithin}
           onDragStart={(event) => {
             setActiveId(String(event.active.id));
             setIsDragging(true);
@@ -597,9 +587,9 @@ const BoardClient: React.FC<BoardClientProps> = ({
         >
           {columnsMarkup}
 
-          <DragOverlay dropAnimation={defaultDropAnimation}>
+          <DragOverlay dropAnimation={null}>
             {activeTask ? (
-              <div className="pointer-events-none scale-[1.02] border border-white/16 bg-white/[0.07] shadow-[0_18px_50px_rgba(0,0,0,0.55)] rounded-[6px]">
+              <div className="pointer-events-none shadow-[0_18px_50px_rgba(0,0,0,0.55)] rounded-[6px]">
                 <IssueCard
                   issueKey={activeTask.key ?? undefined}
                   title={activeTask.title}
@@ -627,6 +617,32 @@ const BoardClient: React.FC<BoardClientProps> = ({
   );
 };
 
+function HiddenColumn({ status, title, disabled, onReveal }: {
+  status: BoardColumnStatus;
+  title: string;
+  disabled: boolean;
+  onReveal: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled });
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onReveal}
+      className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-left text-xs transition-colors ${
+        isOver
+          ? "border-[var(--primary)] bg-white/[0.08] text-white ring-1 ring-[var(--primary)]"
+          : "border-white/[0.07] bg-white/[0.025] text-white/70 hover:border-white/10 hover:bg-white/[0.045] hover:text-white/90"
+      }`}
+      title={`Show ${title} column`}
+    >
+      <span aria-hidden="true" className={`h-3 w-3 rounded-full border-2 ${hiddenColumnTone[status]}`} />
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      <span className="text-[11px] text-white/30">0</span>
+    </button>
+  );
+}
+
 interface DraggableIssueCardProps {
   task: BoardTask;
   isSaving: boolean;
@@ -645,15 +661,12 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   canEdit,
 }) => {
   const searchParams = useSearchParams();
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
+  const { attributes, listeners, setNodeRef, isDragging } =
     useDraggable({
       id: task.id,
       disabled: isSaving || !canEdit,
     });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
   const href = buildIssueDetailHref(task.key ?? task.id, searchParams, {
     projectId: task.projectId,
     projectKey: task.project?.key ?? null,
@@ -663,7 +676,6 @@ const DraggableIssueCard: React.FC<DraggableIssueCardProps> = ({
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className={`relative ${
         canEdit ? "cursor-grab active:cursor-grabbing" : "cursor-default"
       } ${

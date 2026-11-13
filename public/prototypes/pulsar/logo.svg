@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="beam" x1="8" y1="92" x2="92" y2="8" gradientUnits="userSpaceOnUse"><stop stop-color="#b4c6cf" stop-opacity="0"/><stop offset=".42" stop-color="#d7e5ec"/><stop offset=".5" stop-color="#fff"/><stop offset=".58" stop-color="#d7e5ec"/><stop offset="1" stop-color="#b4c6cf" stop-opacity="0"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#e2f3ff" stop-opacity=".65"/><stop offset=".3" stop-color="#c0e4fa" stop-opacity=".22"/><stop offset="1" stop-color="#a4d1ed" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="24" fill="url(#glow)"/>
+  <path d="M8 92 49.2 48.8 92 8 50.8 51.2Z" fill="url(#beam)"/>
+  <circle cx="50" cy="50" r="2.2" fill="#f4fbff"/>
+</svg>

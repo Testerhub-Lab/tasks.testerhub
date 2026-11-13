@@ -157,7 +157,7 @@ const WorkspaceMembersClient: React.FC<WorkspaceMembersClientProps> = ({
                     <summary className="list-none cursor-pointer rounded-md px-2 py-1 text-xs text-white/70 hover:bg-white/5">
                       ⋯
                     </summary>
-                    <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-md border border-white/10 bg-[#11162a] p-1 shadow-lg">
+                    <div className="absolute right-0 z-10 mt-2 min-w-[140px] rounded-md border border-white/10 bg-[var(--surface-popover)] p-1 shadow-lg">
                       <button
                         type="button"
                         className="w-full rounded px-2 py-1 text-left text-xs text-white/70 hover:bg-white/5 disabled:opacity-50"

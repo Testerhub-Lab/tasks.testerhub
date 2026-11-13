@@ -548,7 +548,7 @@ function IssuePanel({
         onClick={onClose}
         type="button"
       />
-      <div className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#090d16] p-5 shadow-2xl">
+      <div className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[var(--surface-dialog)] p-5 shadow-2xl">
         {issueResult.type === "unknown" || commentsResult.type === "unknown" ? (
           <BoardMessage>Syncing issue…</BoardMessage>
         ) : issueResult.type === "error" ? (

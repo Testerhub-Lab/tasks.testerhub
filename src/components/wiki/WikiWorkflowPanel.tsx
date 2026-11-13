@@ -140,7 +140,7 @@ export default function WikiWorkflowPanel({
                 +
               </button>
               {pickerOpen ? (
-                <span className="absolute right-0 z-30 mt-2 block w-64 rounded-[var(--radius-md)] border border-white/10 bg-slate-950/95 p-2 shadow-xl">
+                <span className="absolute right-0 z-30 mt-2 block w-64 rounded-[var(--radius-md)] border border-white/10 bg-[var(--surface-popover)] p-2 shadow-xl">
                   <select
                     className="input"
                     value={reviewerId}

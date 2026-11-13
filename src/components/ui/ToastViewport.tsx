@@ -18,7 +18,7 @@ export default function ToastViewport() {
         <div
           key={t.id}
           className={cn(
-            "pointer-events-auto rounded-xl border bg-slate-950/70 backdrop-blur-xl shadow-[0_16px_60px_rgba(0,0,0,0.55)]",
+            "pointer-events-auto rounded-xl border bg-[var(--surface-popover)] backdrop-blur-xl shadow-[0_16px_60px_rgba(0,0,0,0.55)]",
             t.kind === "success" && "border-emerald-400/20",
             t.kind === "error" && "border-red-400/25",
             t.kind === "info" && "border-white/10"

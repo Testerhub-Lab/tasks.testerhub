@@ -168,7 +168,7 @@ export default function TaskKnowledgePanel({
 
       {provider === "NATIVE" && canEdit && availablePages.length > 0 ? (
         showPicker ? (
-          <div className="max-h-48 overflow-y-auto rounded-lg border border-white/[0.09] bg-[#0b1020] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.3)]">
+          <div className="max-h-48 overflow-y-auto rounded-lg border border-white/[0.09] bg-[var(--surface-popover)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.3)]">
             {availablePages.map((page) => (
               <button
                 key={page.id}
