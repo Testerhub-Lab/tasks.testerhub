@@ -113,8 +113,8 @@
   --color-text-secondary: var(--muted);
   --color-error: #cf9696;
   --bg-gradient:
-    radial-gradient(ellipse 90% 520px at 25% -10%, rgba(64, 89, 103, 0.16), transparent 80%),
-    linear-gradient(135deg, #10171b, #0b1013 65%);
+    radial-gradient(ellipse 90% 520px at 25% -10%, rgba(74, 104, 123, 0.24), transparent 80%),
+    linear-gradient(135deg, #151f25, #0b1013 72%);
 }
 
 /* Existing utility classes share the Pulsar palette, including portalled UI. */
@@ -295,6 +295,12 @@ body.is-dragging * {
   border: 1px solid var(--sep);
   border-radius: var(--radius-lg);
   background: var(--bg-gradient);
+}
+
+html[data-pulsar-background="on"] .app-shell:not(.app-shell--auth) .app-main {
+  background:
+    url("/pulsar-watermark.svg") right calc(-1 * min(12vw, 140px)) bottom calc(-1 * min(20vw, 230px)) / min(78vw, 900px) auto no-repeat fixed,
+    var(--bg-gradient);
 }
 
 .app-sidebar {

@@ -102,6 +102,50 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   const [isUserMenuOpen, setUserMenuOpen] = useState(false);
   const [, startViewPreferenceTransition] = useTransition();
   const { user, loading, refresh } = useAuth();
+  const userId = user?.id;
+  const [backgroundPreference, setBackgroundPreference] = useState<{
+    userId: string;
+    enabled: boolean;
+  } | null>(null);
+  const isPulsarBackgroundEnabled = Boolean(
+    userId && backgroundPreference?.userId === userId && backgroundPreference.enabled
+  );
+
+  useEffect(() => {
+    if (!userId) return;
+    const key = `pulsar:background:${userId}`;
+    const readPreference = () => {
+      let enabled = true;
+      try {
+        enabled = window.localStorage.getItem(key) !== "off";
+      } catch {
+        // Storage can be disabled by the browser.
+      }
+      setBackgroundPreference({ userId, enabled });
+    };
+    readPreference();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key || event.key === null) readPreference();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [userId]);
+
+  useEffect(() => {
+    document.documentElement.dataset.pulsarBackground = isPulsarBackgroundEnabled ? "on" : "off";
+    return () => { delete document.documentElement.dataset.pulsarBackground; };
+  }, [isPulsarBackgroundEnabled]);
+
+  const togglePulsarBackground = () => {
+    if (!userId) return;
+    const enabled = !isPulsarBackgroundEnabled;
+    setBackgroundPreference({ userId, enabled });
+    try {
+      window.localStorage.setItem(`pulsar:background:${userId}`, enabled ? "on" : "off");
+    } catch {
+      // Keep the choice for this session when storage is unavailable.
+    }
+  };
   const writableProjects = useMemo(
     () => projects.filter((project) => project.canWrite),
     [projects]
@@ -240,7 +284,7 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
   }, [activeLayout, pathname, saveLayoutPreference]);
 
   return (
-    <header className="topbar">
+    <header className="topbar" style={isUserMenuOpen ? { zIndex: 40 } : undefined}>
       <div className="topbar__left">
         <div className="topbar__context" title={activeProjectName}>
           {activeProjectName ?? (pathname.startsWith("/wiki") ? "Wiki" : pathname.startsWith("/backlog") ? "Backlog" : pathname.startsWith("/settings") ? "Settings" : pathname.startsWith("/trash") ? "Trash" : "Issues")}
@@ -334,7 +378,21 @@ const TopBarClient: React.FC<TopBarClientProps> = ({
               {getDisplayName({ user, fallbackName: null }).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
             </button>
             {isUserMenuOpen ? (
-              <div className="absolute right-0 mt-2 w-40 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-lg backdrop-blur">
+              <div className="absolute right-0 mt-2 w-64 rounded-lg border border-white/10 bg-[var(--surface-popover)] p-1 shadow-lg backdrop-blur">
+                <div className="px-3 pb-1 pt-2 text-[11px] text-white/40">Оформление</div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPulsarBackgroundEnabled}
+                  onClick={togglePulsarBackground}
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-200/90 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+                >
+                  <span>Пульсар на фоне</span>
+                  <span aria-hidden="true" className={`flex h-5 w-8 shrink-0 items-center rounded-full p-0.5 ${isPulsarBackgroundEnabled ? "bg-[var(--primary)] justify-end" : "bg-white/15 justify-start"}`}>
+                    <span className={`h-4 w-4 rounded-full ${isPulsarBackgroundEnabled ? "bg-[var(--on-primary)]" : "bg-white/60"}`} />
+                  </span>
+                </button>
+                <div className="my-1 border-t border-white/10" />
                 <Link
                   href="/settings/integrations"
                   onClick={() => setUserMenuOpen(false)}

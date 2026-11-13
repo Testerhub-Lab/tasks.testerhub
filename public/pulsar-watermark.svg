@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="beam" x1="8" y1="92" x2="92" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c5d9e4" stop-opacity="0"/>
+      <stop offset=".42" stop-color="#c5d9e4"/>
+      <stop offset=".58" stop-color="#c5d9e4"/>
+      <stop offset="1" stop-color="#c5d9e4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="halo">
+      <stop stop-color="#e9f8ff" stop-opacity=".16"/>
+      <stop offset=".12" stop-color="#d5edfa" stop-opacity=".10"/>
+      <stop offset=".32" stop-color="#c5d9e4" stop-opacity=".035"/>
+      <stop offset=".65" stop-color="#c5d9e4" stop-opacity=".008"/>
+      <stop offset="1" stop-color="#c5d9e4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="core">
+      <stop stop-color="#f2fbff" stop-opacity=".45"/>
+      <stop offset=".22" stop-color="#e9f8ff" stop-opacity=".22"/>
+      <stop offset=".6" stop-color="#d5edfa" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#c5d9e4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="18" fill="url(#halo)"/>
+  <path d="M8 92 49.2 48.8 92 8 50.8 51.2Z" fill="url(#beam)" opacity=".018"/>
+  <circle cx="50" cy="50" r="2.2" fill="url(#core)" opacity=".7"/>
+</svg>
