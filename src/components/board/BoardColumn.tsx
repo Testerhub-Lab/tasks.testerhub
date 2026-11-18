@@ -77,7 +77,7 @@ const BoardColumn: React.FC<BoardColumnProps> = ({
 
       <div className="mb-2 h-px bg-white/[0.07]" />
 
-      <div className="space-y-2">{children}</div>
+      <div className="space-y-2.5">{children}</div>
 
       {count === 0 ? (
         <div className="mt-2 text-[11px] text-white/25">

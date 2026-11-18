@@ -52,14 +52,6 @@ const IssueCard: React.FC<IssueCardProps> = ({
     ? resolvedType.charAt(0).toUpperCase() + resolvedType.slice(1).toLowerCase()
     : null;
 
-  const typeDotClass = resolvedType
-    ? resolvedType.toUpperCase().includes("BUG")
-      ? "bg-cyan-400/80"
-      : resolvedType.toUpperCase().includes("TASK")
-        ? "bg-purple-400/80"
-        : "bg-white/30"
-    : "bg-white/30";
-
   const priorityLevel = (() => {
     if (!priority) return 0;
     const value = String(priority).toUpperCase();
@@ -96,6 +88,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
     <Card
       variant="plain"
       padding="none"
+      data-issue-type={resolvedType?.toUpperCase()}
       className={[
         "group issue-card rounded-[6px] px-3 py-2.5",
         "border border-white/[0.075] bg-white/[0.032] shadow-[0_1px_2px_rgba(0,0,0,0.18)]",
@@ -104,18 +97,19 @@ const IssueCard: React.FC<IssueCardProps> = ({
         "focus-visible:ring-2 focus-visible:ring-white/10 outline-none",
       ].join(" ")}
     >
+      {typeLabel ? (
+        <span
+          className="issue-card__type ui-tooltip"
+          role="img"
+          data-tooltip={`Type: ${typeLabel}`}
+          aria-label={`Type: ${typeLabel}`}
+        />
+      ) : null}
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            {typeLabel ? (
-              <span
-                className={`ui-tooltip inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${typeDotClass}`}
-                data-tooltip={`Type: ${typeLabel}`}
-                aria-label={`Type: ${typeLabel}`}
-              />
-            ) : null}
             {issueKey ? (
-              <span className="truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/42">
+              <span className="issue-card__key truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/42">
                 {issueKey}
               </span>
             ) : null}
@@ -124,7 +118,8 @@ const IssueCard: React.FC<IssueCardProps> = ({
           <div className="flex flex-none items-center gap-2 text-white/55 transition-colors group-hover:text-white/75">
             {priorityLevel ? (
               <span
-                className="ui-tooltip inline-flex items-end gap-[2px]"
+                className="issue-card__priority ui-tooltip inline-flex items-end gap-[2px]"
+                data-priority={priorityLevel}
                 data-tooltip={`Priority: ${String(priority)}`}
                 aria-label={`Priority: ${String(priority)}`}
               >
@@ -133,10 +128,10 @@ const IssueCard: React.FC<IssueCardProps> = ({
                   return (
                     <span
                       key={level}
-                      className={`block w-[3px] rounded-[2px] bg-white ${
-                        level <= priorityLevel ? "opacity-90" : "opacity-25"
+                      className={`block w-[2px] rounded-[2px] bg-current ${
+                        level <= priorityLevel ? "opacity-90" : "opacity-20"
                       }`}
-                      style={{ height: 6 + level * 2 }}
+                      style={{ height: 4 + level * 2 }}
                     />
                   );
                 })}
@@ -149,7 +144,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
                 className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors ${
                   assigneeName
                     ? "border-white/10 bg-white/6 text-white/80 hover:bg-white/10"
-                    : "border-white/8 bg-white/4 text-white/30 hover:bg-white/8 hover:text-white/55"
+                    : "border-white/5 bg-transparent text-white/20 hover:bg-white/6 hover:text-white/55"
                 } ${isSavingAssignee ? "opacity-60" : ""}`}
                 title={assigneeName ?? "Unassigned"}
                 onClick={(event) => {

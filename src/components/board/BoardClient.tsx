@@ -29,6 +29,8 @@ import { buildIssueDetailHref } from "@/shared/issueNavigation";
 
 type Status = TaskStatus;
 
+const DONE_PREVIEW_LIMIT = 5;
+
 type BoardTask = {
   id: string;
   projectId: string;
@@ -99,6 +101,7 @@ const BoardClient: React.FC<BoardClientProps> = ({
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savingAssignee, setSavingAssignee] = useState<string | null>(null);
+  const [doneExpanded, setDoneExpanded] = useState(false);
   const [dndSyncKey, setDndSyncKey] = useState(0);
   const [revealedEmptyStatuses, setRevealedEmptyStatuses] = useState<
     BoardColumnStatus[]
@@ -488,7 +491,12 @@ const BoardClient: React.FC<BoardClientProps> = ({
                 : undefined
             }
           >
-            {grouped[column.status]?.map((task) =>
+            {grouped[column.status]?.slice(
+              0,
+              column.status === "DONE" && !doneExpanded
+                ? DONE_PREVIEW_LIMIT
+                : undefined
+            ).map((task) =>
               isMounted ? (
                 <DraggableIssueCard
                   key={task.id}
@@ -521,7 +529,20 @@ const BoardClient: React.FC<BoardClientProps> = ({
                 />
               )
             )}
+            {column.status === "DONE" && column.count > DONE_PREVIEW_LIMIT ? (
+              <button
+                type="button"
+                className="board-column__more"
+                aria-expanded={doneExpanded}
+                onClick={() => setDoneExpanded((expanded) => !expanded)}
+              >
+                {doneExpanded
+                  ? `Свернуть до ${DONE_PREVIEW_LIMIT} карточек`
+                  : `Показать ещё · ${column.count - DONE_PREVIEW_LIMIT}`}
+              </button>
+            ) : null}
             {(() => {
+              if (column.status === "DONE" && !doneExpanded) return null;
               const meta = columnMetaByStatus.get(column.status);
               if (!meta?.hasMore || !meta.loadMoreHref) return null;
               const loadedCount = grouped[column.status]?.length ?? 0;
