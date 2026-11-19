@@ -264,6 +264,7 @@ CREATE INDEX issue_view_preferences_project_id_idx
 
 CREATE TABLE issues (
   id uuid PRIMARY KEY,
+  parent_id uuid,
   workspace_id uuid NOT NULL,
   project_id uuid NOT NULL,
   workflow_id uuid NOT NULL,
@@ -286,6 +287,9 @@ CREATE TABLE issues (
     FOREIGN KEY (workspace_id, state_id, workflow_id)
     REFERENCES workflow_states (workspace_id, id, workflow_id) ON DELETE RESTRICT,
   CONSTRAINT issues_number CHECK (number > 0),
+  CONSTRAINT issues_parent_fk FOREIGN KEY (workspace_id, project_id, parent_id)
+    REFERENCES issues (workspace_id, project_id, id) ON DELETE SET NULL (parent_id),
+  CONSTRAINT issues_parent_check CHECK (parent_id IS NULL OR (id <> parent_id AND upper(type) <> 'EPIC')),
   CONSTRAINT issues_title_length CHECK (char_length(title) BETWEEN 1 AND 240),
   CONSTRAINT issues_type_length CHECK (char_length(type) BETWEEN 1 AND 40),
   CONSTRAINT issues_priority CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
@@ -299,6 +303,7 @@ CREATE INDEX issues_project_rank_idx
   ON issues (project_id, state_id, rank)
   WHERE archived_at IS NULL;
 CREATE INDEX issues_workspace_updated_idx ON issues (workspace_id, updated_at DESC);
+CREATE INDEX issues_parent_idx ON issues (parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX issues_search_fts_idx
   ON issues USING gin (
     to_tsvector('simple', title || ' ' || coalesce(description, ''))

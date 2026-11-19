@@ -10,7 +10,7 @@ import { createTaskAction } from "../../../server/actions/tasks";
 
 const taskSchema = z.object({
   projectId: z.string().min(1),
-  type: z.enum(["Bug", "Task"]),
+  type: z.enum(["Bug", "Task", "Epic"]),
   title: z.string().min(3).max(120),
   description: z.string().max(2000).optional(),
   steps: z.string().max(2000).optional(),
@@ -35,7 +35,7 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
     steps: "",
     expected: "",
     actual: "",
-    priority: "Medium",
+    priority: "MEDIUM",
     tags: "",
     environment: "",
   });
@@ -129,7 +129,7 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
       steps: "",
       expected: "",
       actual: "",
-      priority: "Medium",
+      priority: "MEDIUM",
       tags: "",
       environment: "",
     });
@@ -165,6 +165,7 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
           options={[
             { value: "Bug", label: "Баг" },
             { value: "Task", label: "Таск" },
+            { value: "Epic", label: "Эпик" },
           ]}
         />
         <Input
@@ -206,9 +207,9 @@ const NewTaskForm: React.FC<NewTaskFormProps> = ({ projects }) => {
             value={formData.priority}
             onChange={handleChange}
             options={[
-              { value: "Low", label: "Низкий" },
-              { value: "Medium", label: "Средний" },
-              { value: "High", label: "Высокий" },
+              { value: "LOW", label: "Низкий" },
+              { value: "MEDIUM", label: "Средний" },
+              { value: "HIGH", label: "Высокий" },
             ]}
           />
           <Input

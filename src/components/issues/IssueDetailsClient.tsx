@@ -369,6 +369,7 @@ const parseDetails = (raw?: string | null) => {
 };
 
 interface IssueDetailsClientProps {
+  children: React.ReactNode;
   task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
@@ -395,6 +396,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   canEdit = false,
   canDelete = false,
   knowledge,
+  children,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -1171,6 +1173,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             </section>
           ) : null}
 
+          {children}
           {knowledge.projectKey ? (
             <TaskKnowledgePanel
               taskId={liveTask.id}

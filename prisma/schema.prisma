@@ -28,6 +28,9 @@ model Task {
   tags           String[]  @default([])
   attachments    String[]  @default([])
   projectId      String
+  parentId       String?
+  parent         Task?     @relation("IssueHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Task[]    @relation("IssueHierarchy")
   number         Int
   key            String    @unique
 
@@ -40,6 +43,7 @@ model Task {
   knowledgeLinks KnowledgeLink[]
 
   @@unique([projectId, number])
+  @@index([parentId])
 }
 
 model TaskActivity {

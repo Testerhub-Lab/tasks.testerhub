@@ -23,6 +23,8 @@ import {
   type TaskPriority,
 } from "../validators/task";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
+import { getZeroDatabase } from "@/zero/db";
+import { findEpicCandidates, IssueParentError, setPrismaIssueParent, setZeroIssueParent } from "../queries/issueHierarchy";
 import {
   addZeroCommentForUI,
   archiveZeroTaskForUI,
@@ -227,6 +229,7 @@ export async function createTaskAction(data: TaskInput) {
         user: authUser,
         workspaceID: workspaceId,
         projectID: validated.projectId,
+        parentId: validated.parentId,
         title: validated.title,
         description: finalDescription,
         type: validated.type,
@@ -356,6 +359,11 @@ export async function createTaskAction(data: TaskInput) {
         },
       });
 
+      if (validated.parentId) {
+        await setPrismaIssueParent(tx, {
+          projectId: project.id, childId: created.id, parentId: validated.parentId, existing: false,
+        });
+      }
       await tx.taskActivity.create({
         data: {
           taskId: created.id,
@@ -409,7 +417,35 @@ export async function createTaskAction(data: TaskInput) {
     if (error instanceof z.ZodError) {
       return { ok: false as const, fieldErrors: error.flatten().fieldErrors };
     }
-    return { ok: false as const, formError: "Произошла ошибка при создании задачи." };
+    return { ok: false as const, formError: error instanceof IssueParentError ? error.message : "Произошла ошибка при создании задачи." };
+  }
+}
+
+async function canManageHierarchy(projectId: string) {
+  const [user, workspaceId] = await Promise.all([getCurrentUser(), getCurrentWorkspaceId()]);
+  return user && workspaceId && await hasProjectRole(user, projectId, ProjectRole.MEMBER, { workspaceId });
+}
+
+export async function searchEpicTasksAction(projectId: string, query: string) {
+  if (typeof query !== "string" || query.length > 120 || !(await canManageHierarchy(projectId))) {
+    return [];
+  }
+  return findEpicCandidates(projectId, query);
+}
+
+export async function addTaskToEpicAction(projectId: string, epicId: string, taskId: string) {
+  if (!(await canManageHierarchy(projectId))) return { error: "Недостаточно прав" };
+  const link = { projectId, childId: taskId, parentId: epicId, existing: true };
+  try {
+    if (usesZeroUiStore()) {
+      await getZeroDatabase().transaction(tx => setZeroIssueParent(tx, link));
+    } else {
+      await setPrismaIssueParent(prisma, link);
+    }
+    revalidatePath("/[projectKey]/issues/[ref]", "page");
+    return { ok: true as const };
+  } catch (error) {
+    return { error: error instanceof IssueParentError ? error.message : "Не удалось добавить задачу в эпик." };
   }
 }
 

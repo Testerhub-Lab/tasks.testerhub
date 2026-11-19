@@ -34,7 +34,7 @@ const workflowStateInput = z.object({
   rank,
 });
 
-async function recordAudit(
+export async function recordAudit(
   tx: Transaction<ZeroSchema>,
   input: {
     workspaceID: string;

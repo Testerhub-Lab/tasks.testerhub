@@ -6,7 +6,8 @@ import {
   withZeroTransaction,
   type ZeroTransaction,
 } from "../../zero/db";
-import { zeroMutators } from "../../zero/mutators";
+import { recordAudit, zeroMutators } from "../../zero/mutators";
+import { setZeroIssueParent } from "../queries/issueHierarchy";
 import { zeroQueries } from "../../zero/queries";
 import { issueKey, rankAfter } from "../../zero/stage3";
 import type { WorkflowCategory, WorkspaceRole } from "../../zero/schema";
@@ -22,7 +23,7 @@ import type {
 } from "./schemas";
 
 type CreateProjectInput = z.infer<typeof createProjectApiSchema>;
-type CreateIssueInput = z.infer<typeof createIssueApiSchema>;
+type CreateIssueInput = z.infer<typeof createIssueApiSchema> & { parentId?: string; assigneeId?: string | null };
 type UpdateIssueInput = z.infer<typeof updateIssueApiSchema>;
 type AddCommentInput = z.infer<typeof addCommentApiSchema>;
 type ApiIssueStatus = z.infer<typeof issueStatusSchema>;
@@ -551,6 +552,18 @@ export async function createApiIssue(
         ctx: { userID: user.id },
         tx,
       });
+      if (input.parentId) {
+        await setZeroIssueParent(tx, { projectId: project.project.id, childId: id, parentId: input.parentId, existing: false });
+      }
+      if (input.assigneeId) {
+        await zeroMutators.participants.add.fn({
+          tx, ctx: { userID: user.id }, args: { issueID: id, userID: input.assigneeId, role: "ASSIGNEE" },
+        });
+        await recordAudit(tx, {
+          workspaceID: project.workspace.id, actorID: user.id, action: "issue.assignee_changed",
+          entityType: "issue", entityID: id, changes: { assigneeID: input.assigneeId },
+        });
+      }
       await zeroMutators.issues.setTags.fn({
         args: {
           id,

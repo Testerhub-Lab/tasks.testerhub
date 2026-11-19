@@ -152,6 +152,7 @@ export async function createZeroTaskForUI(input: {
   user: { id: string; name: string | null };
   workspaceID: string;
   projectID: string;
+  parentId?: string;
   title: string;
   description: string | null;
   type: string;
@@ -184,15 +185,9 @@ export async function createZeroTaskForUI(input: {
     priority: input.priority,
     status: input.status,
     tags: input.tags,
+    parentId: input.parentId,
+    assigneeId: input.assigneeID,
   });
-  if (input.assigneeID) {
-    await setZeroIssueAssignee({
-      issueID: created.id,
-      workspaceID: input.workspaceID,
-      actorID: input.user.id,
-      assigneeID: input.assigneeID,
-    });
-  }
   const task = await getZeroTask("id", created.id, [input.projectID]);
   if (!task) throw new Error("Created issue was not found");
   return task;

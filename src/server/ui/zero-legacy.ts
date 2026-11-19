@@ -24,6 +24,7 @@ type ZeroWorkflowCategory =
 
 type ZeroTaskRow = {
   id: string;
+  parent_id: string | null;
   workspace_id: string;
   project_id: string;
   project_key: string;
@@ -388,6 +389,7 @@ async function loadZeroTaskRows(
   const result = await getZeroPool().query<ZeroTaskRow>(
     `SELECT
        issue.id,
+       issue.parent_id,
        issue.workspace_id,
        issue.project_id,
        project.key AS project_key,
@@ -606,6 +608,7 @@ async function selectZeroTaskRows(
   const result = await getZeroPool().query<ZeroTaskRow>(
     `SELECT
        issue.id,
+       issue.parent_id,
        issue.workspace_id,
        issue.project_id,
        project.key AS project_key,
@@ -734,6 +737,7 @@ function mapZeroTask(row: ZeroTaskRow) {
   return {
     id: row.id,
     title: row.title,
+    parentId: row.parent_id,
     description: row.description,
     type: row.type,
     priority: row.priority,

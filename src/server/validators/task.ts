@@ -27,6 +27,7 @@ const tagsInputSchema = z
 export const taskSchema = z
   .object({
     projectId: z.string().min(1, "projectId обязателен"),
+    parentId: z.string().min(1).optional(),
 
     title: z.string().min(3, "Минимум 3 символа").max(120),
     description: z.string().max(2000).optional().nullable(),

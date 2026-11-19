@@ -34,12 +34,13 @@ type ProjectOption = {
 };
 type UserOption = { id: string; name: string | null; email: string };
 
-type IssueType = "Bug" | "Task";
+type IssueType = "Bug" | "Task" | "Epic";
 type PriorityType = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 const TYPE_OPTIONS: Array<{ value: IssueType; label: string }> = [
   { value: "Bug", label: "Bug" },
   { value: "Task", label: "Task" },
+  { value: "Epic", label: "Epic" },
 ];
 
 const PRIORITY_OPTIONS: Array<{ value: PriorityType; label: string }> = [
@@ -274,6 +275,7 @@ interface CreateTaskModalProps {
   users?: UserOption[];
   initialProjectId?: string | null;
   initialStatus?: TaskStatus | null;
+  parent?: { id: string; key: string; isEpic: boolean };
 }
 
 export default function CreateTaskModal({
@@ -286,13 +288,15 @@ export default function CreateTaskModal({
   users = [],
   initialProjectId,
   initialStatus,
+  parent,
 }: CreateTaskModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
 
   const [projectId, setProjectId] = useState<string>("");
-  const [type, setType] = useState<IssueType>("Bug");
+  const defaultType = parent ? "Task" : "Bug";
+  const [type, setType] = useState<IssueType>(defaultType);
   const [priority, setPriority] = useState<PriorityType>("MEDIUM");
   const [status, setStatus] = useState<TaskStatus>("NEW");
   const [assigneeId, setAssigneeId] = useState<string>("");
@@ -345,7 +349,7 @@ export default function CreateTaskModal({
 
   const resetForm = useCallback(() => {
     setProjectId("");
-    setType("Bug");
+    setType(defaultType);
     setPriority("MEDIUM");
     setStatus("NEW");
     setAssigneeId("");
@@ -359,7 +363,7 @@ export default function CreateTaskModal({
     setLocalError(null);
     setDragOver(false);
     dragCounter.current = 0;
-  }, []);
+  }, [defaultType]);
 
   const close = useCallback(() => {
     resetForm();
@@ -437,6 +441,7 @@ export default function CreateTaskModal({
 
     const payload: TaskInput = {
       projectId: pid,
+      parentId: parent?.id,
       type,
       title: trimmedTitle,
       description: description?.trim() ? description : undefined,
@@ -523,6 +528,7 @@ export default function CreateTaskModal({
     loading,
     submitting,
     effectiveProjectId,
+    parent,
     title,
     description,
     type,
@@ -639,11 +645,11 @@ export default function CreateTaskModal({
         >
           <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
             <div className="flex min-w-0 items-center gap-2">
-              <ProjectKeyPicker
+              {parent ? <span className="text-sm text-white/70">{parent.key}</span> : <ProjectKeyPicker
                 projects={projects}
                 value={effectiveProjectId}
                 onChange={setProjectId}
-              />
+              />}
               <span aria-hidden="true" className="text-xs text-white/25">
                 ›
               </span>
@@ -651,7 +657,7 @@ export default function CreateTaskModal({
                 id="create-issue-title"
                 className="min-w-0 truncate text-[13px] font-medium text-white/75"
               >
-                New issue
+                {parent ? (parent.isEpic ? "Новая задача в эпике" : "Новая подзадача") : "New issue"}
               </div>
             </div>
 
@@ -737,7 +743,7 @@ export default function CreateTaskModal({
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <CompactSelect
                 value={type}
-                options={TYPE_OPTIONS}
+                options={parent ? TYPE_OPTIONS.filter(option => option.value !== "Epic") : TYPE_OPTIONS}
                 onChange={setType}
                 ariaLabel="Issue type"
                 leading={

@@ -5,6 +5,8 @@ import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getCurrentUser } from "../../server/auth/session";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import IssueDetailsClient from "./IssueDetailsClient";
+import IssueHierarchy from "./IssueHierarchy";
+import { getIssueHierarchy } from "@/server/queries/issueHierarchy";
 import {
   getAccessibleProjectIds,
   getProjectAccess,
@@ -41,7 +43,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       includeArchived: true,
     }),
   ]);
-  const [users, workspaceRole, projectAccess, knowledge, knowledgeLinks] =
+  const [users, workspaceRole, projectAccess, knowledge, knowledgeLinks, hierarchy] =
     await Promise.all([
       getUsersForAssignee(workspaceId, accessibleProjectIds),
       getWorkspaceRole(user, workspaceId),
@@ -51,6 +53,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       }),
       getProjectKnowledge(task.projectId),
       getTaskKnowledgeLinks(task.id),
+      getIssueHierarchy(task),
     ]);
 
   const canDelete =
@@ -91,7 +94,11 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
           url: link.url,
         })),
       }}
-    />
+    >
+      <IssueHierarchy key={task.id} task={{ id: task.id, key: task.key, type: task.type }}
+        project={{ id: task.projectId, key: task.project.key, name: task.project.name }}
+        hierarchy={hierarchy} users={users} canEdit={canEdit && !task.project.archivedAt && !task.isDeleted} />
+    </IssueDetailsClient>
   );
 };
 
