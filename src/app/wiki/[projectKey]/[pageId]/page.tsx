@@ -8,6 +8,7 @@ import WikiRevisionActions from "@/components/wiki/WikiRevisionActions";
 import WikiReviewSurface from "@/components/wiki/WikiReviewSurface";
 import WikiWorkflowPanel from "@/components/wiki/WikiWorkflowPanel";
 import WikiTableOfContents from "@/components/wiki/WikiTableOfContents";
+import WikiTree from "@/components/wiki/WikiTree";
 import {
   getProjectAccess,
   projectRoleAtLeast,
@@ -79,7 +80,13 @@ export default async function WikiDocumentPage({
   const breadcrumbs = getWikiBreadcrumbs(pages, page.id);
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto grid max-w-7xl items-start gap-5 lg:grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)]">
+      <nav aria-label="Страницы продукта" className="min-w-0">
+        <Link className="text-sm font-semibold" href={`/wiki/${encodeURIComponent(project.key)}`}>Wiki · {project.name}</Link>
+        <div className="mt-3 hidden lg:block">
+          <WikiTree key={page.id} projectKey={project.key} pages={pages} activePageId={page.id} compact allowCreate={canEdit} />
+        </div>
+      </nav>
       <main className="min-w-0 space-y-4">
         {configuration.provider !== KnowledgeProvider.NATIVE ? (
           <div className="rounded-md border border-amber-300/15 bg-amber-300/5 px-4 py-3 text-sm text-amber-100/75">

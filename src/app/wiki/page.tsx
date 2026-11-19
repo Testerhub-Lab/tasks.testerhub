@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { KnowledgeProvider } from "@prisma/client";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Card from "@/components/ui/Card";
 import prisma from "@/lib/prisma";
 import { getAccessibleProjectIds } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getKnowledgeHomeHref } from "@/server/knowledge/providerPolicy";
+import { listWorkspaceArticles, workspaceWikiArea } from "@/server/knowledge/workspaceWiki";
 import {
   getZeroWikiProjectCards,
   usesZeroUiStore,
@@ -25,6 +26,9 @@ export default async function WikiPage() {
   if (!user) redirect("/signin?redirect=/wiki");
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/signin?redirect=/wiki");
+  const scope = { workspaceId, userId: user.id };
+  const [area, articles] = await Promise.all([workspaceWikiArea(scope), listWorkspaceArticles(scope)]);
+  if (!area) notFound();
 
   const projects = usesZeroUiStore()
     ? await getZeroWikiProjectCards(workspaceId, user.id)
@@ -45,24 +49,22 @@ export default async function WikiPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan-300/70">
-          Knowledge
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-white">Wiki</h1>
-        <p className="mt-2 max-w-2xl text-sm text-white/55">
-          Документация разделена по продуктам и использует те же права доступа,
-          что задачи и доски.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-white">Wiki · {area.name}</h1>
+        {area.canWrite && <Link className="button button--primary" href="/wiki/-/new">
+          {articles.length ? "Создать страницу" : "Создать первую страницу"}
+        </Link>}
       </div>
-
-      {projects.length === 0 ? (
-        <Card>
-          <p className="text-sm text-white/55">
-            У вас пока нет доступных продуктов.
-          </p>
-        </Card>
-      ) : (
+      <section aria-label="Общие страницы">
+        <h2 className="mb-2 text-lg font-semibold">Общие страницы</h2>
+        {articles.length ? <ul className="divide-y divide-white/10">
+          {articles.map((article) => <li key={article.id}>
+            <Link href={`/wiki/-/${article.id}`} className="block py-2 hover:underline">{article.title}</Link>
+          </li>)}
+        </ul> : <p className="text-sm text-white/55">В этом воркспейсе пока нет общих страниц.</p>}
+      </section>
+      {projects.length > 0 && <section>
+        <h2 className="mb-2 text-lg font-semibold">Wiki продуктов</h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => {
             const configuration = project.knowledge ?? {
@@ -107,7 +109,7 @@ export default async function WikiPage() {
             );
           })}
         </div>
-      )}
+      </section>}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProjectIssueDetailPath,
   buildProjectIssueViewPath,
+  buildWikiHref,
   findProjectByRouteContext,
   getProjectKeyFromPathname,
   projectKeyPathSegment,
@@ -26,7 +27,13 @@ describe("project key routes", () => {
       "finpeace"
     );
     expect(getProjectKeyFromPathname("/wiki")).toBeNull();
+    expect(getProjectKeyFromPathname("/wiki/-/new")).toBeNull();
     expect(getProjectKeyFromPathname("/settings/workspace")).toBeNull();
+  });
+
+  it("opens the selected product Wiki or the workspace Wiki for All products", () => {
+    expect(buildWikiHref("EP")).toBe("/wiki/EP");
+    expect(buildWikiHref(null)).toBe("/wiki");
   });
 
   it("resolves project context by id or path key", () => {

@@ -11,12 +11,6 @@ import {
 } from "@/server/auth/access";
 import prisma from "@/lib/prisma";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
-import {
-  getProjectKnowledge,
-  getWikiPageTree,
-} from "@/server/knowledge/queries";
-import { KnowledgeProvider } from "@prisma/client";
-
 export default async function Sidebar() {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -27,24 +21,6 @@ export default async function Sidebar() {
     getProjects(workspaceId, user),
     getIssueViewPreferences({ userId: user.id, workspaceId }),
   ]);
-  const wikiPagesByProject = Object.fromEntries(
-    await Promise.all(
-      projects.map(async (project) => [
-        project.id,
-        await getWikiPageTree(project.id),
-      ])
-    )
-  );
-  const wikiEnabledProjectIds = (
-    await Promise.all(
-      projects.map(async (project) => {
-        const configuration = await getProjectKnowledge(project.id);
-        return configuration.provider !== KnowledgeProvider.DISABLED
-          ? project.id
-          : null;
-      })
-    )
-  ).filter((projectId): projectId is string => Boolean(projectId));
   const workspaces = await getWorkspacesForUser(user.id);
   let backlogUnread = 0;
   let canManageWorkspace = false;
@@ -86,8 +62,6 @@ export default async function Sidebar() {
   return (
     <SidebarClient
       projects={projects}
-      wikiPagesByProject={wikiPagesByProject}
-      wikiEnabledProjectIds={wikiEnabledProjectIds}
       issueViewPreferences={issueViewPreferences}
       backlogUnread={backlogUnread}
       workspaces={workspaces.map((m) => m.workspace)}

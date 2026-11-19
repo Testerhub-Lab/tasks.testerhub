@@ -22,11 +22,15 @@ export function buildProjectIssueDetailPath(projectKey: string, ref: string) {
   return `/${projectKeyPathSegment(projectKey)}/issues/${encodeURIComponent(ref)}`;
 }
 
+export function buildWikiHref(projectKey?: string | null) {
+  return projectKey ? `/wiki/${encodeURIComponent(projectKey)}` : "/wiki";
+}
+
 export function getProjectKeyFromPathname(pathname: string) {
   const [, rawProjectKey, rawView] = pathname.split("/");
   if (rawProjectKey === "wiki") {
     const [, , rawWikiProjectKey] = pathname.split("/");
-    return rawWikiProjectKey || null;
+    return rawWikiProjectKey && rawWikiProjectKey !== "-" ? rawWikiProjectKey : null;
   }
   if (!rawProjectKey || !rawView || !PROJECT_VIEW_SEGMENTS.has(rawView)) {
     return null;

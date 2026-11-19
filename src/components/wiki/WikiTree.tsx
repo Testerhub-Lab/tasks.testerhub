@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { getWikiBreadcrumbs } from "@/server/knowledge/tree";
 
 export type WikiTreePage = {
   id: string;
@@ -14,7 +15,7 @@ type WikiTreeProps = {
   projectKey: string;
   pages: WikiTreePage[];
   activePageId?: string;
-  createHref?: (parentId: string | null) => string;
+  allowCreate?: boolean;
   compact?: boolean;
 };
 
@@ -27,7 +28,7 @@ function WikiTreeBranch({
   byParent,
   expanded,
   onToggle,
-  createHref,
+  allowCreate,
   compact = false,
 }: WikiTreeProps & {
   parentId: string | null;
@@ -40,10 +41,13 @@ function WikiTreeBranch({
   if (children.length === 0) return null;
 
   return (
-    <ul className={depth === 0 ? "space-y-1" : "ml-3 mt-1 space-y-1"}>
+    <ul className={compact ? "space-y-0.5" : depth === 0 ? "space-y-1" : "ml-3 mt-1 space-y-1"}>
       {children.map((page) => (
         <li key={page.id}>
-          <div className="group/wiki-tree flex items-center gap-1">
+          <div
+            className="group/wiki-tree flex items-center gap-1"
+            style={compact ? { paddingInlineStart: Math.min(depth, 4) * 10 } : undefined}
+          >
             {(byParent.get(page.id)?.length ?? 0) > 0 ? (
               <button
                 type="button"
@@ -59,8 +63,8 @@ function WikiTreeBranch({
             )}
             <Link
               href={`/wiki/${encodeURIComponent(projectKey)}/${page.id}`}
-              className={`min-w-0 flex-1 truncate rounded-md px-2 transition-colors ${
-                compact ? "py-1 text-xs" : "py-1.5 text-sm"
+              className={`min-w-0 flex-1 rounded-md transition-colors ${
+                compact ? "wrap-anywhere px-1 py-1 text-[13px] leading-[18px]" : "truncate px-2 py-1.5 text-sm"
               } ${
                 activePageId === page.id
                   ? "bg-cyan-400/10 text-cyan-200"
@@ -70,10 +74,10 @@ function WikiTreeBranch({
             >
               {page.title}
             </Link>
-            {createHref ? (
+            {allowCreate ? (
               <Link
-                href={createHref(page.id)}
-                className="grid size-5 shrink-0 place-items-center rounded text-xs text-white/35 opacity-0 hover:bg-white/5 hover:text-cyan-200 group-hover/wiki-tree:opacity-100"
+                href={`/wiki/${encodeURIComponent(projectKey)}?parentId=${encodeURIComponent(page.id)}#new-page`}
+                className="grid size-5 shrink-0 place-items-center rounded text-xs text-white/35 opacity-0 hover:bg-white/5 hover:text-cyan-200 group-hover/wiki-tree:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                 aria-label={`Создать дочернюю страницу для ${page.title}`}
                 title="Новая дочерняя страница"
               >
@@ -91,7 +95,7 @@ function WikiTreeBranch({
               byParent={byParent}
               expanded={expanded}
               onToggle={onToggle}
-              createHref={createHref}
+              allowCreate={allowCreate}
               compact={compact}
             />
           ) : null}
@@ -112,7 +116,9 @@ export default function WikiTree(props: WikiTreeProps) {
     return result;
   }, [props.pages]);
   const [expanded, setExpanded] = useState(
-    () => new Set(props.pages.filter((page) => byParent.has(page.id)).map((page) => page.id))
+    () => new Set((props.compact && props.activePageId
+      ? getWikiBreadcrumbs(props.pages, props.activePageId)
+      : props.pages.filter((page) => byParent.has(page.id))).map((page) => page.id))
   );
 
   const handleToggle = (pageId: string) => {

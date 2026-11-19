@@ -137,9 +137,22 @@ model Workspace {
   personalOwnerId String?           @unique
   createdAt       DateTime          @default(now())
   projects        Project[]
+  wikiPages        WorkspaceWikiPage[]
   members         WorkspaceMember[]
   invites         WorkspaceInvite[]
   personalOwner   User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: SetNull)
+}
+
+model WorkspaceWikiPage {
+  id              String    @id @db.Uuid
+  workspaceId     String    @map("workspace_id")
+  title           String
+  contentMarkdown String    @default("") @map("content_markdown")
+  version         Int       @default(1)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([workspaceId], map: "workspace_wiki_pages_workspace_id_idx")
+  @@map("workspace_wiki_pages")
 }
 
 model WorkspaceMember {
