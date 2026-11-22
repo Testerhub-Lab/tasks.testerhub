@@ -12,8 +12,8 @@ import { buildIssueDetailHref } from "@/shared/issueNavigation";
 import { buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 import { releaseStatusLabels, type ReleaseOption } from "@/shared/releases";
 import { changeReleaseIssuesAction } from "@/server/actions/releases";
-import ReleaseDialog from "@/components/releases/ReleaseDialog";
-import Select from "@/components/ui/Select";
+import FormDialog from "@/components/ui/FormDialog";
+import MenuSelect from "@/components/ui/MenuSelect";
 
 type BacklogTask = {
   id: string;
@@ -143,7 +143,7 @@ export default function BacklogListClient({
   return (
     <>
       <div
-        className={`space-y-4 transition-opacity ${
+        className={`transition-opacity ${
           isPending ? "pointer-events-none opacity-60" : ""
         }`}
       >
@@ -239,7 +239,7 @@ export default function BacklogListClient({
         </div>
       ) : null}
       {releasePickerOpen && releaseProject ? (
-        <ReleaseDialog
+        <FormDialog
           title="Добавить в релиз"
           submitLabel="Добавить"
           pending={isPending}
@@ -254,13 +254,12 @@ export default function BacklogListClient({
           {releaseProject.options.length ? (
             <>
               <p className="text-sm text-[var(--muted)]">Выбрано задач: {selectedCount}</p>
-              <label className="grid gap-1 text-sm">
-                Релиз проекта
-                <Select
-                  required
-                  data-autofocus
+              <div className="grid gap-1 text-sm">
+                <span>Релиз проекта</span>
+                <MenuSelect
+                  ariaLabel="Релиз проекта"
                   value={releaseId}
-                  onChange={(event) => setReleaseId(event.target.value)}
+                  onChange={setReleaseId}
                   options={[
                     { value: "", label: "Выберите релиз" },
                     ...releaseProject.options.map((release) => ({
@@ -269,7 +268,7 @@ export default function BacklogListClient({
                     })),
                   ]}
                 />
-              </label>
+              </div>
             </>
           ) : (
             <p className="text-sm">
@@ -277,7 +276,7 @@ export default function BacklogListClient({
               <Link className="underline" href={buildProjectReleasesPath(releaseProject.key)}>«Релизы»</Link>.
             </p>
           )}
-        </ReleaseDialog>
+        </FormDialog>
       ) : null}
     </>
   );

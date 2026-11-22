@@ -533,6 +533,8 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
                 ? payload.description
                 : prev.description,
             type: typeof payload.type !== "undefined" ? payload.type : prev.type,
+            tags: payload.tags ?? prev.tags,
+            parentId: payload.parentId !== undefined ? payload.parentId : prev.parentId,
             priority:
               typeof payload.priority !== "undefined"
                 ? payload.priority
@@ -1199,9 +1201,10 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             reporterName={reporterName}
             assigneeId={liveTask.assignee?.id ?? null}
             tags={liveTask.tags}
-            typeLabel={details.type ?? liveTask.type ?? null}
+            typeLabel={liveTask.type}
+            parentId={liveTask.parentId}
             users={users}
-            canEdit={canEdit}
+            canEdit={canEdit && !liveTask.isDeleted && !liveTask.project.archivedAt}
             createdAt={liveTask.createdAt}
             updatedAt={liveTask.createdAt}
           >

@@ -39,3 +39,7 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
   CRITICAL: "Critical",
 };
 
+export const TASK_TYPE_VALUES = ["TASK", "BUG", "EPIC"] as const;
+export type TaskType = (typeof TASK_TYPE_VALUES)[number];
+export const TASK_TYPE_LABEL: Record<TaskType, string> = { TASK: "Task", BUG: "Bug", EPIC: "Epic" };
+

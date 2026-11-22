@@ -10,6 +10,12 @@ import {
 } from "./issueFilters";
 
 describe("issue pagination search params", () => {
+  it("passes only supported priority sort values to pagination", () => {
+    expect(parsePaginationParams({ sort: "priority-desc", page: "2" })).toMatchObject({ sort: "priority-desc", page: 2 });
+    expect(parsePaginationParams({ sort: "priority-asc" }).sort).toBe("priority-asc");
+    expect(parsePaginationParams({ sort: "unsupported" }).sort).toBeUndefined();
+  });
+
   it("uses defaults when pagination params are absent", () => {
     expect(parsePaginationParams({})).toEqual({
       page: 1,

@@ -3,7 +3,7 @@ import type { QueryResultRow } from "pg";
 import prisma from "@/lib/prisma";
 import type { Release, ReleaseIssue, ReleaseOption } from "@/shared/releases";
 import { getZeroPool } from "@/zero/db";
-import { usesZeroUiStore, zeroStatusSQL } from "../ui/zero-legacy";
+import { usesZeroUiStore } from "../ui/zero-legacy";
 
 type Query = <Row extends QueryResultRow>(sql: string, params: unknown[]) => Promise<Row[]>;
 
@@ -40,9 +40,7 @@ const issueSource = () => usesZeroUiStore()
       project: "issue.project_id",
       key: "project.key || '-' || issue.number",
       projectJoin: "JOIN projects project ON project.id = issue.project_id",
-      stateJoin: "JOIN workflow_states state ON state.id = issue.state_id",
       archived: "(issue.archived_at IS NOT NULL)",
-      isBacklog: `(${zeroStatusSQL}) = 'NEW'`,
       idType: "uuid",
     }
   : {
@@ -50,9 +48,7 @@ const issueSource = () => usesZeroUiStore()
       project: 'issue."projectId"',
       key: "issue.key",
       projectJoin: "",
-      stateJoin: "",
       archived: 'issue."isDeleted"',
-      isBacklog: "issue.status = 'NEW'",
       idType: "text",
     };
 
@@ -98,16 +94,18 @@ export function getReleaseIssues(projectId: string, releaseId: string) {
   );
 }
 
-export function getUnscheduledBacklog(projectId: string) {
+export async function getAvailableReleaseIssues(projectId: string, term = "") {
   const source = issueSource();
-  return query<Pick<ReleaseIssue, "id" | "key" | "title">>(
+  const rows = await query<Pick<ReleaseIssue, "id" | "key" | "title">>(
     `SELECT issue.id, ${source.key} AS key, issue.title
-     FROM ${source.table} ${source.projectJoin} ${source.stateJoin}
-     WHERE ${source.project} = $1 AND NOT ${source.archived} AND ${source.isBacklog}
+     FROM ${source.table} ${source.projectJoin}
+     WHERE ${source.project} = $1 AND NOT ${source.archived}
+       AND ($2 = '' OR strpos(lower(issue.title), lower($2)) > 0 OR strpos(lower(${source.key}), lower($2)) > 0)
        AND NOT EXISTS (SELECT 1 FROM release_issues WHERE project_id = $1 AND issue_id = issue.id)
-     ORDER BY issue.number DESC`,
-    [projectId]
+     ORDER BY (lower(${source.key}) = lower($2)) DESC, issue.number DESC LIMIT 51`,
+    [projectId, term]
   );
+  return { items: rows.slice(0, 50), hasMore: rows.length > 50 };
 }
 
 export async function getIssueReleaseAssignments(tasks: { id: string; projectId: string }[]) {
@@ -171,8 +169,8 @@ export async function changeReleaseIssues(
 
     // Lock in ID order before checking assignments, including when two releases compete.
     const issues = await run<{ id: string }>(
-      `SELECT issue.id FROM ${source.table} ${source.stateJoin}
-       WHERE ${source.project} = $1 AND NOT ${source.archived} AND ${source.isBacklog}
+      `SELECT issue.id FROM ${source.table}
+       WHERE ${source.project} = $1 AND NOT ${source.archived}
          AND issue.id IN (${idsFromJson("$2", source.idType)})
        ORDER BY issue.id FOR UPDATE OF issue`,
       [projectId, ids]

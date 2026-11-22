@@ -1,5 +1,8 @@
 import Link from "next/link";
 import IssueRow from "../../components/issues/IssueRow";
+import IssueListSurface from "@/components/issues/IssueListSurface";
+import { getIssueReleaseAssignments } from "@/server/queries/releases";
+import { buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 import CreateIssueButton from "../../components/issues/CreateIssueButton";
 import IssuePagination from "../../components/issues/IssuePagination";
 import IssueFiltersBar from "../../components/filters/IssueFiltersBar";
@@ -70,7 +73,7 @@ export async function renderIssuesPage({
     accessibleProjectIds
   );
   const tasks = paginated.items;
-  const projects = await getProjects(workspaceId, user);
+  const [projects, releaseLinks] = await Promise.all([getProjects(workspaceId, user), getIssueReleaseAssignments(tasks)]);
   const isFiltered = hasActiveFilters(filters);
 
   return (
@@ -112,7 +115,7 @@ export async function renderIssuesPage({
         </Card>
       ) : (
         <>
-          <Card variant="surface" className="overflow-hidden rounded-2xl p-0">
+          <IssueListSurface basePath={basePath} sort={paginationInput.sort}>
             {tasks.map((task) => (
               <IssueRow
                 key={task.id}
@@ -126,6 +129,10 @@ export async function renderIssuesPage({
                 createdAt={task.createdAt}
                 reporter={task.reporter}
                 requesterName={task.requesterName}
+                release={task.project && releaseLinks[task.id] ? {
+                  title: releaseLinks[task.id].title,
+                  href: buildProjectReleasesPath(task.project.key, releaseLinks[task.id].id),
+                } : null}
                 href={buildIssueDetailHref(
                   task.key ?? task.id,
                   hrefSearchParams,
@@ -137,7 +144,7 @@ export async function renderIssuesPage({
                 )}
               />
             ))}
-          </Card>
+          </IssueListSurface>
           <IssuePagination
             basePath={basePath}
             page={paginated.page}

@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
-import { changeReleaseIssuesAction } from "@/server/actions/releases";
+import { changeReleaseIssuesAction, searchReleaseIssuesAction } from "@/server/actions/releases";
 import { buildProjectIssueDetailPath } from "@/shared/projectKeyRoutes";
 import type { ReleaseIssue } from "@/shared/releases";
-import ReleaseDialog from "./ReleaseDialog";
+import FormDialog from "@/components/ui/FormDialog";
 
 export default function ReleaseIssues({
   projectId, projectKey, releaseId, issues, candidates,
@@ -18,7 +18,7 @@ export default function ReleaseIssues({
   projectKey: string;
   releaseId: string;
   issues: ReleaseIssue[];
-  candidates: Pick<ReleaseIssue, "id" | "key" | "title">[] | null;
+  candidates: { items: Pick<ReleaseIssue, "id" | "key" | "title">[]; hasMore: boolean } | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -26,10 +26,26 @@ export default function ReleaseIssues({
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const term = search.trim().toLowerCase();
-  const visible = candidates?.filter(({ key, title }) =>
-    key.toLowerCase().includes(term) || title.toLowerCase().includes(term)
-  ) ?? [];
+  const term = search.trim();
+  const [result, setResult] = useState<{ term: string; data: Awaited<ReturnType<typeof searchReleaseIssuesAction>> } | null>(null);
+  const searchResult = term && result?.term === term ? result.data : null;
+  const loading = Boolean(term && !searchResult);
+  const visible = (term ? (searchResult?.ok ? searchResult.items : []) : candidates?.items) ?? [];
+  const hasMore = term ? searchResult?.ok && searchResult.hasMore : candidates?.hasMore;
+
+  useEffect(() => {
+    if (!open || !term) return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const data = await searchReleaseIssuesAction(projectId, term)
+        .catch(() => ({ ok: false as const, formError: "Не удалось загрузить результаты поиска." }));
+      if (active) setResult({ term, data });
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, projectId, term]);
 
   const changeIssues = (operation: "add" | "remove", issueIds: string[]) => {
     setError(null);
@@ -58,10 +74,11 @@ export default function ReleaseIssues({
           <Button onClick={() => {
             setError(null);
             setSearch("");
+            setResult(null);
             setSelected(new Set());
             setOpen(true);
           }} disabled={pending}>
-            Добавить из бэклога
+            Добавить задачи
           </Button>
         ) : null}
       </div>
@@ -95,8 +112,8 @@ export default function ReleaseIssues({
       ) : <p className="text-sm text-[var(--muted)]">В релизе пока нет задач.</p>}
       {error && !open ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
       {open ? (
-        <ReleaseDialog
-          title="Добавить из бэклога"
+        <FormDialog
+          title="Добавить задачи в релиз"
           submitLabel={selected.size ? `Добавить (${selected.size})` : "Добавить"}
           pending={pending}
           disabled={!selected.size}
@@ -111,10 +128,13 @@ export default function ReleaseIssues({
             aria-label="Найти задачу"
             placeholder="Название или ключ задачи"
             value={search}
+            maxLength={120}
             onChange={(event) => setSearch(event.target.value)}
             data-autofocus
           />
-          {visible.length ? (
+          {loading ? <p role="status" className="text-sm text-[var(--muted)]">Поиск задач…</p>
+          : searchResult && !searchResult.ok ? <p role="alert" className="text-sm text-rose-300">{searchResult.formError}</p>
+          : visible.length ? (
             <ul className="max-h-[40vh] divide-y divide-[var(--color-card-border)] overflow-y-auto">
               {visible.map((issue) => (
                 <li key={issue.id}>
@@ -140,10 +160,11 @@ export default function ReleaseIssues({
             </ul>
           ) : (
             <p className="text-sm text-[var(--muted)]">
-              {candidates?.length ? "Задачи не найдены." : "В бэклоге нет свободных задач."}
+              {term ? "Задачи не найдены." : "В проекте нет свободных задач."}
             </p>
           )}
-        </ReleaseDialog>
+          {hasMore ? <p className="text-xs text-[var(--muted)]">Показаны первые 50. Чтобы найти другие задачи, уточните поиск.</p> : null}
+        </FormDialog>
       ) : null}
     </section>
   );

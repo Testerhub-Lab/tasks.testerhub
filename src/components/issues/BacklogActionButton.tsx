@@ -54,7 +54,7 @@ export default function BacklogActionButton(props: {
         toneClasses,
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40",
         // actions появляются на hover строки
-        "opacity-0 group-hover:opacity-100 transition-opacity",
+        "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity",
         isPending ? "pointer-events-none opacity-100" : "",
         failed ? "ring-2 ring-rose-400/30 opacity-100" : "",
       ].join(" ")}
@@ -69,7 +69,7 @@ export default function BacklogActionButton(props: {
       ) : (
         <>
           {icon ? <span className="opacity-80">{icon}</span> : null}
-          <span>{label}</span>
+          <span className={icon ? "sr-only sm:not-sr-only" : undefined}>{label}</span>
         </>
       )}
     </button>

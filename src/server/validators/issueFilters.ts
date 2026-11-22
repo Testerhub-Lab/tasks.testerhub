@@ -14,6 +14,7 @@ import {
   type IssueFilterStatus,
   type IssueFilters,
   type IssuePageSize,
+  type IssueSort,
 } from "../../shared/issueFilterConfig";
 
 const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -66,6 +67,7 @@ export {
 export type IssuePaginationInput = {
   page: number;
   pageSize: IssuePageSize;
+  sort?: IssueSort;
 };
 
 const firstParamValue = (value?: string | string[] | null) =>
@@ -154,6 +156,7 @@ export const parsePaginationParams = (
 ): IssuePaginationInput => {
   const requestedPage = positiveIntegerParam(searchParams.page);
   const requestedPageSize = positiveIntegerParam(searchParams.pageSize);
+  const sort = firstParamValue(searchParams.sort);
   const pageSize = PAGE_SIZE_OPTIONS.includes(
     requestedPageSize as IssuePageSize
   )
@@ -163,6 +166,7 @@ export const parsePaginationParams = (
   return {
     page: requestedPage ?? 1,
     pageSize,
+    ...(sort === "priority-desc" || sort === "priority-asc" ? { sort } : {}),
   };
 };
 

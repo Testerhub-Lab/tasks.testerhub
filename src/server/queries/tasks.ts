@@ -170,7 +170,11 @@ export async function getPaginatedTasks(
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      ...(pagination.sort ? [{ priority: pagination.sort === "priority-desc" ? "desc" as const : "asc" as const }] : []),
+      { createdAt: "desc" },
+      { id: "desc" },
+    ],
     skip: (page - 1) * pagination.pageSize,
     take: pagination.pageSize,
   });

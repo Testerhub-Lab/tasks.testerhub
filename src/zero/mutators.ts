@@ -427,6 +427,7 @@ export const zeroMutators = defineMutators({
         .object({
           id,
           title: z.string().trim().min(1).max(240).optional(),
+          type: z.enum(["TASK", "BUG", "EPIC"]).optional(),
           description: z.string().trim().max(20000).nullable().optional(),
           stateID: id.optional(),
           priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
@@ -452,6 +453,7 @@ export const zeroMutators = defineMutators({
 
         const changes = {
           ...(args.title !== undefined ? { title: args.title } : {}),
+          ...(args.type !== undefined ? { type: args.type } : {}),
           ...(args.description !== undefined
             ? { description: args.description }
             : {}),
@@ -459,6 +461,9 @@ export const zeroMutators = defineMutators({
           ...(args.priority !== undefined ? { priority: args.priority } : {}),
           ...(args.rank !== undefined ? { rank: args.rank } : {}),
         };
+        if (args.type === "EPIC" && tx.location === "server") {
+          await tx.dbTransaction.query("UPDATE issues SET parent_id = NULL WHERE id = $1", [issue.id]);
+        }
         await tx.mutate.issue.update({
           id: args.id,
           ...changes,

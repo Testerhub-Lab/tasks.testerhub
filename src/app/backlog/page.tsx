@@ -16,6 +16,8 @@ import {
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import BacklogListClient from "../../components/backlog/BacklogListClient";
+import IssueListSurface from "@/components/issues/IssueListSurface";
+import Card from "@/components/ui/Card";
 import {
   buildProjectIssueViewHref,
   clearIssueFiltersHref,
@@ -98,7 +100,7 @@ export async function renderBacklogPage({
         showProjectFilter={projectContext ? "never" : "mobile"}
       />
       {tasks.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-bg)] p-8 text-center">
+        <Card variant="surface" className="rounded-2xl p-8 text-center">
           <p className="text-lg text-white">
             {isFiltered ? "No issues found" : "No tasks yet"}
           </p>
@@ -113,7 +115,7 @@ export async function renderBacklogPage({
                 href={clearIssueFiltersHref(basePath, hrefSearchParams, {
                   projectKey: projectContext?.key,
                 })}
-                className="rounded-full border border-[var(--color-card-border)] px-4 py-2 text-sm text-white"
+                className="rounded-full border border-[rgba(255,255,255,0.14)] px-4 py-2 text-sm text-white/90 hover:bg-white/5 transition-colors"
               >
                 Clear filters
               </Link>
@@ -123,18 +125,20 @@ export async function renderBacklogPage({
               <span className="text-sm text-white/50">Доступ только для чтения</span>
             )}
           </div>
-        </div>
+        </Card>
       ) : (
         <>
-          <BacklogListClient
-            tasks={tasks}
-            releaseLinks={releaseLinks}
-            releaseProject={writableProject && releases ? {
-              id: writableProject.id,
-              key: writableProject.key,
-              options: releases,
-            } : null}
-          />
+          <IssueListSurface basePath={basePath} sort={paginationInput.sort}>
+            <BacklogListClient
+              tasks={tasks}
+              releaseLinks={releaseLinks}
+              releaseProject={writableProject && releases ? {
+                id: writableProject.id,
+                key: writableProject.key,
+                options: releases,
+              } : null}
+            />
+          </IssueListSurface>
           <IssuePagination
             basePath={basePath}
             page={paginated.page}

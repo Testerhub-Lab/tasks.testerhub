@@ -22,6 +22,7 @@ const BOARD_LIMIT_QUERY_KEYS = [
 
 const CONTEXT_QUERY_KEYS = [
   ...ISSUE_FILTER_QUERY_KEYS,
+  "sort",
   ...BOARD_LIMIT_QUERY_KEYS,
 ] as const;
 
@@ -105,8 +106,10 @@ export function clearIssueFiltersHref(
   const params = new URLSearchParams();
   const projectId = source.get("projectId");
   const pageSize = source.get("pageSize");
+  const sort = source.get("sort");
   if (projectId && !options.projectKey) params.set("projectId", projectId);
   if (pageSize) params.set("pageSize", pageSize);
+  if (sort && (path.endsWith("/issues") || path.endsWith("/backlog"))) params.set("sort", sort);
   const query = params.toString();
   return query ? `${path}?${query}` : path;
 }

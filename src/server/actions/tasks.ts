@@ -24,6 +24,7 @@ import {
 } from "../validators/task";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
 import { getZeroDatabase } from "@/zero/db";
+import { TASK_TYPE_VALUES, type TaskType } from "@/shared/taskEnums";
 import { findEpicCandidates, IssueParentError, setPrismaIssueParent, setZeroIssueParent } from "../queries/issueHierarchy";
 import {
   addZeroCommentForUI,
@@ -55,6 +56,9 @@ const updateFieldsSchema = z
     title: z.string().min(1).max(120).optional(),
     description: z.string().max(2000).optional().nullable(),
     assigneeId: z.string().optional().nullable(),
+    type: z.enum(TASK_TYPE_VALUES).optional(),
+    tags: z.array(z.string().trim().min(1).max(60)).max(20)
+      .transform((tags) => [...new Set(tags.map((tag) => tag.toLowerCase()))]).optional(),
   })
   .refine(
     (data) =>
@@ -62,7 +66,8 @@ const updateFieldsSchema = z
       data.priority ||
       typeof data.title !== "undefined" ||
       typeof data.description !== "undefined" ||
-      typeof data.assigneeId !== "undefined",
+      typeof data.assigneeId !== "undefined" ||
+      data.type !== undefined || data.tags !== undefined,
     {
       message: "At least one field must be provided.",
     }
@@ -787,6 +792,8 @@ export async function updateTaskFieldsAction(data: {
   title?: string;
   description?: string | null;
   assigneeId?: string | null;
+  type?: TaskType;
+  tags?: string[];
 }) {
   try {
     const validatedData = updateFieldsSchema.parse(data);
@@ -828,6 +835,8 @@ export async function updateTaskFieldsAction(data: {
         title: validatedData.title,
         description: validatedData.description,
         assigneeID: validatedData.assigneeId,
+        type: validatedData.type,
+        tags: validatedData.tags,
       });
       await broadcastTaskEvent(task.projectId, workspaceId, {
         type: "task_updated",
@@ -839,6 +848,8 @@ export async function updateTaskFieldsAction(data: {
             title: task.title,
             description: task.description,
             type: task.type,
+            tags: task.tags,
+            parentId: task.parentId,
             priority: task.priority,
             status: task.status,
             assigneeId: task.assigneeId,
@@ -897,6 +908,9 @@ export async function updateTaskFieldsAction(data: {
         priority: validatedData.priority,
         title: validatedData.title,
         description: validatedData.description,
+        type: validatedData.type,
+        tags: validatedData.tags,
+        parentId: validatedData.type === "EPIC" ? null : undefined,
         assigneeId:
           typeof validatedData.assigneeId !== "undefined"
             ? validatedData.assigneeId
@@ -909,6 +923,8 @@ export async function updateTaskFieldsAction(data: {
         title: true,
         description: true,
         type: true,
+        tags: true,
+        parentId: true,
         priority: true,
         status: true,
         assigneeId: true,
@@ -945,6 +961,8 @@ export async function updateTaskFieldsAction(data: {
           title: updated.title,
           description: updated.description,
           type: updated.type,
+          tags: updated.tags,
+          parentId: updated.parentId,
           priority: updated.priority,
           status: updated.status,
           assigneeId: updated.assigneeId,

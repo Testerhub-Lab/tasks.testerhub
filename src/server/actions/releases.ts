@@ -7,7 +7,7 @@ import { hasProjectRole } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getProjectById } from "@/server/queries/projects";
-import { changeReleaseIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
+import { changeReleaseIssues, getAvailableReleaseIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
 import { buildProjectIssueViewPath, buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 
 const projectIdSchema = z.string().trim().min(1).max(128);
@@ -83,13 +83,28 @@ export async function changeReleaseIssuesAction(input: z.input<typeof issuesSche
     if (!access.ok) return access;
     const result = await changeReleaseIssues(projectId, releaseId, issueIds, operation);
     if (result === "closed") return fail("Релиз недоступен или уже выпущен.");
-    if (result === "unavailable") return fail("Часть задач больше не находится в бэклоге проекта.");
+    if (result === "unavailable") return fail("Часть выбранных задач недоступна в этом проекте.");
     if (result === "assigned") return fail("Часть задач уже входит в другой релиз.");
     refreshRelease(access.project.key, releaseId);
     return { ok: true as const };
   } catch (error) {
     console.error("Failed to change release issues", error);
     return fail("Не удалось изменить состав релиза.");
+  }
+}
+
+export async function searchReleaseIssuesAction(projectId: string, search: string) {
+  const parsed = z.object({ projectId: projectIdSchema, search: z.string().trim().max(120) })
+    .safeParse({ projectId, search });
+  if (!parsed.success) return fail("Некорректный поиск.");
+  try {
+    const access = await writableProject(parsed.data.projectId);
+    if (!access.ok) return access;
+    const results = await getAvailableReleaseIssues(parsed.data.projectId, parsed.data.search);
+    return { ok: true as const, ...results };
+  } catch (error) {
+    console.error("Failed to search issues for release", error);
+    return fail("Не удалось найти задачи.");
   }
 }
 

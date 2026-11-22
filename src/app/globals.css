@@ -894,6 +894,13 @@ textarea.input {
 .issue-card { position: relative; min-height: 100px; padding: 12px; border: 1px solid color-mix(in srgb, var(--sep) 65%, transparent); border-radius: 6px; background: var(--surface-card); box-shadow: none; }
 .issue-card__type { position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: #819ba9; }
 .issue-card[data-issue-type="BUG"] .issue-card__type { background: var(--color-rose-400); }
+.issue-card[data-issue-type="EPIC"] .issue-card__type { background: var(--color-violet-400); }
+.issue-type { --issue-type-color: #a7d7ea; color: var(--issue-type-color); background: color-mix(in srgb, var(--issue-type-color) 12%, transparent); }
+.issue-type[data-type="BUG"] { --issue-type-color: #ffa5b6; }
+.issue-type[data-type="EPIC"] { --issue-type-color: #cbb4fa; }
+html[data-theme="light"] .issue-type { --issue-type-color: #275b70; }
+html[data-theme="light"] .issue-type[data-type="BUG"] { --issue-type-color: #a02243; }
+html[data-theme="light"] .issue-type[data-type="EPIC"] { --issue-type-color: #673ca2; }
 .issue-card:hover { background: var(--surface-card-hover); border-color: var(--sep-strong); box-shadow: none; }
 .issue-card h3 { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text); }
 .issue-card__key { font-size: 10px; font-weight: 400; color: var(--text-subtle); }

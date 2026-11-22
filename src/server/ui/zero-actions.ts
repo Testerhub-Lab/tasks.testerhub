@@ -202,6 +202,8 @@ export async function updateZeroTaskForUI(input: {
   title?: string;
   description?: string | null;
   assigneeID?: string | null;
+  type?: import("@/shared/taskEnums").TaskType;
+  tags?: string[];
 }) {
   const issue = await requireZeroIssueForWrite(
     input.user.id,
@@ -211,6 +213,8 @@ export async function updateZeroTaskForUI(input: {
   if (issue.archived_at) throw new Error("Issue is archived");
 
   const fields = {
+    ...(input.type !== undefined ? { type: input.type } : {}),
+    ...(input.tags !== undefined ? { tags: input.tags } : {}),
     ...(input.status !== undefined ? { status: input.status } : {}),
     ...(input.priority !== undefined ? { priority: input.priority } : {}),
     ...(input.title !== undefined ? { title: input.title } : {}),

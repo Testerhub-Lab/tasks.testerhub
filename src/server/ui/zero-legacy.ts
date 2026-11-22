@@ -483,7 +483,7 @@ async function loadZeroTaskRows(
   return result.rows;
 }
 
-export const zeroStatusSQL = `CASE
+const zeroStatusSQL = `CASE
   WHEN lower(trim(state.name)) IN ('backlog', 'new') THEN 'NEW'
   WHEN lower(trim(state.name)) = 'todo' THEN 'TODO'
   WHEN lower(trim(state.name)) = 'hold' THEN 'HOLD'
@@ -599,11 +599,15 @@ async function selectZeroTaskRows(
   input: {
     limit: number;
     offset?: number;
+    sort?: IssuePaginationInput["sort"];
   }
 ) {
   const queryValues = [...where.values, input.limit, input.offset ?? 0];
   const limitParam = `$${queryValues.length - 1}`;
   const offsetParam = `$${queryValues.length}`;
+  const priorityOrder = input.sort
+    ? `array_position(ARRAY['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], issue.priority) ${input.sort === "priority-desc" ? "DESC" : "ASC"}, `
+    : "";
 
   const result = await getZeroPool().query<ZeroTaskRow>(
     `SELECT
@@ -694,7 +698,7 @@ async function selectZeroTaskRows(
        LIMIT 1
      ) AS assignee_identity ON true
      WHERE ${where.clause}
-     ORDER BY issue.created_at DESC, issue.id DESC
+     ORDER BY ${priorityOrder}issue.created_at DESC, issue.id DESC
      LIMIT ${limitParam}::int
      OFFSET ${offsetParam}::int`,
     queryValues
@@ -868,6 +872,7 @@ export async function getZeroPaginatedTasks(
   const rows = await selectZeroTaskRows(where, {
     limit: pagination.pageSize,
     offset: (page - 1) * pagination.pageSize,
+    sort: pagination.sort,
   });
 
   return {

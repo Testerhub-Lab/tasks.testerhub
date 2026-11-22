@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
-import Select from "@/components/ui/Select";
+import { useState, useTransition } from "react";
+import MenuSelect from "@/components/ui/MenuSelect";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { setIssueReleaseAction } from "@/server/actions/releases";
 import { buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
@@ -22,7 +22,6 @@ export default function IssueReleaseField({
   release: ReleaseOption | null;
   options: ReleaseOption[];
 }) {
-  const id = useId();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -47,27 +46,28 @@ export default function IssueReleaseField({
   return (
     <div className="order-5 space-y-1 rounded-lg px-2 py-2 hover:bg-white/5">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor={options.length ? id : undefined} className="flex shrink-0 items-center gap-2 text-white/60">
+        <span className="flex shrink-0 items-center gap-2 text-white/60">
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M12 3 4 7.5v9l8 4.5 8-4.5v-9L12 3ZM4 7.5l8 4.5 8-4.5M12 12v9M8 5.25l8 4.5" />
           </svg>
           Релиз
-        </label>
+        </span>
         {options.length ? (
           <div className="flex min-w-0 items-center gap-1">
-            <Select
-              id={id}
-              className="w-full min-w-0 max-w-40 truncate text-xs"
+            <MenuSelect
+              ariaLabel="Релиз"
+              inline
+              displayValue={release?.title ?? "Без релиза"}
               disabled={pending}
               value={release?.id ?? ""}
-              onChange={(event) => changeRelease(event.target.value || null)}
+              onChange={(value) => changeRelease(value || null)}
               options={[
                 { value: "", label: "Без релиза" },
                 ...options.map(({ id: value, title, status }) => ({ value, label: `${title} · ${releaseStatusLabels[status]}` })),
               ]}
             />
             {href ? (
-              <Link aria-label="Открыть релиз" href={href} className="shrink-0 rounded px-1 py-1 text-sm text-white/80 hover:bg-white/10">
+              <Link aria-label="Открыть релиз" title={release?.title} href={href} className="shrink-0 rounded px-1 py-1 text-white/70 hover:bg-white/10">
                 <span aria-hidden="true">↗</span>
               </Link>
             ) : null}

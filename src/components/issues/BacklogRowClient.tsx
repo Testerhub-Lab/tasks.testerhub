@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import IssueRow from "./IssueRow";
 import BacklogActionButton from "./BacklogActionButton";
@@ -51,45 +50,37 @@ export default function BacklogRowClient(props: {
         isLeaving ? "max-h-0 opacity-0" : "max-h-24 opacity-100",
       ].join(" ")}
     >
-      <div className="group/backlog-row flex items-stretch">
-        <label
-          className={`flex w-10 shrink-0 items-center justify-center border-b border-white/5 transition-colors ${
-            props.selected ? "bg-cyan-400/[0.06]" : ""
-          }`}
-          title="Select issue"
-        >
+      <IssueRow
+        title={props.title}
+        issueKey={props.issueKey}
+        type={props.type}
+        priority={props.priority}
+        status={props.status}
+        createdAt={props.createdAt}
+        reporter={props.reporter}
+        requesterName={props.requesterName}
+        href={props.href}
+        release={props.release}
+        rowClassName={[
+          isLeaving ? "pointer-events-none" : "",
+          props.selected ? "bg-cyan-400/[0.06]" : "",
+        ].join(" ")}
+        selection={
           <input
             type="checkbox"
             checked={props.selected ?? false}
             onChange={(event) =>
               props.onSelectionChange?.(event.currentTarget.checked)
             }
-            className={`h-3.5 w-3.5 cursor-pointer accent-cyan-400 transition-opacity ${
-              props.selected || props.selectionActive
-                ? "opacity-100"
-                : "opacity-0 group-hover/backlog-row:opacity-100 focus-visible:opacity-100"
+            className={`m-1 h-3.5 w-3.5 cursor-pointer accent-cyan-400 transition-opacity ${
+              props.selected || props.selectionActive ? "opacity-100"
+                : "opacity-30 group-hover:opacity-100 focus-visible:opacity-100"
             }`}
             aria-label={`Select ${props.issueKey ?? props.title}`}
           />
-        </label>
-
-        <div className="min-w-0 flex-1">
-          <IssueRow
-            title={props.title}
-            issueKey={props.issueKey}
-            type={props.type}
-            priority={props.priority}
-            status={props.status}
-            createdAt={props.createdAt}
-            reporter={props.reporter}
-            requesterName={props.requesterName}
-            href={props.href}
-            rowClassName={[
-              isLeaving ? "pointer-events-none" : "",
-              props.selected ? "bg-cyan-400/[0.06]" : "",
-            ].join(" ")}
-            rightActions={
-              <div className="flex items-center gap-2">
+        }
+        rightActions={
+              <div className="flex items-center gap-1">
                 <BacklogActionButton
                   taskId={props.id}
                   toStatus="TODO"
@@ -107,21 +98,8 @@ export default function BacklogRowClient(props: {
                   onSuccess={onSuccess}
                 />
               </div>
-            }
-          />
-        </div>
-      </div>
-      {props.release ? (
-        <div className="flex border-b border-white/5 py-1 pl-14 pr-2">
-          <Link
-            href={props.release.href}
-            className="max-w-full truncate rounded bg-[var(--control-bg)] px-2 py-0.5 text-xs text-[var(--text)] hover:underline"
-            title={props.release.title}
-          >
-            Релиз: {props.release.title}
-          </Link>
-        </div>
-      ) : null}
+        }
+      />
     </div>
   );
 }

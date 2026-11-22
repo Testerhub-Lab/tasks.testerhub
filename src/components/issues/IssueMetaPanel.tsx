@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { updateTaskFieldsAction } from "../../server/actions/tasks";
 import { formatDate } from "./utils";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
+import MenuSelect from "@/components/ui/MenuSelect";
+import FormDialog from "@/components/ui/FormDialog";
+import TagsPicker from "@/components/modals/TagsPicker";
+import IssueTypeBadge from "./IssueTypeBadge";
 import {
   DEFAULT_TASK_PRIORITY,
   DEFAULT_TASK_STATUS,
@@ -12,8 +16,11 @@ import {
   TASK_PRIORITY_VALUES,
   TASK_STATUS_LABEL,
   TASK_STATUS_VALUES,
+  TASK_TYPE_LABEL,
+  TASK_TYPE_VALUES,
   type TaskPriority,
   type TaskStatus,
+  type TaskType,
 } from "@/shared/taskEnums";
 
 const statusLabel = TASK_STATUS_LABEL;
@@ -30,6 +37,7 @@ interface IssueMetaPanelProps {
   assigneeId?: string | null;
   tags?: string[];
   typeLabel?: string | null;
+  parentId?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
   canEdit?: boolean;
   createdAt: Date | string;
@@ -47,6 +55,7 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   assigneeId,
   tags,
   typeLabel,
+  parentId,
   users,
   canEdit = false,
   createdAt,
@@ -95,6 +104,27 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
   );
   const [isSaving, setSaving] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [propertiesDialog, setPropertiesDialog] = useState<"labels" | "epic" | null>(null);
+  const [draftTags, setDraftTags] = useState<string[]>([]);
+  const [propertiesError, setPropertiesError] = useState<string | null>(null);
+  const taskType = typeLabel?.toUpperCase() ?? "";
+
+  async function saveProperties(fields: { type?: TaskType; tags?: string[] }) {
+    setSaving(true);
+    setPropertiesError(null);
+    try {
+      const result = await updateTaskFieldsAction({ id, ...fields });
+      if (!result.ok) {
+        if (isAuthRequiredError({ formError: result.formError })) showAuthRequiredToast();
+        setPropertiesError(result.formError ?? "Проверьте лейблы. Можно добавить до 20 лейблов по 60 символов.");
+        return;
+      }
+      setPropertiesDialog(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   React.useEffect(() => {
     setCurrentAssignee(assigneeId ?? "");
@@ -192,29 +222,54 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
       ) : null}
 
       <div className="flex flex-col gap-0.5 text-xs text-white/60">
-        {typeLabel || (tags && tags.length) ? (
+        <div className="order-4 flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
+          <span>Тип</span>
+          {canEdit ? (
+            <MenuSelect<string>
+              ariaLabel="Тип задачи"
+              options={TASK_TYPE_VALUES.map((value) => ({ value, label: TASK_TYPE_LABEL[value], icon: <IssueTypeBadge type={value} iconOnly /> }))}
+              displayValue={typeLabel ? <IssueTypeBadge type={typeLabel} /> : "Выбрать тип"}
+              value={taskType}
+              inline
+              disabled={isSaving}
+              onChange={(value) => {
+                if (value === taskType) return;
+                if (value === "EPIC" && parentId) {
+                  setPropertiesError(null);
+                  setPropertiesDialog("epic");
+                } else void saveProperties({ type: value as TaskType });
+              }}
+            />
+          ) : typeLabel ? <IssueTypeBadge type={typeLabel} /> : null}
+        </div>
+        {canEdit || tags?.length ? (
           <div className="order-4 flex items-start justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-white/5">
             <div className="flex items-center gap-2 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M20 12V4H4v8" />
                 <path d="M4 12l8 8 8-8" />
               </svg>
-              <span>Labels</span>
+              <span>Лейблы</span>
             </div>
-            <div className="flex flex-wrap justify-end gap-1.5 text-[11px] text-white/65">
-              {typeLabel ? (
-                <span className="rounded-md border border-white/8 bg-white/3 px-2 py-0.5">
-                  {typeLabel}
-                </span>
-              ) : null}
+            <div className="flex min-w-0 flex-wrap justify-end gap-1.5 text-[11px] text-white/65">
               {(tags ?? []).map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-md border border-white/8 bg-white/3 px-2 py-0.5"
+                  className="max-w-full truncate rounded-md border border-white/8 bg-white/3 px-2 py-0.5"
+                  title={tag}
                 >
                   {tag}
                 </span>
               ))}
+              {canEdit ? (
+                <button type="button" aria-label="Редактировать лейблы" title="Редактировать лейблы"
+                  className="rounded px-1.5 text-sm hover:bg-white/10" disabled={isSaving}
+                  onClick={() => {
+                    setDraftTags(tags ?? []);
+                    setPropertiesError(null);
+                    setPropertiesDialog("labels");
+                  }}>✎</button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -434,6 +489,10 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
 
         {children}
 
+        {propertiesError && !propertiesDialog ? (
+          <p role="alert" className="order-6 px-2 py-1 text-xs text-rose-300">{propertiesError}</p>
+        ) : null}
+
         <div className="order-7 mt-2 border-t border-white/[0.07] pt-2">
           <button
             type="button"
@@ -471,6 +530,32 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
           ) : null}
         </div>
       </div>
+      {propertiesDialog ? (
+        <FormDialog title={propertiesDialog === "labels" ? "Лейблы задачи" : "Преобразовать в эпик"}
+          submitLabel={propertiesDialog === "labels" ? "Сохранить" : "Преобразовать"}
+          pending={isSaving} error={propertiesError} onClose={() => setPropertiesDialog(null)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveProperties(propertiesDialog === "labels" ? { tags: draftTags } : { type: "EPIC" });
+          }}>
+          {propertiesDialog === "labels" ? (
+            <>
+              {draftTags.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {draftTags.map((tag) => (
+                    <button type="button" key={tag} aria-label={`Убрать лейбл ${tag}`}
+                      onClick={() => setDraftTags((current) => current.filter((value) => value !== tag))}
+                      className="rounded-md border border-[var(--sep)] bg-[var(--control-bg)] px-2 py-1 text-xs">
+                      {tag} <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <TagsPicker value={draftTags} onChange={setDraftTags} />
+            </>
+          ) : <p className="text-sm">Эпик станет самостоятельной задачей. Связь с родительской задачей будет снята.</p>}
+        </FormDialog>
+      ) : null}
     </aside>
   );
 };

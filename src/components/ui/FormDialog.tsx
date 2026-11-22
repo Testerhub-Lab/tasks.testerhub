@@ -4,7 +4,7 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import type { FormEvent, ReactNode } from "react";
 import Button from "@/components/ui/Button";
 
-export default function ReleaseDialog({
+export default function FormDialog({
   title, children, submitLabel, pending, disabled, error, onClose, onSubmit,
 }: {
   title: string;

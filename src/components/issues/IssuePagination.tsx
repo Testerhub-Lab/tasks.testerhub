@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import Select from "../ui/Select";
+import MenuSelect from "../ui/MenuSelect";
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
@@ -69,11 +69,10 @@ export default function IssuePagination({
 
       <div className="flex items-center gap-2">
         <span>Rows</span>
-        <Select
-          aria-label="Rows per page"
+        <MenuSelect
+          ariaLabel="Rows per page"
           value={String(pageSize)}
-          onChange={(event) => updatePageSize(event.target.value)}
-          className="h-8 w-20 rounded-sm text-xs"
+          onChange={updatePageSize}
           options={PAGE_SIZE_OPTIONS.map((value) => ({
             value: String(value),
             label: String(value),

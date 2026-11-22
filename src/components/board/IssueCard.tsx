@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Card from "../ui/Card";
 import type { TaskPriority, TaskStatus } from "@/shared/taskEnums";
 import { getDisplayName } from "../../server/auth/displayName";
+import IssueTypeBadge from "../issues/IssueTypeBadge";
 
 type AssigneeOption = { id: string; name: string | null; email: string | null };
 
@@ -108,6 +109,7 @@ const IssueCard: React.FC<IssueCardProps> = ({
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
+            {resolvedType ? <IssueTypeBadge type={resolvedType} iconOnly /> : null}
             {issueKey ? (
               <span className="issue-card__key truncate whitespace-nowrap font-mono text-[11px] font-medium text-white/42">
                 {issueKey}

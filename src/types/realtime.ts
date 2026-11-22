@@ -14,6 +14,8 @@ export interface RealtimeTask {
   title: string;
   description: string | null;
   type: string;
+  tags?: string[];
+  parentId?: string | null;
   priority: Priority;
   status: Status;
   assigneeId: string | null;

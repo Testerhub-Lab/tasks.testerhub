@@ -586,7 +586,7 @@ export async function createApiIssue(
 export async function updateApiIssue(
   user: ApiActor,
   key: string,
-  input: UpdateIssueInput,
+  input: UpdateIssueInput & { type?: import("@/shared/taskEnums").TaskType },
   transaction?: ZeroTransaction
 ) {
   const row = await requireApiIssueByKey(user.id, key);
@@ -596,6 +596,7 @@ export async function updateApiIssue(
   try {
     return await withZeroTransaction(transaction, async (tx) => {
       const fields = {
+        ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined
           ? { description: input.description }

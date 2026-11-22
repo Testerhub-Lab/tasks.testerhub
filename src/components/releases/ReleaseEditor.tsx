@@ -4,14 +4,15 @@ import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
+import MenuSelect from "@/components/ui/MenuSelect";
+import DatePicker from "@/components/ui/DatePicker";
 import Textarea from "@/components/ui/Textarea";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { saveReleaseAction } from "@/server/actions/releases";
 import { releaseStatusLabels, type Release, type ReleaseStatus } from "@/shared/releases";
-import ReleaseDialog from "./ReleaseDialog";
+import FormDialog from "@/components/ui/FormDialog";
 
-const statuses = Object.entries(releaseStatusLabels).map(([value, label]) => ({ value, label }));
+const statuses = (Object.keys(releaseStatusLabels) as ReleaseStatus[]).map((value) => ({ value, label: releaseStatusLabels[value] }));
 
 export default function ReleaseEditor({
   projectId, release,
@@ -22,6 +23,8 @@ export default function ReleaseEditor({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [plannedDate, setPlannedDate] = useState<string | null>(null);
+  const [status, setStatus] = useState<ReleaseStatus>("draft");
   const [pending, startTransition] = useTransition();
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -34,8 +37,8 @@ export default function ReleaseEditor({
         id: release?.id,
         title: String(form.get("title") ?? ""),
         goal: String(form.get("goal") ?? ""),
-        plannedDate: String(form.get("plannedDate") ?? "") || null,
-        status: release ? form.get("status") as ReleaseStatus : undefined,
+        plannedDate,
+        status: release ? status : undefined,
       });
       if (!result.ok) {
         if (isAuthRequiredError(result)) showAuthRequiredToast();
@@ -52,12 +55,14 @@ export default function ReleaseEditor({
     <>
       <Button variant={release ? "secondary" : "primary"} onClick={() => {
         setError(null);
+        setPlannedDate(release?.plannedDate ?? null);
+        setStatus(release?.status ?? "draft");
         setOpen(true);
       }}>
         {release ? "Редактировать" : "Новый релиз"}
       </Button>
       {open ? (
-        <ReleaseDialog
+        <FormDialog
           title={release ? "Редактировать релиз" : "Новый релиз"}
           submitLabel={release ? "Сохранить" : "Создать черновик"}
           pending={pending}
@@ -73,17 +78,17 @@ export default function ReleaseEditor({
             <span>Цель <span className="text-[var(--muted)]">· необязательно</span></span>
             <Textarea name="goal" rows={2} maxLength={400} defaultValue={release?.goal} />
           </label>
-          <label className="grid gap-1 text-sm">
+          <div className="grid gap-1 text-sm">
             <span>Плановая дата <span className="text-[var(--muted)]">· необязательно</span></span>
-            <Input name="plannedDate" type="date" min="0001-01-01" max="9999-12-31" defaultValue={release?.plannedDate ?? ""} />
-          </label>
+            <DatePicker value={plannedDate} onChange={setPlannedDate} />
+          </div>
           {release ? (
-            <label className="grid gap-1 text-sm">
-              Статус
-              <Select name="status" options={statuses} defaultValue={release.status} />
-            </label>
+            <div className="grid gap-1 text-sm">
+              <span>Статус</span>
+              <MenuSelect ariaLabel="Статус релиза" options={statuses} value={status} onChange={setStatus} />
+            </div>
           ) : null}
-        </ReleaseDialog>
+        </FormDialog>
       ) : null}
     </>
   );

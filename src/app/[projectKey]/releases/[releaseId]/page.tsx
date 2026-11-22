@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReleaseEditor from "@/components/releases/ReleaseEditor";
 import ReleaseIssues from "@/components/releases/ReleaseIssues";
-import { getProjectRelease, getReleaseIssues, getUnscheduledBacklog } from "@/server/queries/releases";
+import { getAvailableReleaseIssues, getProjectRelease, getReleaseIssues } from "@/server/queries/releases";
 import { buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 import { formatReleaseDate, releaseStatusLabels } from "@/shared/releases";
 import { resolveReleaseProject } from "../releaseRoute";
@@ -18,7 +18,7 @@ export default async function ProjectReleasePage({
   if (!release) notFound();
   const [issues, candidates] = await Promise.all([
     getReleaseIssues(project.id, releaseId),
-    project.canEdit && release.status !== "released" ? getUnscheduledBacklog(project.id) : null,
+    project.canEdit && release.status !== "released" ? getAvailableReleaseIssues(project.id) : null,
   ]);
 
   return (
