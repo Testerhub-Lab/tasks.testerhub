@@ -5,7 +5,7 @@ export type ProjectKeyRoute = {
   key: string;
 };
 
-const PROJECT_VIEW_SEGMENTS = new Set(["board", "issues", "backlog"]);
+const PROJECT_VIEW_SEGMENTS = new Set(["board", "issues", "backlog", "releases"]);
 
 export function projectKeyPathSegment(projectKey: string) {
   return projectKey.trim().toLowerCase();
@@ -20,6 +20,11 @@ export function buildProjectIssueViewPath(
 
 export function buildProjectIssueDetailPath(projectKey: string, ref: string) {
   return `/${projectKeyPathSegment(projectKey)}/issues/${encodeURIComponent(ref)}`;
+}
+
+export function buildProjectReleasesPath(projectKey: string, releaseId?: string) {
+  const path = `/${projectKeyPathSegment(projectKey)}/releases`;
+  return releaseId ? `${path}/${encodeURIComponent(releaseId)}` : path;
 }
 
 export function buildWikiHref(projectKey?: string | null) {

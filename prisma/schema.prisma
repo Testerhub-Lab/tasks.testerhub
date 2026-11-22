@@ -41,8 +41,10 @@ model Task {
   comments       Comment[]
   activities     TaskActivity[]
   knowledgeLinks KnowledgeLink[]
+  releaseIssue   ReleaseIssue?
 
   @@unique([projectId, number])
+  @@unique([projectId, id])
   @@index([parentId])
 }
 
@@ -130,8 +132,36 @@ model Project {
   knowledge        ProjectKnowledge?
   wikiPages        WikiPage[]
   knowledgeLinks   KnowledgeLink[]
+  releases         Release[]
 
   @@index([archivedAt])
+}
+
+model Release {
+  id          String         @id @db.Uuid
+  projectId   String         @map("project_id")
+  title       String
+  goal        String         @default("")
+  plannedDate DateTime?      @db.Date @map("planned_date")
+  status      String         @default("draft")
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6) @map("created_at")
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  issues      ReleaseIssue[]
+
+  @@unique([projectId, id])
+  @@map("releases")
+}
+
+model ReleaseIssue {
+  issueId   String  @map("issue_id")
+  projectId String  @map("project_id")
+  releaseId String  @db.Uuid @map("release_id")
+  issue     Task    @relation(fields: [projectId, issueId], references: [projectId, id], onDelete: Cascade, onUpdate: NoAction)
+  release   Release @relation(fields: [projectId, releaseId], references: [projectId, id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([projectId, issueId])
+  @@index([releaseId])
+  @@map("release_issues")
 }
 
 model Workspace {

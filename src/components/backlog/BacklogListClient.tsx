@@ -1,12 +1,19 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import type { FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Priority, Status } from "@prisma/client";
 import { moveBacklogTasksToTodoAction } from "../../server/actions/tasks";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import BacklogRowClient from "../issues/BacklogRowClient";
 import { buildIssueDetailHref } from "@/shared/issueNavigation";
+import { buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
+import { releaseStatusLabels, type ReleaseOption } from "@/shared/releases";
+import { changeReleaseIssuesAction } from "@/server/actions/releases";
+import ReleaseDialog from "@/components/releases/ReleaseDialog";
+import Select from "@/components/ui/Select";
 
 type BacklogTask = {
   id: string;
@@ -24,8 +31,12 @@ type BacklogTask = {
 
 export default function BacklogListClient({
   tasks,
+  releaseLinks,
+  releaseProject,
 }: {
   tasks: BacklogTask[];
+  releaseLinks: Record<string, { id: string; title: string }>;
+  releaseProject: { id: string; key: string; options: ReleaseOption[] } | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,6 +45,8 @@ export default function BacklogListClient({
   );
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [releasePickerOpen, setReleasePickerOpen] = useState(false);
+  const [releaseId, setReleaseId] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const visibleTasks = tasks.filter((task) => !hiddenIds.has(task.id));
@@ -95,6 +108,38 @@ export default function BacklogListClient({
     });
   };
 
+  const openReleasePicker = () => {
+    if ([...selectedIds].some((id) => releaseLinks[id])) {
+      setErrorMessage("Снимите выделение с задач, которые уже входят в релиз.");
+      return;
+    }
+    setErrorMessage(null);
+    setReleaseId("");
+    setReleasePickerOpen(true);
+  };
+
+  const addToRelease = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!releaseProject || !releaseId) return;
+    setErrorMessage(null);
+    startTransition(async () => {
+      const result = await changeReleaseIssuesAction({
+        projectId: releaseProject.id,
+        releaseId,
+        issueIds: [...selectedIds],
+        operation: "add",
+      });
+      if (!result.ok) {
+        if (isAuthRequiredError(result)) showAuthRequiredToast();
+        setErrorMessage(result.formError);
+        return;
+      }
+      setReleasePickerOpen(false);
+      setSelectedIds(new Set());
+      router.refresh();
+    });
+  };
+
   return (
     <>
       <div
@@ -119,6 +164,10 @@ export default function BacklogListClient({
               projectKey: task.project?.key ?? null,
               from: "backlog",
             })}
+            release={task.project && releaseLinks[task.id] ? {
+              title: releaseLinks[task.id].title,
+              href: buildProjectReleasesPath(task.project.key, releaseLinks[task.id].id),
+            } : null}
             selected={selectedIds.has(task.id)}
             selectionActive={selectedCount > 0}
             onSelectionChange={(selected) => setSelected(task.id, selected)}
@@ -129,7 +178,7 @@ export default function BacklogListClient({
 
       {selectedCount > 0 ? (
         <div
-          className="fixed bottom-6 left-[calc(50%+115px)] z-40 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-[var(--surface-popover)] px-2.5 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl max-lg:left-1/2"
+          className="fixed bottom-6 left-[calc(50%+115px)] z-40 flex min-h-11 w-max max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border border-white/10 bg-[var(--surface-popover)] px-2.5 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl max-lg:left-1/2"
           role="toolbar"
           aria-label="Bulk backlog actions"
         >
@@ -162,6 +211,17 @@ export default function BacklogListClient({
             Move to Todo
           </button>
 
+          {releaseProject ? (
+            <button
+              type="button"
+              onClick={openReleasePicker}
+              disabled={isPending}
+              className="h-7 whitespace-nowrap rounded-sm px-2 text-xs text-cyan-100/90 transition-colors hover:bg-cyan-400/12 disabled:opacity-50"
+            >
+              В релиз
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={clearSelection}
@@ -171,12 +231,53 @@ export default function BacklogListClient({
             Clear
           </button>
 
-          {errorMessage ? (
-            <span className="max-w-64 truncate px-1 text-xs text-rose-300">
+          {errorMessage && !releasePickerOpen ? (
+            <span role="alert" className="max-w-64 px-1 text-xs text-rose-300">
               {errorMessage}
             </span>
           ) : null}
         </div>
+      ) : null}
+      {releasePickerOpen && releaseProject ? (
+        <ReleaseDialog
+          title="Добавить в релиз"
+          submitLabel="Добавить"
+          pending={isPending}
+          disabled={!releaseId}
+          error={errorMessage}
+          onClose={() => {
+            setErrorMessage(null);
+            setReleasePickerOpen(false);
+          }}
+          onSubmit={addToRelease}
+        >
+          {releaseProject.options.length ? (
+            <>
+              <p className="text-sm text-[var(--muted)]">Выбрано задач: {selectedCount}</p>
+              <label className="grid gap-1 text-sm">
+                Релиз проекта
+                <Select
+                  required
+                  data-autofocus
+                  value={releaseId}
+                  onChange={(event) => setReleaseId(event.target.value)}
+                  options={[
+                    { value: "", label: "Выберите релиз" },
+                    ...releaseProject.options.map((release) => ({
+                      value: release.id,
+                      label: `${release.title} · ${releaseStatusLabels[release.status]}`,
+                    })),
+                  ]}
+                />
+              </label>
+            </>
+          ) : (
+            <p className="text-sm">
+              Нет открытых релизов. Создайте черновик в разделе{" "}
+              <Link className="underline" href={buildProjectReleasesPath(releaseProject.key)}>«Релизы»</Link>.
+            </p>
+          )}
+        </ReleaseDialog>
       ) : null}
     </>
   );

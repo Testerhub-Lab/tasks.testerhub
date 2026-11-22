@@ -304,6 +304,28 @@ CREATE INDEX issues_project_rank_idx
   WHERE archived_at IS NULL;
 CREATE INDEX issues_workspace_updated_idx ON issues (workspace_id, updated_at DESC);
 CREATE INDEX issues_parent_idx ON issues (parent_id) WHERE parent_id IS NOT NULL;
+CREATE UNIQUE INDEX issues_project_id_id_key ON issues (project_id, id);
+
+CREATE TABLE releases (
+  id uuid PRIMARY KEY,
+  project_id uuid NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+  title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 100),
+  goal text NOT NULL DEFAULT '' CHECK (char_length(goal) <= 400),
+  planned_date date,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'planned', 'released')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, id)
+);
+
+CREATE TABLE release_issues (
+  issue_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  release_id uuid NOT NULL,
+  PRIMARY KEY (project_id, issue_id),
+  FOREIGN KEY (project_id, issue_id) REFERENCES issues (project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id, release_id) REFERENCES releases (project_id, id) ON DELETE CASCADE
+);
+CREATE INDEX release_issues_release_id_idx ON release_issues (release_id);
 CREATE INDEX issues_search_fts_idx
   ON issues USING gin (
     to_tsvector('simple', title || ' ' || coalesce(description, ''))

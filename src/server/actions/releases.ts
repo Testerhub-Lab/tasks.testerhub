@@ -1,0 +1,86 @@
+"use server";
+
+import { ProjectRole } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { hasProjectRole } from "@/server/auth/access";
+import { getCurrentUser } from "@/server/auth/session";
+import { getCurrentWorkspaceId } from "@/server/auth/workspace";
+import { getProjectById } from "@/server/queries/projects";
+import { changeReleaseIssues, saveProjectRelease } from "@/server/queries/releases";
+import { buildProjectIssueViewPath, buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
+
+const projectIdSchema = z.string().trim().min(1).max(128);
+const releaseSchema = z.object({
+  projectId: projectIdSchema,
+  id: z.uuid().optional(),
+  title: z.string().trim().min(1).max(100),
+  goal: z.string().trim().max(400),
+  plannedDate: z.iso.date().refine((date) => date >= "0001-01-01").nullable(),
+  status: z.enum(["draft", "planned", "released"]).optional(),
+});
+const issuesSchema = z.object({
+  projectId: projectIdSchema,
+  releaseId: z.uuid(),
+  issueIds: z.array(z.string().min(1).max(128)).nonempty(),
+  operation: z.enum(["add", "remove"]),
+});
+
+const fail = (formError: string) => ({ ok: false as const, formError });
+
+async function writableProject(projectId: string) {
+  const user = await getCurrentUser();
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!user || !workspaceId) return fail("Требуется авторизация");
+  if (!await hasProjectRole(user, projectId, ProjectRole.MEMBER, { workspaceId })) {
+    return fail("У вас нет прав редактировать релизы этого проекта.");
+  }
+  const project = await getProjectById(projectId, workspaceId, user);
+  if (!project) return fail("Проект недоступен.");
+  return { ok: true as const, project };
+}
+
+function refreshRelease(projectKey: string, releaseId: string) {
+  revalidatePath(buildProjectReleasesPath(projectKey));
+  revalidatePath(buildProjectReleasesPath(projectKey, releaseId));
+  revalidatePath(buildProjectIssueViewPath(projectKey, "/backlog"));
+  revalidatePath("/backlog");
+}
+
+export async function saveReleaseAction(input: z.input<typeof releaseSchema>) {
+  const parsed = releaseSchema.safeParse(input);
+  if (!parsed.success) return fail("Проверьте название, цель и плановую дату.");
+
+  try {
+    const { projectId, ...data } = parsed.data;
+    const access = await writableProject(projectId);
+    if (!access.ok) return access;
+    const release = await saveProjectRelease(projectId, data);
+    if (!release) return fail("Релиз недоступен.");
+    refreshRelease(access.project.key, release.id);
+    return { ok: true as const, href: buildProjectReleasesPath(access.project.key, release.id) };
+  } catch (error) {
+    console.error("Failed to save release", error);
+    return fail("Не удалось сохранить релиз.");
+  }
+}
+
+export async function changeReleaseIssuesAction(input: z.input<typeof issuesSchema>) {
+  const parsed = issuesSchema.safeParse(input);
+  if (!parsed.success) return fail("Проверьте выбранный релиз и задачи.");
+
+  try {
+    const { projectId, releaseId, issueIds, operation } = parsed.data;
+    const access = await writableProject(projectId);
+    if (!access.ok) return access;
+    const result = await changeReleaseIssues(projectId, releaseId, issueIds, operation);
+    if (result === "closed") return fail("Релиз недоступен или уже выпущен.");
+    if (result === "unavailable") return fail("Часть задач больше не находится в бэклоге проекта.");
+    if (result === "assigned") return fail("Часть задач уже входит в другой релиз.");
+    refreshRelease(access.project.key, releaseId);
+    return { ok: true as const };
+  } catch (error) {
+    console.error("Failed to change release issues", error);
+    return fail("Не удалось изменить состав релиза.");
+  }
+}

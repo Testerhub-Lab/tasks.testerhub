@@ -59,5 +59,7 @@ export async function resolveProjectRouteContext(input: {
   return {
     id: project.id,
     key: project.key,
+    user,
+    workspaceId,
   };
 }

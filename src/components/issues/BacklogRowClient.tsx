@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import IssueRow from "./IssueRow";
 import BacklogActionButton from "./BacklogActionButton";
@@ -16,6 +17,7 @@ export default function BacklogRowClient(props: {
   status?: Status | null;
   createdAt?: Date | null;
   href: string;
+  release?: { title: string; href: string } | null;
   reporter?: { name: string | null; email: string | null } | null;
   requesterName?: string | null;
   selected?: boolean;
@@ -109,6 +111,17 @@ export default function BacklogRowClient(props: {
           />
         </div>
       </div>
+      {props.release ? (
+        <div className="flex border-b border-white/5 py-1 pl-14 pr-2">
+          <Link
+            href={props.release.href}
+            className="max-w-full truncate rounded bg-[var(--control-bg)] px-2 py-0.5 text-xs text-[var(--text)] hover:underline"
+            title={props.release.title}
+          >
+            Релиз: {props.release.title}
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

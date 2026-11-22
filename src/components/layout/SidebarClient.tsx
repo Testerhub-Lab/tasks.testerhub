@@ -14,6 +14,7 @@ import {
 } from "@/shared/issueViews";
 import {
   buildProjectIssueViewPath,
+  buildProjectReleasesPath,
   buildWikiHref,
   findProjectByRouteContext,
 } from "@/shared/projectKeyRoutes";
@@ -32,6 +33,7 @@ interface SidebarClientProps {
 }
 
 const getBasePath = (pathname: string) => {
+  if (/^\/[^/]+\/releases(?:\/|$)/.test(pathname)) return "/releases";
   if (/^\/[^/]+\/board(?:\/|$)/.test(pathname)) return "/board";
   if (/^\/[^/]+\/backlog(?:\/|$)/.test(pathname)) return "/backlog";
   if (/^\/[^/]+\/issues(?:\/|$)/.test(pathname)) return "/issues";
@@ -60,6 +62,8 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     projectId: searchParams.get("projectId"),
   });
   const activeProjectId = activeProject?.id ?? null;
+  const releaseProject = activeProject ?? (projects.length === 1 ? projects[0] : null);
+  const isReleasesPath = basePath === "/releases";
   const activeAssignee = searchParams.get("assignee");
   const isSettingsWorkspace = pathname.startsWith("/settings/workspace");
   const isProjectContext =
@@ -67,7 +71,8 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     pathname.startsWith("/backlog") ||
     pathname.startsWith("/issues") ||
     /^\/[^/]+\/(?:board|backlog|issues)(?:\/|$)/.test(pathname) ||
-    pathname.startsWith("/wiki");
+    pathname.startsWith("/wiki") ||
+    isReleasesPath;
   const isAllProjectsActive =
     isProjectContext && !activeProjectId;
   const showProductsSection = projects.length > 1;
@@ -87,7 +92,7 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
     const result = await setWorkspaceAction(nextId);
     if (result.ok) {
       setWorkspaceOpen(false);
-      router.push(basePath);
+      router.push(isReleasesPath ? "/board" : basePath);
       router.refresh();
     }
   };
@@ -107,6 +112,9 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
   };
 
   const buildHref = (projectId?: string | null, projectKey?: string) => {
+    if (isReleasesPath) {
+      return projectKey ? buildProjectReleasesPath(projectKey) : "/board";
+    }
     if (pathname.startsWith("/wiki")) {
       return buildWikiHref(projectKey);
     }
@@ -225,6 +233,20 @@ const SidebarClient: React.FC<SidebarClientProps> = ({
               <span className="sidebar__badge">+{backlogUnread}</span>
             ) : null}
           </Link>
+          {releaseProject ? (
+            <Link
+              href={buildProjectReleasesPath(releaseProject.key)}
+              className={`sidebar__item ${isReleasesPath ? "is-active" : ""}`}
+              aria-current={isReleasesPath ? "page" : undefined}
+            >
+              <span className="sidebar__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M12 3 4 7.5v9l8 4.5 8-4.5v-9L12 3ZM4 7.5l8 4.5 8-4.5M12 12v9M8 5.25l8 4.5" />
+                </svg>
+              </span>
+              <span>Релизы</span>
+            </Link>
+          ) : null}
           <Link
             href={buildIssuesHref("me")}
             className={`sidebar__item ${
