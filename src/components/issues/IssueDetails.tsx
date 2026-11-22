@@ -6,7 +6,9 @@ import { getCurrentUser } from "../../server/auth/session";
 import type { TaskWithProjectAndReporter } from "../../server/queries/tasks";
 import IssueDetailsClient from "./IssueDetailsClient";
 import IssueHierarchy from "./IssueHierarchy";
+import IssueReleaseField from "./IssueReleaseField";
 import { getIssueHierarchy } from "@/server/queries/issueHierarchy";
+import { getIssueReleaseAssignments, getOpenProjectReleases } from "@/server/queries/releases";
 import {
   getAccessibleProjectIds,
   getProjectAccess,
@@ -43,7 +45,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       includeArchived: true,
     }),
   ]);
-  const [users, workspaceRole, projectAccess, knowledge, knowledgeLinks, hierarchy] =
+  const [users, workspaceRole, projectAccess, knowledge, knowledgeLinks, hierarchy, releaseAssignments] =
     await Promise.all([
       getUsersForAssignee(workspaceId, accessibleProjectIds),
       getWorkspaceRole(user, workspaceId),
@@ -54,6 +56,7 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       getProjectKnowledge(task.projectId),
       getTaskKnowledgeLinks(task.id),
       getIssueHierarchy(task),
+      getIssueReleaseAssignments([task]),
     ]);
 
   const canDelete =
@@ -68,10 +71,12 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
     projectAccess &&
       projectRoleAtLeast(projectAccess.role, ProjectRole.MEMBER)
   );
-  const wikiPages =
-    knowledge.provider === "NATIVE"
-      ? await getWikiPageTree(task.projectId)
-      : [];
+  const release = releaseAssignments[task.id] ?? null;
+  const canEditRelease = canEdit && !task.project.archivedAt && !task.isDeleted && release?.status !== "released";
+  const [wikiPages, releaseOptions] = await Promise.all([
+    knowledge.provider === "NATIVE" ? getWikiPageTree(task.projectId) : [],
+    canEditRelease ? getOpenProjectReleases(task.projectId) : [],
+  ]);
 
   const projectLabel = project ? `${project.key} — ${project.name}` : null;
 
@@ -82,6 +87,14 @@ const IssueDetails = async ({ task }: IssueDetailsProps) => {
       users={users}
       canEdit={canEdit}
       canDelete={Boolean(canDelete)}
+      releaseField={<IssueReleaseField
+        key={task.id}
+        issueId={task.id}
+        projectId={task.projectId}
+        projectKey={task.project.archivedAt ? null : task.project.key}
+        release={release}
+        options={releaseOptions}
+      />}
       knowledge={{
         provider: knowledge.provider,
         externalUrl: knowledge.externalUrl,

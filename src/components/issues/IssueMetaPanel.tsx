@@ -20,6 +20,7 @@ const statusLabel = TASK_STATUS_LABEL;
 const priorityLabel = TASK_PRIORITY_LABEL;
 
 interface IssueMetaPanelProps {
+  children?: React.ReactNode;
   id: string;
   projectLabel?: string | null;
   status?: TaskStatus | null;
@@ -36,6 +37,7 @@ interface IssueMetaPanelProps {
 }
 
 const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
+  children,
   id,
   status,
   projectLabel,
@@ -429,6 +431,8 @@ const IssueMetaPanel: React.FC<IssueMetaPanelProps> = ({
             ) : null}
           </div>
         </div>
+
+        {children}
 
         <div className="order-7 mt-2 border-t border-white/[0.07] pt-2">
           <button

@@ -370,6 +370,7 @@ const parseDetails = (raw?: string | null) => {
 
 interface IssueDetailsClientProps {
   children: React.ReactNode;
+  releaseField: React.ReactNode;
   task: TaskWithProjectAndReporter;
   projectLabel?: string | null;
   users: Array<{ id: string; name: string | null; email: string }>;
@@ -397,6 +398,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
   canDelete = false,
   knowledge,
   children,
+  releaseField,
 }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -1202,7 +1204,9 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
             canEdit={canEdit}
             createdAt={liveTask.createdAt}
             updatedAt={liveTask.createdAt}
-          />
+          >
+            {releaseField}
+          </IssueMetaPanel>
         </div>
       </div>
       {deleteConfirmOpen ? (

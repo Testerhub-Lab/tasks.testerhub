@@ -5,7 +5,7 @@ import IssuePagination from "../../components/issues/IssuePagination";
 import BacklogSeen from "../../components/backlog/BacklogSeen";
 import { getPaginatedTasks } from "../../server/queries/tasks";
 import { getProjectById, getProjects } from "../../server/queries/projects";
-import { getBacklogReleaseLinks, getProjectReleases } from "@/server/queries/releases";
+import { getIssueReleaseAssignments, getOpenProjectReleases } from "@/server/queries/releases";
 import { getCurrentUser } from "../../server/auth/session";
 import { getCurrentWorkspaceId } from "../../server/auth/workspace";
 import { getAccessibleProjectIds } from "../../server/auth/access";
@@ -82,8 +82,8 @@ export async function renderBacklogPage({
   const projects = await getProjects(workspaceId, user);
   const writableProject = projectContext && projects.find((project) => project.id === projectContext.id && project.canWrite);
   const [releaseLinks, releases] = await Promise.all([
-    getBacklogReleaseLinks(tasks),
-    writableProject && tasks.length ? getProjectReleases(writableProject.id) : null,
+    getIssueReleaseAssignments(tasks),
+    writableProject && tasks.length ? getOpenProjectReleases(writableProject.id) : null,
   ]);
   const isFiltered = hasActiveFilters(filters);
 
@@ -132,8 +132,7 @@ export async function renderBacklogPage({
             releaseProject={writableProject && releases ? {
               id: writableProject.id,
               key: writableProject.key,
-              options: releases.filter((release) => release.status !== "released")
-                .map(({ id, title, status }) => ({ id, title, status })),
+              options: releases,
             } : null}
           />
           <IssuePagination

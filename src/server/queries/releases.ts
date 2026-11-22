@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { QueryResultRow } from "pg";
 import prisma from "@/lib/prisma";
-import type { Release, ReleaseIssue } from "@/shared/releases";
+import type { Release, ReleaseIssue, ReleaseOption } from "@/shared/releases";
 import { getZeroPool } from "@/zero/db";
 import { usesZeroUiStore, zeroStatusSQL } from "../ui/zero-legacy";
 
@@ -70,6 +70,14 @@ export async function getProjectReleases(projectId: string) {
   );
 }
 
+export function getOpenProjectReleases(projectId: string) {
+  return query<ReleaseOption>(
+    `SELECT id, title, status FROM releases
+     WHERE project_id = $1 AND status <> 'released' ORDER BY created_at DESC, id`,
+    [projectId]
+  );
+}
+
 export async function getProjectRelease(projectId: string, releaseId: string) {
   const [release] = await query<Release>(
     `SELECT ${releaseColumns} FROM releases r WHERE r.project_id = $1 AND r.id = $2::uuid`,
@@ -102,11 +110,11 @@ export function getUnscheduledBacklog(projectId: string) {
   );
 }
 
-export async function getBacklogReleaseLinks(tasks: { id: string; projectId: string }[]) {
+export async function getIssueReleaseAssignments(tasks: { id: string; projectId: string }[]) {
   if (!tasks.length) return {};
   const { idType } = issueSource();
-  const rows = await query<{ issueId: string; id: string; title: string }>(
-    `SELECT assigned.issue_id AS "issueId", r.id, r.title
+  const rows = await query<ReleaseOption & { issueId: string }>(
+    `SELECT assigned.issue_id AS "issueId", r.id, r.title, r.status
      FROM release_issues assigned JOIN releases r ON r.id = assigned.release_id
      WHERE assigned.project_id IN (${idsFromJson("$1", idType)})
        AND assigned.issue_id IN (${idsFromJson("$2", idType)})`,
@@ -184,6 +192,59 @@ export async function changeReleaseIssues(
        ON CONFLICT (project_id, issue_id) DO NOTHING RETURNING issue_id`,
       [projectId, releaseId, ids]
     );
+    return "ok";
+  });
+}
+
+export function setIssueRelease(
+  projectId: string,
+  issueId: string,
+  previousReleaseId: string | null,
+  releaseId: string | null
+) {
+  const source = issueSource();
+  return inTransaction(async (run) => {
+    // Use the same lock order as bulk edits: release rows before issue rows.
+    const releaseIds = new Set([previousReleaseId, releaseId].filter(Boolean));
+    if (releaseIds.size) {
+      const releases = await run<{ id: string }>(
+        `SELECT id FROM releases WHERE project_id = $1
+         AND id IN ($2::uuid, $3::uuid) AND status <> 'released'
+         ORDER BY id FOR UPDATE`,
+        [projectId, previousReleaseId, releaseId]
+      );
+      if (releases.length !== releaseIds.size) return "closed";
+    }
+
+    const [issue] = await run<{ id: string }>(
+      `SELECT issue.id FROM ${source.table}
+       WHERE ${source.project} = $1 AND issue.id = $2 AND NOT ${source.archived}
+       FOR UPDATE OF issue`,
+      [projectId, issueId]
+    );
+    if (!issue) return "unavailable";
+
+    const [assignment] = await run<{ release_id: string }>(
+      `SELECT release_id FROM release_issues WHERE project_id = $1 AND issue_id = $2`,
+      [projectId, issueId]
+    );
+    const assignedId = assignment?.release_id ?? null;
+    if (assignedId === releaseId) return "ok";
+    if (assignedId !== previousReleaseId) return "stale";
+
+    if (releaseId) {
+      await run(
+        `INSERT INTO release_issues (project_id, issue_id, release_id) VALUES ($1, $2, $3::uuid)
+         ON CONFLICT (project_id, issue_id) DO UPDATE SET release_id = EXCLUDED.release_id
+         RETURNING issue_id`,
+        [projectId, issueId, releaseId]
+      );
+    } else {
+      await run(
+        `DELETE FROM release_issues WHERE project_id = $1 AND issue_id = $2 RETURNING issue_id`,
+        [projectId, issueId]
+      );
+    }
     return "ok";
   });
 }

@@ -7,7 +7,7 @@ import { hasProjectRole } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getProjectById } from "@/server/queries/projects";
-import { changeReleaseIssues, saveProjectRelease } from "@/server/queries/releases";
+import { changeReleaseIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
 import { buildProjectIssueViewPath, buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 
 const projectIdSchema = z.string().trim().min(1).max(128);
@@ -25,6 +25,12 @@ const issuesSchema = z.object({
   issueIds: z.array(z.string().min(1).max(128)).nonempty(),
   operation: z.enum(["add", "remove"]),
 });
+const issueReleaseSchema = z.object({
+  projectId: projectIdSchema,
+  issueId: z.string().min(1).max(128),
+  previousReleaseId: z.uuid().nullable(),
+  releaseId: z.uuid().nullable(),
+});
 
 const fail = (formError: string) => ({ ok: false as const, formError });
 
@@ -40,9 +46,11 @@ async function writableProject(projectId: string) {
   return { ok: true as const, project };
 }
 
-function refreshRelease(projectKey: string, releaseId: string) {
+function refreshRelease(projectKey: string, ...releaseIds: (string | null)[]) {
   revalidatePath(buildProjectReleasesPath(projectKey));
-  revalidatePath(buildProjectReleasesPath(projectKey, releaseId));
+  for (const id of new Set(releaseIds)) {
+    if (id) revalidatePath(buildProjectReleasesPath(projectKey, id));
+  }
   revalidatePath(buildProjectIssueViewPath(projectKey, "/backlog"));
   revalidatePath("/backlog");
 }
@@ -82,5 +90,25 @@ export async function changeReleaseIssuesAction(input: z.input<typeof issuesSche
   } catch (error) {
     console.error("Failed to change release issues", error);
     return fail("Не удалось изменить состав релиза.");
+  }
+}
+
+export async function setIssueReleaseAction(input: z.input<typeof issueReleaseSchema>) {
+  const parsed = issueReleaseSchema.safeParse(input);
+  if (!parsed.success) return fail("Проверьте выбранный релиз.");
+
+  try {
+    const { projectId, issueId, previousReleaseId, releaseId } = parsed.data;
+    const access = await writableProject(projectId);
+    if (!access.ok) return access;
+    const result = await setIssueRelease(projectId, issueId, previousReleaseId, releaseId);
+    if (result === "closed") return fail("Релиз недоступен или уже выпущен.");
+    if (result === "unavailable") return fail("Задача недоступна.");
+    if (result === "stale") return fail("Привязка к релизу уже изменилась. Проверьте актуальный выбор.");
+    refreshRelease(access.project.key, previousReleaseId, releaseId);
+    return { ok: true as const };
+  } catch (error) {
+    console.error("Failed to assign issue to release", error);
+    return fail("Не удалось изменить релиз задачи.");
   }
 }
