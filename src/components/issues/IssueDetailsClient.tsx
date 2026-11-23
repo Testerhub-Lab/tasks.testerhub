@@ -1194,6 +1194,7 @@ const IssueDetailsClient: React.FC<IssueDetailsClientProps> = ({
         <div className="h-fit lg:sticky lg:top-20">
           <IssueMetaPanel
             id={liveTask.id}
+            projectId={liveTask.projectId}
             projectLabel={projectLabel ?? null}
             status={liveTask.status}
             priority={liveTask.priority}

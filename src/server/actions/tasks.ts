@@ -23,7 +23,7 @@ import {
   type TaskPriority,
 } from "../validators/task";
 import { usesZeroUiStore } from "@/server/ui/zero-legacy";
-import { getZeroDatabase } from "@/zero/db";
+import { getZeroDatabase, getZeroPool } from "@/zero/db";
 import { TASK_TYPE_VALUES, type TaskType } from "@/shared/taskEnums";
 import { findEpicCandidates, IssueParentError, setPrismaIssueParent, setZeroIssueParent } from "../queries/issueHierarchy";
 import {
@@ -782,6 +782,42 @@ export async function moveBacklogTasksToTodoAction(data: {
       ok: false as const,
       formError: "Не удалось переместить выбранные задачи.",
     };
+  }
+}
+
+export async function searchTaskLabelsAction(projectId: string, search: string) {
+  const parsed = z.object({
+    projectId: z.string().min(1).max(128),
+    search: z.string().trim().max(60),
+  }).safeParse({ projectId, search });
+  if (!parsed.success) return { ok: false as const };
+
+  const [user, workspaceId] = await Promise.all([getCurrentUser(), getCurrentWorkspaceId()]);
+  if (!user || !workspaceId || !await hasProjectRole(user, parsed.data.projectId, ProjectRole.MEMBER, { workspaceId })) {
+    return { ok: false as const };
+  }
+
+  const term = parsed.data.search.toLowerCase();
+  try {
+    const labels = usesZeroUiStore()
+      ? (await getZeroPool().query<{ name: string }>(
+          `SELECT name FROM tags
+           WHERE workspace_id = $1 AND archived_at IS NULL AND strpos(lower(name), $2) > 0
+           ORDER BY (lower(name) = $2) DESC, name LIMIT 15`,
+          [workspaceId, term]
+        )).rows
+      : await prisma.$queryRaw<{ name: string }[]>`
+          SELECT name FROM (
+            SELECT DISTINCT lower(tag) AS name
+            FROM "Task" CROSS JOIN LATERAL unnest(tags) AS labels(tag)
+            WHERE "projectId" = ${parsed.data.projectId} AND NOT "isDeleted"
+          ) project_labels
+          WHERE strpos(name, ${term}) > 0
+          ORDER BY (name = ${term}) DESC, name LIMIT 15`;
+    return { ok: true as const, labels: labels.map(({ name }) => name) };
+  } catch (error) {
+    console.error("Failed to search issue labels", error);
+    return { ok: false as const };
   }
 }
 
