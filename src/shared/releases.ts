@@ -1,3 +1,5 @@
+import { TASK_STATUS_VALUES, type TaskStatus } from "./taskEnums";
+
 export const releaseStatusLabels = {
   draft: "Черновик",
   planned: "Запланирован",
@@ -15,6 +17,10 @@ export type Release = {
 };
 
 export type ReleaseOption = Pick<Release, "id" | "title" | "status">;
+
+export const DEFAULT_RELEASE_ISSUE_STATUS_FILTER = "open";
+export const RELEASE_ISSUE_STATUS_FILTERS = [DEFAULT_RELEASE_ISSUE_STATUS_FILTER, "all", ...TASK_STATUS_VALUES] as const;
+export type ReleaseIssueStatusFilter = (typeof RELEASE_ISSUE_STATUS_FILTERS)[number];
 
 export type ReleaseIssue = {
   id: string;
@@ -38,4 +44,3 @@ export function formatReleaseDate(date: string | null) {
       )
     : "Дата не задана";
 }
-import type { TaskStatus } from "./taskEnums";

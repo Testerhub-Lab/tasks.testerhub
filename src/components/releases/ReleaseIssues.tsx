@@ -16,12 +16,21 @@ import IssueTypeBadge from "@/components/issues/IssueTypeBadge";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { changeReleaseIssuesAction, searchReleaseIssuesAction } from "@/server/actions/releases";
 import { buildProjectIssueDetailPath } from "@/shared/projectKeyRoutes";
-import type { ReleaseIssue } from "@/shared/releases";
+import {
+  DEFAULT_RELEASE_ISSUE_STATUS_FILTER, RELEASE_ISSUE_STATUS_FILTERS, type ReleaseIssue, type ReleaseIssueStatusFilter,
+} from "@/shared/releases";
 import { TASK_STATUS_LABEL } from "@/shared/taskEnums";
 
 type Column = "available" | "included";
 type Move = { issue: ReleaseIssue; from: Column };
 type CandidatePage = { items: ReleaseIssue[]; hasMore: boolean };
+
+const statusOptions = RELEASE_ISSUE_STATUS_FILTERS.map((value) => ({
+  value,
+  label: value === "open" ? "Открытые задачи"
+    : value === "all" ? "Все статусы"
+    : value === "NEW" ? "Только бэклог" : TASK_STATUS_LABEL[value],
+}));
 
 const collisionDetection: CollisionDetection = (args) =>
   args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
@@ -125,13 +134,13 @@ export default function ReleaseIssues({ projectId, projectKey, releaseId, issues
     return [...current, ...move.issues.filter(({ id }) => !existingIds.has(id))];
   });
   const [search, setSearch] = useState("");
-  const [source, setSource] = useState<"all" | "backlog">("all");
+  const [status, setStatus] = useState<ReleaseIssueStatusFilter>(DEFAULT_RELEASE_ISSUE_STATUS_FILTER);
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ key: string; data: Awaited<ReturnType<typeof searchReleaseIssuesAction>> } | null>(null);
   const term = search.trim();
-  const defaultPage = !term && source === "all" && page === 0;
-  const queryKey = JSON.stringify([term, source, page, revision]);
+  const defaultPage = !term && status === DEFAULT_RELEASE_ISSUE_STATUS_FILTER && page === 0;
+  const queryKey = JSON.stringify([term, status, page, revision]);
   const fetched = result?.key === queryKey ? result.data : null;
   const availablePage = defaultPage ? candidates : fetched?.ok ? fetched : null;
   const includedIds = new Set(included.map(({ id }) => id));
@@ -142,7 +151,7 @@ export default function ReleaseIssues({ projectId, projectKey, releaseId, issues
     if (!canEdit || defaultPage) return;
     let active = true;
     const timer = window.setTimeout(async () => {
-      const response = await searchReleaseIssuesAction(projectId, term, source === "backlog", page)
+      const response = await searchReleaseIssuesAction(projectId, term, status, page)
         .catch(() => ({ ok: false as const, formError: "Не удалось загрузить задачи." }));
       if (active) {
         setResult({ key: queryKey, data: response });
@@ -153,7 +162,7 @@ export default function ReleaseIssues({ projectId, projectKey, releaseId, issues
       active = false;
       window.clearTimeout(timer);
     };
-  }, [canEdit, defaultPage, page, projectId, queryKey, source, term]);
+  }, [canEdit, defaultPage, page, projectId, queryKey, status, term]);
 
   function moveIssues(items: ReleaseIssue[], from: Column) {
     if (pending || !canEdit || !items.length) return;
@@ -221,8 +230,8 @@ export default function ReleaseIssues({ projectId, projectKey, releaseId, issues
               <div className="flex flex-wrap items-center gap-2">
                 <Input aria-label="Найти задачу" className="min-w-32 flex-1" placeholder="Название или ключ"
                   maxLength={120} value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
-                <MenuSelect ariaLabel="Источник задач" value={source} onChange={(value) => { setSource(value); setPage(0); }}
-                  options={[{ value: "all", label: "Все статусы" }, { value: "backlog", label: "Только бэклог" }]} />
+                <MenuSelect ariaLabel="Статус задач" value={status} onChange={(value) => { setStatus(value); setPage(0); }}
+                  options={statusOptions} />
                 <Button variant="ghost" disabled={pending} onClick={() => setSelection(selection ? null : new Map())}>
                   {selection ? "Отменить выбор" : "Выбрать несколько"}
                 </Button>

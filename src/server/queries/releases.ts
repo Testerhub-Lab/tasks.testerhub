@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { QueryResultRow } from "pg";
 import prisma from "@/lib/prisma";
-import type { Release, ReleaseIssue, ReleaseOption } from "@/shared/releases";
+import {
+  DEFAULT_RELEASE_ISSUE_STATUS_FILTER, type Release, type ReleaseIssue, type ReleaseIssueStatusFilter, type ReleaseOption,
+} from "@/shared/releases";
 import { getZeroPool } from "@/zero/db";
 import { usesZeroUiStore, zeroStatusSQL } from "../ui/zero-legacy";
 import type { ReleaseAnalysisIssue } from "../releases/suggestReleases";
@@ -107,17 +109,23 @@ export function getReleaseIssues(projectId: string, releaseId: string) {
   );
 }
 
-export async function getAvailableReleaseIssues(projectId: string, term = "", backlogOnly = false, page = 0) {
+export async function getAvailableReleaseIssues(
+  projectId: string, term = "", status: ReleaseIssueStatusFilter = DEFAULT_RELEASE_ISSUE_STATUS_FILTER, page = 0
+) {
   const source = issueSource();
   const rows = await query<ReleaseIssue>(
     `SELECT issue.id, ${source.key} AS key, issue.title, issue.type, ${source.status} AS status, false AS archived
      FROM ${source.table} ${source.projectJoin} ${source.stateJoin}
      WHERE ${source.project} = $1 AND NOT ${source.archived}
        AND ($2 = '' OR strpos(lower(issue.title), lower($2)) > 0 OR strpos(lower(${source.key}), lower($2)) > 0)
-       AND (NOT $3::boolean OR ${source.status} = 'NEW')
+       AND CASE $3::text
+         WHEN 'open' THEN ${source.status} NOT IN ('DONE', 'REJECT')
+         WHEN 'all' THEN true
+         ELSE ${source.status} = $3
+       END
        AND NOT EXISTS (SELECT 1 FROM release_issues WHERE project_id = $1 AND issue_id = issue.id)
      ORDER BY (lower(${source.key}) = lower($2)) DESC, issue.number DESC LIMIT 51 OFFSET $4::int`,
-    [projectId, term, backlogOnly, page * 50]
+    [projectId, term, status, page * 50]
   );
   return { items: rows.slice(0, 50), hasMore: rows.length > 50 };
 }

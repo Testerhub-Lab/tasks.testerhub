@@ -10,6 +10,9 @@ import { getProjectById } from "@/server/queries/projects";
 import { changeReleaseIssues, createSuggestedReleaseDraft, getAvailableReleaseIssues, getReleaseAnalysisIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
 import { RELEASE_SUGGESTION_MAX_ISSUES, suggestReleases } from "@/server/releases/suggestReleases";
 import { buildProjectIssueViewPath, buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
+import {
+  DEFAULT_RELEASE_ISSUE_STATUS_FILTER, RELEASE_ISSUE_STATUS_FILTERS, type ReleaseIssueStatusFilter,
+} from "@/shared/releases";
 
 const projectIdSchema = z.string().trim().min(1).max(128);
 const releaseSchema = z.object({
@@ -94,19 +97,21 @@ export async function changeReleaseIssuesAction(input: z.input<typeof issuesSche
   }
 }
 
-export async function searchReleaseIssuesAction(projectId: string, search: string, backlogOnly = false, page = 0) {
+export async function searchReleaseIssuesAction(
+  projectId: string, search: string, status: ReleaseIssueStatusFilter = DEFAULT_RELEASE_ISSUE_STATUS_FILTER, page = 0
+) {
   const parsed = z.object({
     projectId: projectIdSchema,
     search: z.string().trim().max(120),
-    backlogOnly: z.boolean(),
+    status: z.enum(RELEASE_ISSUE_STATUS_FILTERS),
     page: z.number().int().min(0).max(20000),
-  }).safeParse({ projectId, search, backlogOnly, page });
+  }).safeParse({ projectId, search, status, page });
   if (!parsed.success) return fail("Некорректный поиск.");
   try {
     const access = await writableProject(parsed.data.projectId);
     if (!access.ok) return access;
-    const { search, backlogOnly, page } = parsed.data;
-    const results = await getAvailableReleaseIssues(parsed.data.projectId, search, backlogOnly, page);
+    const { search, status, page } = parsed.data;
+    const results = await getAvailableReleaseIssues(parsed.data.projectId, search, status, page);
     return { ok: true as const, ...results };
   } catch (error) {
     console.error("Failed to search issues for release", error);
