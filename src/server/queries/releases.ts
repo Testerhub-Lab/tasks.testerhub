@@ -3,7 +3,8 @@ import type { QueryResultRow } from "pg";
 import prisma from "@/lib/prisma";
 import type { Release, ReleaseIssue, ReleaseOption } from "@/shared/releases";
 import { getZeroPool } from "@/zero/db";
-import { usesZeroUiStore } from "../ui/zero-legacy";
+import { usesZeroUiStore, zeroStatusSQL } from "../ui/zero-legacy";
+import type { ReleaseAnalysisIssue } from "../releases/suggestReleases";
 
 type Query = <Row extends QueryResultRow>(sql: string, params: unknown[]) => Promise<Row[]>;
 
@@ -41,6 +42,12 @@ const issueSource = () => usesZeroUiStore()
       key: "project.key || '-' || issue.number",
       projectJoin: "JOIN projects project ON project.id = issue.project_id",
       archived: "(issue.archived_at IS NOT NULL)",
+      stateJoin: "JOIN workflow_states state ON state.id = issue.state_id",
+      status: `(${zeroStatusSQL})`,
+      parentJoin: "LEFT JOIN issues parent ON parent.project_id = issue.project_id AND parent.id = issue.parent_id",
+      parentKey: "project.key || '-' || parent.number",
+      tags: `ARRAY(SELECT tag.name FROM issue_tags link JOIN tags tag ON tag.id = link.tag_id
+        WHERE link.issue_id = issue.id AND tag.archived_at IS NULL ORDER BY tag.name)`,
       idType: "uuid",
     }
   : {
@@ -49,6 +56,11 @@ const issueSource = () => usesZeroUiStore()
       key: "issue.key",
       projectJoin: "",
       archived: 'issue."isDeleted"',
+      stateJoin: "",
+      status: "issue.status::text",
+      parentJoin: 'LEFT JOIN "Task" parent ON parent."projectId" = issue."projectId" AND parent.id = issue."parentId"',
+      parentKey: "parent.key",
+      tags: "issue.tags",
       idType: "text",
     };
 
@@ -85,8 +97,9 @@ export async function getProjectRelease(projectId: string, releaseId: string) {
 export function getReleaseIssues(projectId: string, releaseId: string) {
   const source = issueSource();
   return query<ReleaseIssue>(
-    `SELECT issue.id, ${source.key} AS key, issue.title, ${source.archived} AS archived
-     FROM ${source.table} ${source.projectJoin}
+    `SELECT issue.id, ${source.key} AS key, issue.title, issue.type,
+       ${source.status} AS status, ${source.archived} AS archived
+     FROM ${source.table} ${source.projectJoin} ${source.stateJoin}
      JOIN release_issues assigned ON assigned.issue_id = issue.id
      WHERE assigned.project_id = $1 AND assigned.release_id = $2::uuid
      ORDER BY issue.number`,
@@ -94,18 +107,35 @@ export function getReleaseIssues(projectId: string, releaseId: string) {
   );
 }
 
-export async function getAvailableReleaseIssues(projectId: string, term = "") {
+export async function getAvailableReleaseIssues(projectId: string, term = "", backlogOnly = false, page = 0) {
   const source = issueSource();
-  const rows = await query<Pick<ReleaseIssue, "id" | "key" | "title">>(
-    `SELECT issue.id, ${source.key} AS key, issue.title
-     FROM ${source.table} ${source.projectJoin}
+  const rows = await query<ReleaseIssue>(
+    `SELECT issue.id, ${source.key} AS key, issue.title, issue.type, ${source.status} AS status, false AS archived
+     FROM ${source.table} ${source.projectJoin} ${source.stateJoin}
      WHERE ${source.project} = $1 AND NOT ${source.archived}
        AND ($2 = '' OR strpos(lower(issue.title), lower($2)) > 0 OR strpos(lower(${source.key}), lower($2)) > 0)
+       AND (NOT $3::boolean OR ${source.status} = 'NEW')
        AND NOT EXISTS (SELECT 1 FROM release_issues WHERE project_id = $1 AND issue_id = issue.id)
-     ORDER BY (lower(${source.key}) = lower($2)) DESC, issue.number DESC LIMIT 51`,
-    [projectId, term]
+     ORDER BY (lower(${source.key}) = lower($2)) DESC, issue.number DESC LIMIT 51 OFFSET $4::int`,
+    [projectId, term, backlogOnly, page * 50]
   );
   return { items: rows.slice(0, 50), hasMore: rows.length > 50 };
+}
+
+export function getReleaseAnalysisIssues(projectId: string) {
+  const source = issueSource();
+  return query<ReleaseAnalysisIssue>(
+    `SELECT issue.id, ${source.key} AS key, issue.title, issue.type, issue.priority,
+       left(issue.description, 1500) AS description, ${source.tags} AS tags,
+       CASE WHEN parent.id IS NOT NULL THEN json_build_object(
+         'id', parent.id, 'key', ${source.parentKey}, 'title', parent.title, 'type', parent.type
+       ) END AS parent
+     FROM ${source.table} ${source.projectJoin} ${source.stateJoin} ${source.parentJoin}
+     WHERE ${source.project} = $1 AND NOT ${source.archived} AND ${source.status} = 'NEW'
+       AND NOT EXISTS (SELECT 1 FROM release_issues WHERE project_id = $1 AND issue_id = issue.id)
+     ORDER BY issue.number`,
+    [projectId]
+  );
 }
 
 export async function getIssueReleaseAssignments(tasks: { id: string; projectId: string }[]) {
@@ -167,30 +197,56 @@ export async function changeReleaseIssues(
       return "ok";
     }
 
-    // Lock in ID order before checking assignments, including when two releases compete.
-    const issues = await run<{ id: string }>(
-      `SELECT issue.id FROM ${source.table}
-       WHERE ${source.project} = $1 AND NOT ${source.archived}
-         AND issue.id IN (${idsFromJson("$2", source.idType)})
-       ORDER BY issue.id FOR UPDATE OF issue`,
-      [projectId, ids]
-    );
-    if (issues.length !== uniqueIds.length) return "unavailable";
-
-    const [conflict] = await run<{ issue_id: string }>(
-      `SELECT issue_id FROM release_issues WHERE project_id = $1 AND release_id <> $2::uuid
-       AND issue_id IN (${idsFromJson("$3", source.idType)}) LIMIT 1`,
-      [projectId, releaseId, ids]
-    );
-    if (conflict) return "assigned";
-
-    await run(
-      `INSERT INTO release_issues (project_id, release_id, issue_id)
-       SELECT $1, $2::uuid, id FROM (${idsFromJson("$3", source.idType)}) selected(id)
-       ON CONFLICT (project_id, issue_id) DO NOTHING RETURNING issue_id`,
-      [projectId, releaseId, ids]
-    );
+    const eligibility = await lockReleaseCandidates(run, projectId, uniqueIds, releaseId);
+    if (eligibility !== "ok") return eligibility;
+    await attachReleaseIssues(run, projectId, releaseId, uniqueIds);
     return "ok";
+  });
+}
+
+async function lockReleaseCandidates(run: Query, projectId: string, issueIds: string[], releaseId: string | null) {
+  const source = issueSource();
+  const ids = JSON.stringify(issueIds);
+  // Lock issues in ID order so two planners cannot add the same tasks to different releases.
+  const issues = await run<{ id: string }>(
+    `SELECT issue.id FROM ${source.table} ${releaseId ? "" : source.stateJoin}
+     WHERE ${source.project} = $1 AND NOT ${source.archived}
+       ${releaseId ? "" : `AND ${source.status} = 'NEW'`}
+       AND issue.id IN (${idsFromJson("$2", source.idType)})
+     ORDER BY issue.id FOR UPDATE OF issue`,
+    [projectId, ids]
+  );
+  if (issues.length !== issueIds.length) return "unavailable";
+  const [conflict] = await run<{ issue_id: string }>(
+    `SELECT issue_id FROM release_issues WHERE project_id = $1 AND release_id IS DISTINCT FROM $2::uuid
+     AND issue_id IN (${idsFromJson("$3", source.idType)}) LIMIT 1`,
+    [projectId, releaseId, ids]
+  );
+  return conflict ? "assigned" : "ok";
+}
+
+function attachReleaseIssues(run: Query, projectId: string, releaseId: string, issueIds: string[]) {
+  return run(
+    `INSERT INTO release_issues (project_id, release_id, issue_id)
+     SELECT $1, $2::uuid, id FROM (${idsFromJson("$3", issueSource().idType)}) selected(id)
+     ON CONFLICT (project_id, issue_id) DO NOTHING RETURNING issue_id`,
+    [projectId, releaseId, JSON.stringify(issueIds)]
+  );
+}
+
+export function createSuggestedReleaseDraft(projectId: string, title: string, goal: string, issueIds: string[]) {
+  return inTransaction(async (run) => {
+    const ids = [...new Set(issueIds)];
+    const eligibility = await lockReleaseCandidates(run, projectId, ids, null);
+    if (eligibility !== "ok") return { ok: false as const };
+    const releaseId = randomUUID();
+    await run(
+      `INSERT INTO releases (project_id, id, title, goal) VALUES ($1, $2::uuid, $3, $4) RETURNING id`,
+      [projectId, releaseId, title, goal]
+    );
+    const assigned = await attachReleaseIssues(run, projectId, releaseId, ids);
+    if (assigned.length !== ids.length) throw new Error("Draft release assignment changed concurrently");
+    return { ok: true as const, releaseId };
   });
 }
 

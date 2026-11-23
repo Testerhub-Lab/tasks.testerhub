@@ -22,7 +22,7 @@ export default async function ProjectReleasePage({
   ]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-7xl space-y-5">
       <header className="space-y-2">
         <Link href={buildProjectReleasesPath(project.key)} className="text-sm text-[var(--muted)] hover:underline">
           ← Все релизы

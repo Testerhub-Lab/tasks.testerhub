@@ -483,7 +483,7 @@ async function loadZeroTaskRows(
   return result.rows;
 }
 
-const zeroStatusSQL = `CASE
+export const zeroStatusSQL = `CASE
   WHEN lower(trim(state.name)) IN ('backlog', 'new') THEN 'NEW'
   WHEN lower(trim(state.name)) = 'todo' THEN 'TODO'
   WHEN lower(trim(state.name)) = 'hold' THEN 'HOLD'

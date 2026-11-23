@@ -1,171 +1,279 @@
 "use client";
 
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import {
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor, pointerWithin, rectIntersection,
+  useDraggable, useDroppable, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent,
+} from "@dnd-kit/core";
+import { useEffect, useId, useOptimistic, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import MenuSelect from "@/components/ui/MenuSelect";
+import IssueTypeBadge from "@/components/issues/IssueTypeBadge";
 import { isAuthRequiredError, showAuthRequiredToast } from "@/lib/authRequired";
 import { changeReleaseIssuesAction, searchReleaseIssuesAction } from "@/server/actions/releases";
 import { buildProjectIssueDetailPath } from "@/shared/projectKeyRoutes";
 import type { ReleaseIssue } from "@/shared/releases";
-import FormDialog from "@/components/ui/FormDialog";
+import { TASK_STATUS_LABEL } from "@/shared/taskEnums";
 
-export default function ReleaseIssues({
-  projectId, projectKey, releaseId, issues, candidates,
-}: {
+type Column = "available" | "included";
+type Move = { issue: ReleaseIssue; from: Column };
+type CandidatePage = { items: ReleaseIssue[]; hasMore: boolean };
+
+const collisionDetection: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
+
+function IssueTitle({ issue, projectKey }: { issue: ReleaseIssue; projectKey: string }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <IssueTypeBadge type={issue.type} />
+        <span className="font-mono text-[11px] text-[var(--muted)]">{issue.key}</span>
+        <span className="text-[11px] text-[var(--muted)]">{issue.archived ? "В корзине" : TASK_STATUS_LABEL[issue.status]}</span>
+      </div>
+      {issue.archived ? <p className="break-words text-sm">{issue.title}</p> : (
+        <Link prefetch={false} className="block break-words text-sm font-medium hover:underline"
+          href={buildProjectIssueDetailPath(projectKey, issue.key)}>{issue.title}</Link>
+      )}
+    </div>
+  );
+}
+
+function MovableIssue({ issue, from, projectKey, pending, onMove, selected, onSelect }: Move & {
+  projectKey: string;
+  pending: boolean;
+  onMove: (move: Move) => void;
+  selected?: boolean;
+  onSelect?: (issue: ReleaseIssue, checked: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: issue.id,
+    data: { issue, from },
+    disabled: pending || issue.archived || selected !== undefined,
+  });
+  const action = from === "available" ? `Добавить ${issue.key} в релиз` : `Убрать ${issue.key} из релиза`;
+
+  return (
+    <li ref={setNodeRef}
+      className={`flex items-center gap-2 rounded-lg border border-[var(--sep)] bg-[var(--control-bg)] p-2 ${isDragging ? "opacity-40" : ""}`}>
+      {selected !== undefined ? (
+        <input type="checkbox" checked={selected} disabled={pending} aria-label={`Выбрать ${issue.key}`}
+          className="ml-2 size-4 shrink-0 accent-cyan-400" onChange={(event) => onSelect?.(issue, event.target.checked)} />
+      ) : !issue.archived ? (
+        <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners}
+          aria-label={`Перетащить ${issue.key}`}
+          className="flex size-8 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-[var(--muted)] hover:bg-white/5 active:cursor-grabbing"
+          disabled={pending}>
+          <svg aria-hidden="true" width="14" height="16" viewBox="0 0 14 16" fill="currentColor">
+            <circle cx="4" cy="3" r="1" /><circle cx="10" cy="3" r="1" />
+            <circle cx="4" cy="8" r="1" /><circle cx="10" cy="8" r="1" />
+            <circle cx="4" cy="13" r="1" /><circle cx="10" cy="13" r="1" />
+          </svg>
+        </button>
+      ) : null}
+      <IssueTitle issue={issue} projectKey={projectKey} />
+      {selected === undefined ? (
+        <Button variant="ghost" aria-label={action} title={action} disabled={pending}
+          className="shrink-0" onClick={() => onMove({ issue, from })}>
+          {from === "available" ? "Добавить" : "Убрать"}
+        </Button>
+      ) : null}
+    </li>
+  );
+}
+
+function ReleaseColumn({ id, title, children, controls }: {
+  id: Column;
+  title: string;
+  children: ReactNode;
+  controls?: ReactNode;
+}) {
+  const { active, setNodeRef, isOver } = useDroppable({ id });
+  const isTarget = isOver && active?.data.current?.from !== id;
+  return (
+    <Card ref={setNodeRef} variant="surface" padding="none" role="region" aria-label={title}
+      className={`min-h-48 min-w-0 rounded-xl border transition-colors ${isTarget ? "border-cyan-400/55 bg-cyan-400/5" : "border-[var(--sep)]"}`}>
+      <header className="space-y-2 border-b border-[var(--sep)] px-3 py-3">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {controls}
+      </header>
+      {children}
+    </Card>
+  );
+}
+
+export default function ReleaseIssues({ projectId, projectKey, releaseId, issues, candidates }: {
   projectId: string;
   projectKey: string;
   releaseId: string;
   issues: ReleaseIssue[];
-  candidates: { items: Pick<ReleaseIssue, "id" | "key" | "title">[]; hasMore: boolean } | null;
+  candidates: CandidatePage | null;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const dndId = useId();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
+  const [dragged, setDragged] = useState<Move | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Map<string, ReleaseIssue> | null>(null);
   const [pending, startTransition] = useTransition();
+  const [included, updateIncluded] = useOptimistic(issues, (current, move: { issues: ReleaseIssue[]; from: Column }) => {
+    if (move.from === "included") return current.filter(({ id }) => id !== move.issues[0].id);
+    const existingIds = new Set(current.map(({ id }) => id));
+    return [...current, ...move.issues.filter(({ id }) => !existingIds.has(id))];
+  });
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [source, setSource] = useState<"all" | "backlog">("all");
+  const [page, setPage] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [result, setResult] = useState<{ key: string; data: Awaited<ReturnType<typeof searchReleaseIssuesAction>> } | null>(null);
   const term = search.trim();
-  const [result, setResult] = useState<{ term: string; data: Awaited<ReturnType<typeof searchReleaseIssuesAction>> } | null>(null);
-  const searchResult = term && result?.term === term ? result.data : null;
-  const loading = Boolean(term && !searchResult);
-  const visible = (term ? (searchResult?.ok ? searchResult.items : []) : candidates?.items) ?? [];
-  const hasMore = term ? searchResult?.ok && searchResult.hasMore : candidates?.hasMore;
+  const defaultPage = !term && source === "all" && page === 0;
+  const queryKey = JSON.stringify([term, source, page, revision]);
+  const fetched = result?.key === queryKey ? result.data : null;
+  const availablePage = defaultPage ? candidates : fetched?.ok ? fetched : null;
+  const includedIds = new Set(included.map(({ id }) => id));
+  const available = availablePage?.items.filter(({ id }) => !includedIds.has(id)) ?? [];
+  const canEdit = candidates !== null;
 
   useEffect(() => {
-    if (!open || !term) return;
+    if (!canEdit || defaultPage) return;
     let active = true;
     const timer = window.setTimeout(async () => {
-      const data = await searchReleaseIssuesAction(projectId, term)
-        .catch(() => ({ ok: false as const, formError: "Не удалось загрузить результаты поиска." }));
-      if (active) setResult({ term, data });
-    }, 200);
+      const response = await searchReleaseIssuesAction(projectId, term, source === "backlog", page)
+        .catch(() => ({ ok: false as const, formError: "Не удалось загрузить задачи." }));
+      if (active) {
+        setResult({ key: queryKey, data: response });
+        if (response.ok && !response.items.length && page > 0) setPage(page - 1);
+      }
+    }, term ? 180 : 0);
     return () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, projectId, term]);
+  }, [canEdit, defaultPage, page, projectId, queryKey, source, term]);
 
-  const changeIssues = (operation: "add" | "remove", issueIds: string[]) => {
+  function moveIssues(items: ReleaseIssue[], from: Column) {
+    if (pending || !canEdit || !items.length) return;
     setError(null);
     startTransition(async () => {
-      const result = await changeReleaseIssuesAction({ projectId, releaseId, operation, issueIds });
-      if (!result.ok) {
-        if (isAuthRequiredError(result)) showAuthRequiredToast();
-        setError(result.formError);
-        return;
+      updateIncluded({ issues: items, from });
+      const response = await changeReleaseIssuesAction({
+        projectId,
+        releaseId,
+        operation: from === "available" ? "add" : "remove",
+        issueIds: items.map(({ id }) => id),
+      }).catch(() => null);
+      if (!response?.ok) {
+        if (isAuthRequiredError(response)) showAuthRequiredToast();
+        setError(response?.formError ?? "Не удалось изменить состав релиза.");
+      } else if (from === "available") {
+        setSelection(null);
       }
-      setOpen(false);
+      setRevision((current) => current + 1);
       router.refresh();
     });
-  };
+  }
 
-  const addIssues = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    changeIssues("add", [...selected]);
-  };
+  function moveIssue({ issue, from }: Move) {
+    moveIssues([issue], from);
+  }
+
+  function selectIssue(issue: ReleaseIssue, checked: boolean) {
+    if (!selection) return;
+    const next = new Map(selection);
+    if (checked) next.set(issue.id, issue);
+    else next.delete(issue.id);
+    setSelection(next);
+  }
+
+  function endDrag({ active, over }: DragEndEvent) {
+    const move = active.data.current as Move | undefined;
+    setDragged(null);
+    const target = move?.from === "available" ? "included" : "available";
+    if (move && over?.id === target) moveIssue(move);
+  }
+
+  if (!canEdit) {
+    return (
+      <section className="space-y-3">
+        <h2 className="text-base font-medium">Задачи · {issues.length}</h2>
+        {issues.length ? (
+          <ul className="divide-y divide-[var(--sep)] border-y border-[var(--sep)]">
+            {issues.map((issue) => <li key={issue.id} className="py-2"><IssueTitle issue={issue} projectKey={projectKey} /></li>)}
+          </ul>
+        ) : <p className="text-sm text-[var(--muted)]">В релизе пока нет задач.</p>}
+      </section>
+    );
+  }
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-medium">Задачи · {issues.length}</h2>
-        {candidates ? (
-          <Button onClick={() => {
-            setError(null);
-            setSearch("");
-            setResult(null);
-            setSelected(new Set());
-            setOpen(true);
-          }} disabled={pending}>
-            Добавить задачи
-          </Button>
-        ) : null}
-      </div>
-      {issues.length ? (
-        <ul className="divide-y divide-[var(--color-card-border)] border-y border-[var(--color-card-border)]">
-          {issues.map((issue) => (
-            <li key={issue.id} className="flex items-center justify-between gap-3 py-2">
-              <div className="min-w-0 break-words text-sm">
-                <span className="mr-2 font-mono text-xs text-[var(--muted)]">{issue.key}</span>
-                {issue.archived ? (
-                  <span>{issue.title} <span className="text-[var(--muted)]">· В корзине</span></span>
-                ) : (
-                  <Link className="hover:underline" href={buildProjectIssueDetailPath(projectKey, issue.key)}>
-                    {issue.title}
-                  </Link>
-                )}
+    <section className="space-y-3" aria-label="Состав релиза">
+      <DndContext id={dndId} sensors={sensors} collisionDetection={collisionDetection}
+        onDragStart={({ active }) => setDragged((active.data.current as Move) ?? null)}
+        onDragCancel={() => setDragged(null)}
+        onDragEnd={endDrag}>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <ReleaseColumn id="available" title="Доступные задачи" controls={
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input aria-label="Найти задачу" className="min-w-32 flex-1" placeholder="Название или ключ"
+                  maxLength={120} value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+                <MenuSelect ariaLabel="Источник задач" value={source} onChange={(value) => { setSource(value); setPage(0); }}
+                  options={[{ value: "all", label: "Все статусы" }, { value: "backlog", label: "Только бэклог" }]} />
+                <Button variant="ghost" disabled={pending} onClick={() => setSelection(selection ? null : new Map())}>
+                  {selection ? "Отменить выбор" : "Выбрать несколько"}
+                </Button>
               </div>
-              {candidates ? (
-                <Button
-                  variant="ghost"
-                  aria-label={`Убрать ${issue.key} из релиза`}
-                  onClick={() => changeIssues("remove", [issue.id])}
-                  disabled={pending}
-                >
-                  Убрать
+              {selection ? (
+                <Button variant="secondary" disabled={!selection.size || pending}
+                  onClick={() => moveIssues([...selection.values()], "available")}>
+                  Добавить выбранные ({selection.size})
                 </Button>
               ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : <p className="text-sm text-[var(--muted)]">В релизе пока нет задач.</p>}
-      {error && !open ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
-      {open ? (
-        <FormDialog
-          title="Добавить задачи в релиз"
-          submitLabel={selected.size ? `Добавить (${selected.size})` : "Добавить"}
-          pending={pending}
-          disabled={!selected.size}
-          error={error}
-          onClose={() => {
-            setOpen(false);
-            setError(null);
-          }}
-          onSubmit={addIssues}
-        >
-          <Input
-            aria-label="Найти задачу"
-            placeholder="Название или ключ задачи"
-            value={search}
-            maxLength={120}
-            onChange={(event) => setSearch(event.target.value)}
-            data-autofocus
-          />
-          {loading ? <p role="status" className="text-sm text-[var(--muted)]">Поиск задач…</p>
-          : searchResult && !searchResult.ok ? <p role="alert" className="text-sm text-rose-300">{searchResult.formError}</p>
-          : visible.length ? (
-            <ul className="max-h-[40vh] divide-y divide-[var(--color-card-border)] overflow-y-auto">
-              {visible.map((issue) => (
-                <li key={issue.id}>
-                  <label className="flex cursor-pointer items-center gap-2 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="accent-cyan-400"
-                      checked={selected.has(issue.id)}
-                      onChange={(event) => {
-                        const checked = event.target.checked;
-                        setSelected((current) => {
-                          const next = new Set(current);
-                          if (checked) next.add(issue.id);
-                          else next.delete(issue.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    <span><span className="mr-2 font-mono text-xs text-[var(--muted)]">{issue.key}</span>{issue.title}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-[var(--muted)]">
-              {term ? "Задачи не найдены." : "В проекте нет свободных задач."}
-            </p>
-          )}
-          {hasMore ? <p className="text-xs text-[var(--muted)]">Показаны первые 50. Чтобы найти другие задачи, уточните поиск.</p> : null}
-        </FormDialog>
-      ) : null}
+            </>
+          }>
+            {available.length ? (
+              <ul className="max-h-[58vh] space-y-2 overflow-y-auto p-3">
+                {available.map((issue) => (
+                  <MovableIssue key={issue.id} issue={issue} projectKey={projectKey} from="available" pending={pending}
+                    onMove={moveIssue} selected={selection?.has(issue.id)} onSelect={selectIssue} />
+                ))}
+              </ul>
+            ) : (
+              <p className="px-3 py-4 text-sm text-[var(--muted)]" role={fetched && !fetched.ok ? "alert" : "status"}>
+                {fetched && !fetched.ok ? fetched.formError : !availablePage ? "Загружаем задачи…"
+                  : term ? "Задачи не найдены." : "Нет доступных задач."}
+              </p>
+            )}
+            {page > 0 || availablePage?.hasMore ? (
+              <div className="flex justify-between gap-2 border-t border-[var(--sep)] px-3 py-1 text-xs">
+                <Button variant="ghost" disabled={page === 0 || pending} onClick={() => setPage(page - 1)}>Назад</Button>
+                <Button variant="ghost" disabled={!availablePage?.hasMore || pending} onClick={() => setPage(page + 1)}>Ещё задачи</Button>
+              </div>
+            ) : null}
+          </ReleaseColumn>
+          <ReleaseColumn id="included" title={`В релизе · ${included.length}`}>
+            {included.length ? (
+              <ul className="max-h-[58vh] space-y-2 overflow-y-auto p-3">
+                {included.map((issue) => (
+                  <MovableIssue key={issue.id} issue={issue} projectKey={projectKey} from="included" pending={pending} onMove={moveIssue} />
+                ))}
+              </ul>
+            ) : <p className="px-3 py-4 text-sm text-[var(--muted)]">Перетащите сюда задачи, чтобы добавить их в релиз.</p>}
+          </ReleaseColumn>
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {dragged ? (
+            <div inert className="cursor-grabbing rounded-lg border border-cyan-400/40 bg-[var(--surface-popover)] p-3 shadow-xl">
+              <IssueTitle issue={dragged.issue} projectKey={projectKey} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+      {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
     </section>
   );
 }

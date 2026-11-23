@@ -21,6 +21,14 @@ export type ReleaseIssue = {
   key: string;
   title: string;
   archived: boolean;
+  type: string;
+  status: TaskStatus;
+};
+
+export type ReleaseSuggestion = {
+  title: string;
+  reason: string;
+  issues: Pick<ReleaseIssue, "id" | "key" | "title">[];
 };
 
 export function formatReleaseDate(date: string | null) {
@@ -30,3 +38,4 @@ export function formatReleaseDate(date: string | null) {
       )
     : "Дата не задана";
 }
+import type { TaskStatus } from "./taskEnums";

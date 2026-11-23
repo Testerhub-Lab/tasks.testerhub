@@ -16,6 +16,7 @@ import {
   parseSearchParams,
 } from "../../server/validators/issueFilters";
 import BacklogListClient from "../../components/backlog/BacklogListClient";
+import ReleaseSuggestions from "@/components/releases/ReleaseSuggestions";
 import IssueListSurface from "@/components/issues/IssueListSurface";
 import Card from "@/components/ui/Card";
 import {
@@ -83,6 +84,7 @@ export async function renderBacklogPage({
   const tasks = paginated.items;
   const projects = await getProjects(workspaceId, user);
   const writableProject = projectContext && projects.find((project) => project.id === projectContext.id && project.canWrite);
+  const analysisProjects = projectContext ? (writableProject ? [writableProject] : []) : projects.filter((project) => project.canWrite);
   const [releaseLinks, releases] = await Promise.all([
     getIssueReleaseAssignments(tasks),
     writableProject && tasks.length ? getOpenProjectReleases(writableProject.id) : null,
@@ -92,13 +94,20 @@ export async function renderBacklogPage({
   return (
     <div className="mx-auto max-w-6xl space-y-3">
       <BacklogSeen />
-      <IssueFiltersBar
-        projects={projects}
-        initialFilters={filters}
-        basePath={basePath}
-        density="compact"
-        showProjectFilter={projectContext ? "never" : "mobile"}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 basis-64">
+          <IssueFiltersBar
+            projects={projects}
+            initialFilters={filters}
+            basePath={basePath}
+            density="compact"
+            showProjectFilter={projectContext ? "never" : "mobile"}
+          />
+        </div>
+        {analysisProjects.length ? (
+          <ReleaseSuggestions projects={analysisProjects.map(({ id, name }) => ({ id, name }))} />
+        ) : null}
+      </div>
       {tasks.length === 0 ? (
         <Card variant="surface" className="rounded-2xl p-8 text-center">
           <p className="text-lg text-white">

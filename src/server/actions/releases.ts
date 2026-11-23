@@ -7,7 +7,8 @@ import { hasProjectRole } from "@/server/auth/access";
 import { getCurrentUser } from "@/server/auth/session";
 import { getCurrentWorkspaceId } from "@/server/auth/workspace";
 import { getProjectById } from "@/server/queries/projects";
-import { changeReleaseIssues, getAvailableReleaseIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
+import { changeReleaseIssues, createSuggestedReleaseDraft, getAvailableReleaseIssues, getReleaseAnalysisIssues, saveProjectRelease, setIssueRelease } from "@/server/queries/releases";
+import { RELEASE_SUGGESTION_MAX_ISSUES, suggestReleases } from "@/server/releases/suggestReleases";
 import { buildProjectIssueViewPath, buildProjectReleasesPath } from "@/shared/projectKeyRoutes";
 
 const projectIdSchema = z.string().trim().min(1).max(128);
@@ -93,18 +94,59 @@ export async function changeReleaseIssuesAction(input: z.input<typeof issuesSche
   }
 }
 
-export async function searchReleaseIssuesAction(projectId: string, search: string) {
-  const parsed = z.object({ projectId: projectIdSchema, search: z.string().trim().max(120) })
-    .safeParse({ projectId, search });
+export async function searchReleaseIssuesAction(projectId: string, search: string, backlogOnly = false, page = 0) {
+  const parsed = z.object({
+    projectId: projectIdSchema,
+    search: z.string().trim().max(120),
+    backlogOnly: z.boolean(),
+    page: z.number().int().min(0).max(20000),
+  }).safeParse({ projectId, search, backlogOnly, page });
   if (!parsed.success) return fail("Некорректный поиск.");
   try {
     const access = await writableProject(parsed.data.projectId);
     if (!access.ok) return access;
-    const results = await getAvailableReleaseIssues(parsed.data.projectId, parsed.data.search);
+    const { search, backlogOnly, page } = parsed.data;
+    const results = await getAvailableReleaseIssues(parsed.data.projectId, search, backlogOnly, page);
     return { ok: true as const, ...results };
   } catch (error) {
     console.error("Failed to search issues for release", error);
     return fail("Не удалось найти задачи.");
+  }
+}
+
+export async function proposeReleasesAction(projectId: string) {
+  const parsed = projectIdSchema.safeParse(projectId);
+  if (!parsed.success) return fail("Выберите проект.");
+  try {
+    const access = await writableProject(parsed.data);
+    if (!access.ok) return access;
+    const issues = await getReleaseAnalysisIssues(access.project.id);
+    return { ok: true as const, count: issues.length, suggestions: suggestReleases(issues) };
+  } catch (error) {
+    console.error("Failed to suggest releases", error);
+    return fail("Не удалось проанализировать бэклог.");
+  }
+}
+
+const suggestedDraftSchema = releaseSchema.pick({ projectId: true, title: true, goal: true }).extend({
+  issueIds: z.array(z.string().min(1).max(128)).min(2).max(RELEASE_SUGGESTION_MAX_ISSUES)
+    .refine((ids) => new Set(ids).size === ids.length),
+});
+
+export async function saveSuggestedReleaseAction(input: z.input<typeof suggestedDraftSchema>) {
+  const parsed = suggestedDraftSchema.safeParse(input);
+  if (!parsed.success) return fail("Проверьте состав черновика.");
+  try {
+    const { projectId, title, goal, issueIds } = parsed.data;
+    const access = await writableProject(projectId);
+    if (!access.ok) return access;
+    const result = await createSuggestedReleaseDraft(projectId, title, goal, issueIds);
+    if (!result.ok) return fail("Бэклог изменился. Обновите предложения и выберите набор заново.");
+    refreshRelease(access.project.key, result.releaseId);
+    return { ok: true as const, href: buildProjectReleasesPath(access.project.key, result.releaseId) };
+  } catch (error) {
+    console.error("Failed to save suggested release", error);
+    return fail("Не удалось сохранить черновик.");
   }
 }
 
