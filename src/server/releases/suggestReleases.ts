@@ -9,117 +9,178 @@ export type ReleaseAnalysisIssue = ReleaseSuggestion["issues"][number] & {
   parent: { id: string; title: string; key: string; type: string } | null;
 };
 
-type Signal = "epic" | "parent" | "tag" | "phrase" | "word";
-type Group = {
-  signal: Signal;
-  label: string;
-  reference?: string;
-  issues: Map<string, ReleaseAnalysisIssue>;
-  titleHits: number;
-};
+type Project = { name: string; key: string };
+type TopicMatch = { label: string; inTitle: boolean; titleSupport: boolean };
+type Topic = { length: number; matches: Map<string, TopicMatch> };
+type Parent = NonNullable<ReleaseAnalysisIssue["parent"]>;
 
 const minIssues = 2;
 export const RELEASE_SUGGESTION_MAX_ISSUES = 20;
-const strength: Record<Signal, number> = { epic: 65, parent: 55, tag: 45, phrase: 30, word: 14 };
-const generic = new Set(`fix fixes add change update check improve issue issues task tasks bug bugs this that with from ui ux
-  feature design frontend backend regression refactor test tests testing ticket implementation support project code error need make only
-  задача задачи задач исправить поправить исправление добавить добавление сделать обновить обновление доработать
-  проверить проверка проверки тест тесты тестирование настроить настройка улучшить улучшение изменить изменение
-  удалить убрать подготовить перенос новая новый новые работа работ проблема ошибки ошибка баг бага баги
-  результат ожидание ожидаемый фактический описание шаги должно чтобы если когда для после перед через везде`.split(/\s+/));
 
-function words(text: string, limit: number) {
-  const content = text.replace(/https?:\/\/\S+|\b[A-Z][A-Z0-9]+-\d+\b/gi, " ");
-  return (content.match(/[\p{L}][\p{L}\p{N}]*/gu) ?? [])
-    .map((label) => ({ label, key: label.toLowerCase().replaceAll("ё", "е") }))
-    .filter(({ label, key }) => !generic.has(key) && (key.length >= 4 || /^[A-Z]{2,3}$/.test(label)))
-    .slice(0, limit)
-    .map(({ label, key }) => {
-      const stem = /^[а-я]+$/.test(key)
-        ? key.replace(/(иями|ами|ями|ого|ему|ому|ение|ения|ий|ый|ая|ое|ые|ом|ах|ях|ам|ям|ов|ев|а|я|ы|и|у|ю|е|о)$/u, "")
-        : key.replace(/s$/, "");
-      return { label, key: stem.length >= 4 ? stem : key };
-    });
+const normalize = (word: string) => word.normalize("NFKC").toLowerCase().replaceAll("ё", "е");
+const words = (text: string) => text.match(/[\p{L}\p{N}]+/gu) ?? [];
+
+function term(word: string) {
+  const key = normalize(word);
+  if (/^(stories|story|сторис|сториз|стори)$/.test(key)) return "сторис";
+  if (key.length < 4) return key;
+  const stem = /^[а-я]+$/.test(key)
+    ? key.replace(/(иями|иям|иях|ией|ием|ами|ями|ого|его|ему|ому|ение|ения|ию|ия|ий|ии|ый|ой|ая|яя|ое|ее|ые|ие|ых|их|ом|ем|ах|ях|ам|ям|ов|ев|ей|а|я|ы|и|у|ю|е|о)$/u, "")
+    : key.replace(/s$/, "");
+  return stem.length >= 3 ? stem : key;
 }
 
-function explain(group: Group) {
-  const label = group.label;
-  switch (group.signal) {
-    case "epic":
-      return `Задачи относятся к эпику ${group.reference} «${label}». Их можно выпустить вместе как часть одной цели.`;
-    case "parent":
-      return `У задач общий родитель ${group.reference} «${label}», поэтому их удобно проверить и выпустить вместе.`;
-    case "tag":
-      return `У задач общий лейбл «${label}». Проверьте их вместе как изменения в одной области.`;
-    default:
-      return `В задачах повторяется тема «${label}». Их можно проверить в одном релизе.`;
+const generic = new Set(`fix add change update check improve issue task bug this that with from into only and
+  feature design frontend backend regression refactor test ticket implementation support project code error need make
+  qa api status result stage staging prod production deploy deployment telegram tg телеграм max макс whatsapp linkedin
+  задача исправить поправить исправление добавить добавление сделать обновить обновление доработать критерий
+  проверить проверка тест тестирование настроить настройка улучшить улучшение изменить изменение
+  удалить убрать подготовить новая новый работа проблема ошибка баг важно нужно должен цель актуальный текущий
+  результат ожидание ожидаемый фактический описание шаг должно чтобы если когда для после перед через везде
+  среда релиз бэклог проект владелец критерии приёмка публичный сценарий подтверждение
+  общий единый реестр wiki`.trim().split(/\s+/).map(term));
+
+const background = /^(?:уже\s+(?:принято|есть|сделано)|вне\s+(?:об[ъь][её]ма|scope|задачи)|за\s+рамками|без\s+дублей|связанные|wiki)(?=$|[\s:—.,*])/iu;
+const issueReferences = /https?:\/\/\S+|\b[A-Z][A-Z0-9]+-\d+\b|\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi;
+const fragments = /[.!?;:,\n/]+|\s+(?:и|или|and|or)\s+/iu;
+
+function projectAliases(project: Project) {
+  const parts = words(project.name.replace(/([\p{Ll}\d])(\p{Lu})/gu, "$1 $2")).map(normalize);
+  return [parts, [parts.join("")], [normalize(project.key)]].filter((alias) => alias[0]);
+}
+
+function collectTopics(
+  text: string, aliases: string[][], inTitle: boolean, topics: Map<string, Topic>, issueId: string,
+  titleTerms: Set<string>,
+) {
+  const cleanText = text.replace(issueReferences, " ");
+  for (const fragment of cleanText.split(fragments)) {
+    const tokens = words(fragment);
+    const normalized = tokens.map(normalize);
+    const anchors: { label: string; key: string; index: number }[] = [];
+    for (let index = 0; index < tokens.length; index++) {
+      const alias = aliases.find((parts) => parts.every((part, offset) => normalized[index + offset] === part));
+      if (alias) {
+        index += alias.length - 1;
+        continue;
+      }
+      const label = tokens[index];
+      const key = term(label);
+      const short = label.length < 3 && !/^(?:QR|UI|UX)$/i.test(label);
+      if (short || !/^\p{L}/u.test(label) || generic.has(key)) continue;
+      anchors.push({ label, key, index });
+      if (inTitle) titleTerms.add(key);
+    }
+    for (let index = 0; index < anchors.length - 1; index++) {
+      const first = anchors[index];
+      for (const length of [2, 3]) {
+        const span = anchors.slice(index, index + length);
+        if (span.length !== length || span[length - 1].index - first.index > length) continue;
+        const keys = span.map(({ key }) => key);
+        if (new Set(keys).size !== length) continue;
+        const titleSupport = keys.some((key) => titleTerms.has(key));
+        if (length === 2 && !titleSupport) continue;
+        // A short phrase can appear in either order when the titles also support it.
+        const signature = (length === 2 ? keys.sort() : keys).join(" ");
+        let topic = topics.get(signature);
+        if (!topic) {
+          topic = { length, matches: new Map() };
+          topics.set(signature, topic);
+        }
+        if (!topic.matches.has(issueId)) {
+          topic.matches.set(issueId, { label: span.map(({ label }) => label).join(" "), inTitle, titleSupport });
+        }
+      }
+    }
   }
 }
 
-export function suggestReleases(issues: ReleaseAnalysisIssue[]): ReleaseSuggestion[] {
-  const groups = new Map<string, Group>();
+export function suggestReleases(issues: ReleaseAnalysisIssue[], project: Project): ReleaseSuggestion[] {
+  const parents = new Map<string, { parent: Parent; ids: Set<string> }>();
+  const topics = new Map<string, Topic>();
   const indexedIssues = new Map(issues.map((issue) => [issue.id, issue]));
-  function add(signal: Signal, key: string, label: string, issue: ReleaseAnalysisIssue, inTitle = false, reference?: string) {
-    const groupKey = `${signal}:${key}`;
-    let group = groups.get(groupKey);
-    if (!group) {
-      group = { signal, label, reference, issues: new Map(), titleHits: 0 };
-      groups.set(groupKey, group);
-    }
-    if (group.issues.has(issue.id)) return;
-    group.issues.set(issue.id, issue);
-    if (inTitle) {
-      group.label = label;
-      group.titleHits++;
-    }
+  const aliases = projectAliases(project);
+  const ignoredTags = new Set(aliases.map((parts) => parts.join("")));
+  function sharedTag(items: ReleaseAnalysisIssue[]) {
+    return items[0].tags.find((tag) => {
+      const key = normalize(tag.trim());
+      return key && !generic.has(term(key)) && !ignoredTags.has(words(key).join("")) &&
+        items.every((issue) => issue.tags.some((other) => normalize(other.trim()) === key));
+    });
   }
 
   for (const issue of issues) {
     if (issue.parent) {
       const parent = issue.parent;
-      const signal = parent.type.toUpperCase() === "EPIC" ? "epic" : "parent";
-      add(signal, parent.id, parent.title, issue, false, parent.key);
-      const openParent = indexedIssues.get(parent.id);
-      if (openParent) add(signal, parent.id, parent.title, openParent, false, parent.key);
-    }
-    for (const tag of issue.tags) {
-      const key = tag.trim().toLowerCase();
-      if (key && !generic.has(key)) add("tag", key, tag.trim(), issue);
-    }
-    const title = words(issue.title, 24);
-    const description = words(issue.description ?? "", 28);
-    for (const [index, word] of title.entries()) {
-      add("word", word.key, word.label, issue, true);
-      const next = title[index + 1];
-      if (next && next.key !== word.key) {
-        add("phrase", `${word.key} ${next.key}`, `${word.label} ${next.label}`, issue, true);
+      let group = parents.get(parent.id);
+      if (!group) {
+        group = { parent, ids: new Set() };
+        parents.set(parent.id, group);
       }
+      group.ids.add(issue.id);
+      if (indexedIssues.has(parent.id)) group.ids.add(parent.id);
     }
-    for (const word of description) add("word", word.key, word.label, issue);
+    const titleTerms = new Set<string>();
+    collectTopics(issue.title, aliases, true, topics, issue.id, titleTerms);
+    const description = (issue.description ?? "").replace(/`{3}[\s\S]*?(?:`{3}|$)/g, "");
+    for (const paragraph of description.split(/\n\s*\n/)) {
+      const plain = paragraph.replace(/^[\s#>*-]+/, "");
+      if (!background.test(plain)) collectTopics(plain, aliases, false, topics, issue.id, titleTerms);
+    }
   }
 
-  const ranked = [...groups.values()].filter((group) =>
-    group.issues.size >= minIssues &&
-    (group.signal !== "word" || group.titleHits >= minIssues && group.issues.size <= Math.max(10, issues.length * 0.65))
-  ).sort((a, b) =>
-    strength[b.signal] + Math.min(b.issues.size, RELEASE_SUGGESTION_MAX_ISSUES) -
-    strength[a.signal] - Math.min(a.issues.size, RELEASE_SUGGESTION_MAX_ISSUES)
+  const ranked = [...topics.values()].flatMap((topic) => {
+    if (topic.matches.size < minIssues) return [];
+    const matches = [...topic.matches.values()];
+    const titleCount = matches.filter(({ inTitle }) => inTitle).length;
+    if (!titleCount && topic.length < 3) return [];
+    const titleSupport = matches.filter((match) => match.titleSupport).length;
+    const items = [...topic.matches.keys()].map((id) => indexedIssues.get(id)!);
+    const score = Math.min(titleCount, 2) * 6 + Math.min(titleSupport, 3) * 2 +
+      topic.length * 2 + Math.min(matches.length, 5) + (sharedTag(items) ? 1 : 0);
+    return [{ ...topic, score }];
+  }).sort((a, b) => b.score - a.score);
+  const structural = [...parents.values()].sort((a, b) =>
+    Number(b.parent.type.toUpperCase() === "EPIC") - Number(a.parent.type.toUpperCase() === "EPIC") ||
+    b.ids.size - a.ids.size
   );
   const used = new Set<string>();
   const suggestions: ReleaseSuggestion[] = [];
-  for (const group of ranked) {
-    const remaining = [...group.issues.values()].filter((issue) => !used.has(issue.id));
-    if (remaining.length < minIssues) continue;
-    const members = remaining.sort((a, b) =>
+  function add(title: string, reason: string, available: ReleaseAnalysisIssue[]) {
+    const members = available.sort((a, b) =>
       TASK_PRIORITY_VALUES.indexOf(b.priority) - TASK_PRIORITY_VALUES.indexOf(a.priority)
     ).slice(0, RELEASE_SUGGESTION_MAX_ISSUES);
     for (const issue of members) used.add(issue.id);
     suggestions.push({
-      title: group.label.slice(0, 100).trim(),
-      reason: explain(group).slice(0, 400),
+      title: title.slice(0, 100).trim(),
+      reason: reason.slice(0, 400),
       issues: members.map(({ id, title, key }) => ({ id, title, key })),
     });
-    if (suggestions.length === 4) break;
+  }
+
+  for (const { parent, ids } of structural) {
+    const available = [...ids].filter((id) => !used.has(id)).map((id) => indexedIssues.get(id)!);
+    if (available.length < minIssues) continue;
+    const reference = `${parent.key} «${parent.title}»`;
+    const reason = parent.type.toUpperCase() === "EPIC"
+      ? `Задачи входят в общий эпик ${reference}.`
+      : `У задач общий родитель ${reference}.`;
+    add(parent.title, reason, available);
+    if (suggestions.length === 4) return suggestions;
+  }
+  for (const topic of ranked) {
+    const available = [...topic.matches].filter(([id]) => !used.has(id));
+    const titleMatch = available.find(([, match]) => match.inTitle);
+    if (available.length < minIssues || (!titleMatch && topic.length < 3)) continue;
+    const label = (titleMatch ?? available[0])[1].label;
+    const items = available.map(([id]) => indexedIssues.get(id)!);
+    const commonTag = sharedTag(items);
+    const evidence = !titleMatch ? "описаниях"
+      : available.every(([, match]) => match.inTitle) ? "заголовках" : "заголовках и описаниях";
+    const reason = `В ${evidence} задач совпадает тема «${label}».`;
+    const title = label[0].toUpperCase() + label.slice(1);
+    add(title, commonTag ? `${reason} Общий лейбл — «${commonTag}».` : reason, items);
+    if (suggestions.length === 4) return suggestions;
   }
   return suggestions;
 }

@@ -100,7 +100,7 @@ export default function ReleaseSuggestions({ projects }: {
                     </div>
                   ))}
                 </fieldset>
-              ) : <p className="text-sm">В бэклоге пока нет набора из двух или более задач с общей темой.</p>}
+              ) : <p className="text-sm">Не нашли достаточно связанных задач для черновика.</p>}
             </div>
           ) : null}
           {error && projectId && !analyzing ? (

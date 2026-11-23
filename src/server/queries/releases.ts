@@ -126,7 +126,7 @@ export function getReleaseAnalysisIssues(projectId: string) {
   const source = issueSource();
   return query<ReleaseAnalysisIssue>(
     `SELECT issue.id, ${source.key} AS key, issue.title, issue.type, issue.priority,
-       left(issue.description, 1500) AS description, ${source.tags} AS tags,
+       left(issue.description, 4000) AS description, ${source.tags} AS tags,
        CASE WHEN parent.id IS NOT NULL THEN json_build_object(
          'id', parent.id, 'key', ${source.parentKey}, 'title', parent.title, 'type', parent.type
        ) END AS parent

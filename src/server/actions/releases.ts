@@ -121,7 +121,7 @@ export async function proposeReleasesAction(projectId: string) {
     const access = await writableProject(parsed.data);
     if (!access.ok) return access;
     const issues = await getReleaseAnalysisIssues(access.project.id);
-    return { ok: true as const, count: issues.length, suggestions: suggestReleases(issues) };
+    return { ok: true as const, count: issues.length, suggestions: suggestReleases(issues, access.project) };
   } catch (error) {
     console.error("Failed to suggest releases", error);
     return fail("Не удалось проанализировать бэклог.");
