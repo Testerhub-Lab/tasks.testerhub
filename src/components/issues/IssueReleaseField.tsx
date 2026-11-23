@@ -57,6 +57,7 @@ export default function IssueReleaseField({
             <MenuSelect
               ariaLabel="Релиз"
               inline
+              showChevron={false}
               displayValue={release?.title ?? "Без релиза"}
               disabled={pending}
               value={release?.id ?? ""}
