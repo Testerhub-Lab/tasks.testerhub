@@ -95,6 +95,15 @@ export const pulsarOpenApi = {
         { $ref: "#/components/parameters/ProjectKeyPath" },
         { $ref: "#/components/parameters/ReleaseID" },
       ],
+      get: {
+        operationId: "getRelease",
+        description: "Requires projects:read and issues:read.",
+        responses: {
+          "200": { description: "Release details and assigned issues" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
       patch: {
         operationId: "updateRelease",
         requestBody: jsonBody({

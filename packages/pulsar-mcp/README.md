@@ -43,6 +43,8 @@ npm run mcp:dev
 ### Релизы
 
 - `list_releases` (`projectKey`) возвращает релизы проекта и их ID.
+- `get_release` (`projectKey`, `releaseId`) возвращает дату, статус и задачи
+  релиза. Для чтения состава нужны `projects:read` и `issues:read`.
 - `create_release` (`projectKey`, `title`, необязательные `goal` и `plannedDate`)
   создаёт черновик.
 - `add_issues_to_release` (`projectKey`, `releaseId`, `issueKeys`) добавляет

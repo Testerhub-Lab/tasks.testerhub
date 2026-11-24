@@ -97,17 +97,17 @@ export function getOpenProjectReleases(projectId: string) {
   );
 }
 
-export async function getProjectRelease(projectId: string, releaseId: string) {
-  const [release] = await query<Release>(
+export async function getProjectRelease(projectId: string, releaseId: string, transaction?: ZeroTransaction) {
+  const [release] = await releaseQuery(transaction)<Release>(
     `SELECT ${releaseColumns} FROM releases r WHERE r.project_id = $1 AND r.id = $2::uuid`,
     [projectId, releaseId]
   );
   return release;
 }
 
-export function getReleaseIssues(projectId: string, releaseId: string) {
-  const source = issueSource();
-  return query<ReleaseIssue>(
+export function getReleaseIssues(projectId: string, releaseId: string, transaction?: ZeroTransaction) {
+  const source = issueSource(transaction !== undefined || usesZeroUiStore());
+  return releaseQuery(transaction)<ReleaseIssue>(
     `SELECT issue.id, ${source.key} AS key, issue.title, issue.type,
        ${source.status} AS status, ${source.archived} AS archived
      FROM ${source.table} ${source.projectJoin} ${source.stateJoin}

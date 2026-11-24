@@ -451,6 +451,23 @@ server.registerTool(
 );
 
 server.registerTool(
+  "get_release",
+  {
+    title: "Get a Pulsar release",
+    description:
+      "Read a release with its planned date, status and assigned issues. Use list_releases to find its ID.",
+    inputSchema: releaseInputSchema,
+    annotations: readAnnotations,
+  },
+  ({ projectKey, releaseId }) =>
+    runTool(() =>
+      client.request(
+        `/api/v1/projects/${encodeURIComponent(projectKey)}/releases/${encodeURIComponent(releaseId)}`
+      )
+    )
+);
+
+server.registerTool(
   "create_release",
   {
     title: "Create a Pulsar release",

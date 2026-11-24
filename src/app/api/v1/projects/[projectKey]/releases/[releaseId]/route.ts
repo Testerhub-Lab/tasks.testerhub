@@ -2,7 +2,7 @@ import { authenticateApiRequest } from "@/server/api/auth";
 import { ApiError, apiData, apiErrorResponse, readJsonBody } from "@/server/api/errors";
 import { runAuditedCommand } from "@/server/api/idempotent-command";
 import { releaseIDApiSchema, updateReleaseApiSchema } from "@/server/api/schemas";
-import { requireApiReleaseProject } from "@/server/api/zero-release-domain";
+import { getApiRelease, requireApiReleaseProject } from "@/server/api/zero-release-domain";
 import { updateProjectRelease } from "@/server/queries/releases";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,17 @@ export const dynamic = "force-dynamic";
 type ReleaseRouteProps = {
   params: Promise<{ projectKey: string; releaseId: string }>;
 };
+
+export async function GET(request: Request, { params }: ReleaseRouteProps) {
+  try {
+    const context = await authenticateApiRequest(request, ["projects:read", "issues:read"]);
+    const { projectKey, releaseId } = await params;
+    const id = releaseIDApiSchema.parse(releaseId);
+    return apiData(await getApiRelease(context.user, projectKey, id));
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
 
 export async function PATCH(request: Request, { params }: ReleaseRouteProps) {
   try {

@@ -434,6 +434,23 @@ async function checkMcp(
     if (listed?.status !== "released" || listed.issueCount !== 1) {
       throw new Error("MCP did not list the saved release and its issue count");
     }
+    const releaseDetail = parseText<{
+      id: string;
+      plannedDate: string;
+      status: string;
+      issues: Array<{ key: string; title: string; status: string }>;
+    }>(await client.callTool({ name: "get_release", arguments: releaseArgs }));
+    if (
+      releaseDetail.id !== release.id ||
+      releaseDetail.plannedDate !== plannedDate ||
+      releaseDetail.status !== "released" ||
+      releaseDetail.issues.length !== 1 ||
+      releaseDetail.issues[0]?.key !== issueKey ||
+      releaseDetail.issues[0]?.title !== "Exercise shared command" ||
+      releaseDetail.issues[0]?.status !== "IN_PROGRESS"
+    ) {
+      throw new Error("MCP get_release did not return the saved date, status and assigned issue");
+    }
     const searchResult = await client.callTool({
       name: "search_issues",
       arguments: {

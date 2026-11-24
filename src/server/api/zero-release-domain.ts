@@ -1,6 +1,8 @@
 import {
   changeReleaseIssues,
+  getProjectRelease,
   getProjectReleases,
+  getReleaseIssues,
 } from "@/server/queries/releases";
 import { getZeroDatabase, type ZeroTransaction } from "@/zero/db";
 import type { ApiActor } from "./auth";
@@ -22,6 +24,17 @@ export async function requireApiReleaseProject(
 export async function listApiReleases(user: ApiActor, projectKey: string) {
   const project = await requireApiReleaseProject(user, projectKey);
   return getZeroDatabase().transaction((tx) => getProjectReleases(project.id, tx));
+}
+
+export async function getApiRelease(user: ApiActor, projectKey: string, releaseId: string) {
+  const project = await requireApiReleaseProject(user, projectKey);
+  return getZeroDatabase().transaction(async (tx) => {
+    await tx.dbTransaction.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", []);
+    const release = await getProjectRelease(project.id, releaseId, tx);
+    if (!release) throw new ApiError(404, "release_not_found", "Релиз не найден");
+    const issues = await getReleaseIssues(project.id, releaseId, tx);
+    return { ...release, issues };
+  });
 }
 
 export async function addApiReleaseIssues(

@@ -14,6 +14,7 @@ describe("Pulsar REST/OpenAPI contract", () => {
         post: { operationId: "createRelease" },
       },
       "/projects/{projectKey}/releases/{releaseId}": {
+        get: { operationId: "getRelease" },
         patch: { operationId: "updateRelease" },
       },
       "/projects/{projectKey}/releases/{releaseId}/issues": {
