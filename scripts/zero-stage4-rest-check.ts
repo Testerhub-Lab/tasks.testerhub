@@ -308,7 +308,8 @@ async function checkMcp(
   projectKey: string,
   issueKey: string,
   pageID: string,
-  attachmentID: string
+  attachmentID: string,
+  attachmentContent: Uint8Array
 ) {
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -378,6 +379,60 @@ async function checkMcp(
       )
     ) {
       throw new Error("MCP get_issue did not return the expected attachment");
+    }
+    const download = parseText<{
+      attachment: { id: string };
+      downloadUrl: string;
+      expiresAt: string;
+    }>(await client.callTool({
+      name: "get_attachment_download_url",
+      arguments: { key: issueKey, attachmentId: attachmentID },
+    }));
+    const downloaded = await fetch(download.downloadUrl);
+    if (
+      download.attachment.id !== attachmentID ||
+      !(Date.parse(download.expiresAt) > Date.now()) ||
+      !downloaded.ok ||
+      !Buffer.from(await downloaded.arrayBuffer()).equals(attachmentContent)
+    ) {
+      throw new Error("MCP attachment download did not return the expected file");
+    }
+
+    const release = parseText<{ id: string; status: string }>(await client.callTool({
+      name: "create_release",
+      arguments: { projectKey, title: "MCP release draft" },
+    }));
+    if (release.status !== "draft") throw new Error("MCP release should start as a draft");
+    const releaseArgs = { projectKey, releaseId: release.id };
+    const added = parseText<{ issueKeys: string[] }>(await client.callTool({
+      name: "add_issues_to_release",
+      arguments: { ...releaseArgs, issueKeys: [issueKey] },
+    }));
+    if (added.issueKeys[0] !== issueKey) throw new Error("MCP did not add the issue to the release");
+    const plannedDate = "2026-12-15";
+    const dated = parseText<{ plannedDate: string }>(await client.callTool({
+      name: "update_release_date",
+      arguments: { ...releaseArgs, plannedDate },
+    }));
+    if (dated.plannedDate !== plannedDate) throw new Error("MCP did not update the release date");
+    const closed = parseText<{ status: string; plannedDate: string }>(await client.callTool({
+      name: "close_release",
+      arguments: releaseArgs,
+    }));
+    if (closed.status !== "released" || closed.plannedDate !== plannedDate) {
+      throw new Error("MCP did not close the release and preserve its date");
+    }
+    const blocked = await client.callTool({
+      name: "add_issues_to_release",
+      arguments: { ...releaseArgs, issueKeys: [issueKey] },
+    });
+    if (!blocked.isError) throw new Error("MCP allowed editing the issue list of a closed release");
+    const releases = parseText<Array<{ id: string; status: string; issueCount: number }>>(
+      await client.callTool({ name: "list_releases", arguments: { projectKey } })
+    );
+    const listed = releases.find(({ id }) => id === release.id);
+    if (listed?.status !== "released" || listed.issueCount !== 1) {
+      throw new Error("MCP did not list the saved release and its issue count");
     }
     const searchResult = await client.callTool({
       name: "search_issues",
@@ -956,9 +1011,16 @@ async function main() {
     projectKey,
     issue.key,
     page.id,
-    attachment.id
+    attachment.id,
+    attachmentContent
   );
 
+  await api(viewer.token, `/api/v1/projects/${projectKey}/releases`, {
+    method: "POST",
+    body: { title: "Forbidden viewer release" },
+    idempotencyKey: "stage4-viewer-release",
+    expectedStatus: 403,
+  });
   await api(viewer.token, `/api/v1/issues/${issue.key}`, {
     method: "PATCH",
     body: { title: "Forbidden viewer update" },
@@ -999,8 +1061,8 @@ async function main() {
     [owner.tokenID]
   );
   const auditCount = Number(auditResult.rows[0]?.count ?? 0);
-  if (auditCount !== 11) {
-    throw new Error(`Expected 11 API audit records, got ${auditCount}`);
+  if (auditCount !== 15) {
+    throw new Error(`Expected 15 API audit records, got ${auditCount}`);
   }
   const legacySecurityTables = await prisma.$queryRaw<
     Array<{
@@ -1049,6 +1111,7 @@ async function main() {
       attachmentAuditRollbackAtomic: true,
       attachmentDownloadPresigned: true,
       attachmentIdempotencyReplay: true,
+      attachmentMcpDownload: true,
       attachmentMcpVisible: true,
       attachmentMetadataInZero: true,
       attachmentPendingCleanup: true,
@@ -1064,6 +1127,7 @@ async function main() {
       mcpGetIssue: true,
       mcpIssueSearch: true,
       mcpGetWikiPage: true,
+      mcpReleaseRoundTrip: true,
       mcpWikiWriteRoundTrip: true,
       mcpToolRegistered: true,
       openapi: true,

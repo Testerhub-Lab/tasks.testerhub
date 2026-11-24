@@ -63,6 +63,83 @@ export const pulsarOpenApi = {
         },
       },
     },
+    "/projects/{projectKey}/releases": {
+      parameters: [{ $ref: "#/components/parameters/ProjectKeyPath" }],
+      get: {
+        operationId: "listReleases",
+        responses: {
+          "200": { description: "Project releases with issue counts" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      post: {
+        operationId: "createRelease",
+        parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["title"],
+          properties: {
+            title: { type: "string", minLength: 1, maxLength: 100 },
+            goal: { type: "string", maxLength: 400, default: "" },
+            plannedDate: { type: ["string", "null"], format: "date" },
+          },
+        }),
+        responses: {
+          "201": { description: "Created draft release" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+    "/projects/{projectKey}/releases/{releaseId}": {
+      parameters: [
+        { $ref: "#/components/parameters/ProjectKeyPath" },
+        { $ref: "#/components/parameters/ReleaseID" },
+      ],
+      patch: {
+        operationId: "updateRelease",
+        requestBody: jsonBody({
+          type: "object",
+          anyOf: [{ required: ["plannedDate"] }, { required: ["status"] }],
+          properties: {
+            plannedDate: { type: ["string", "null"], format: "date" },
+            status: { const: "released" },
+          },
+        }),
+        responses: {
+          "200": { description: "Updated release" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+    "/projects/{projectKey}/releases/{releaseId}/issues": {
+      parameters: [
+        { $ref: "#/components/parameters/ProjectKeyPath" },
+        { $ref: "#/components/parameters/ReleaseID" },
+      ],
+      post: {
+        operationId: "addReleaseIssues",
+        parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["issueKeys"],
+          properties: {
+            issueKeys: {
+              type: "array",
+              minItems: 1,
+              maxItems: 100,
+              items: { type: "string", pattern: "^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]{0,9}$" },
+            },
+          },
+        }),
+        responses: {
+          "200": { description: "Issues assigned to the release" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "409": { description: "Release unavailable or closed, or issue assigned elsewhere" },
+        },
+      },
+    },
     "/issues": {
       get: {
         operationId: "searchIssues",
@@ -305,6 +382,12 @@ export const pulsarOpenApi = {
       },
       AttachmentID: {
         name: "attachmentId",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+      },
+      ReleaseID: {
+        name: "releaseId",
         in: "path",
         required: true,
         schema: { type: "string", format: "uuid" },

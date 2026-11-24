@@ -174,7 +174,7 @@ server.registerTool(
   {
     title: "Get a Pulsar issue",
     description:
-      "Read one issue with comments, activity and linked Wiki documents.",
+      "Read one issue with comments, activity, attachments and linked Wiki documents.",
     inputSchema: z.object({
       key: z.string().min(3).describe("Issue key, for example PULSAR-2"),
     }),
@@ -183,6 +183,26 @@ server.registerTool(
   ({ key }) =>
     runTool(() =>
       client.request(`/api/v1/issues/${encodeURIComponent(key)}`)
+    )
+);
+
+server.registerTool(
+  "get_attachment_download_url",
+  {
+    title: "Get a Pulsar attachment download URL",
+    description:
+      "Get a temporary download URL for an issue attachment. Read the attachment ID from get_issue.",
+    inputSchema: z.object({
+      key: z.string().trim().min(3).describe("Issue key, for example PULSAR-2"),
+      attachmentId: z.uuid(),
+    }),
+    annotations: readAnnotations,
+  },
+  ({ key, attachmentId }) =>
+    runTool(() =>
+      client.request(
+        `/api/v1/issues/${encodeURIComponent(key)}/attachments/${encodeURIComponent(attachmentId)}/download-url`
+      )
     )
 );
 
@@ -407,6 +427,105 @@ server.registerTool(
           body: { pageId },
           idempotentCreate: true,
         }
+      )
+    )
+);
+
+const releaseProjectKeySchema = z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]{1,9}$/);
+const releaseDateSchema = z.iso.date().refine((date) => date >= "0001-01-01");
+const releaseInputSchema = z.object({
+  projectKey: releaseProjectKeySchema,
+  releaseId: z.uuid(),
+});
+
+server.registerTool(
+  "list_releases",
+  {
+    title: "List Pulsar releases",
+    description: "List a project's releases with IDs, statuses, scheduled dates and issue counts.",
+    inputSchema: z.object({ projectKey: releaseProjectKeySchema }),
+    annotations: readAnnotations,
+  },
+  ({ projectKey }) =>
+    runTool(() => client.request(`/api/v1/projects/${encodeURIComponent(projectKey)}/releases`))
+);
+
+server.registerTool(
+  "create_release",
+  {
+    title: "Create a Pulsar release",
+    description: "Create a draft release in a project with an optional goal and planned date.",
+    inputSchema: z.object({
+      projectKey: releaseProjectKeySchema,
+      title: z.string().trim().min(1).max(100),
+      goal: z.string().trim().max(400).optional(),
+      plannedDate: releaseDateSchema.nullable().optional(),
+    }),
+    annotations: writeAnnotations,
+  },
+  ({ projectKey, ...body }) =>
+    runTool(() =>
+      client.request(`/api/v1/projects/${encodeURIComponent(projectKey)}/releases`, {
+        method: "POST",
+        body,
+        idempotentCreate: true,
+      })
+    )
+);
+
+server.registerTool(
+  "add_issues_to_release",
+  {
+    title: "Add issues to a Pulsar release",
+    description:
+      "Add existing issues from the same project to a draft or planned release using their issue keys.",
+    inputSchema: releaseInputSchema.extend({
+      issueKeys: z
+        .array(z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,9}$/))
+        .min(1)
+        .max(100),
+    }),
+    annotations: writeAnnotations,
+  },
+  ({ projectKey, releaseId, issueKeys }) =>
+    runTool(() =>
+      client.request(
+        `/api/v1/projects/${encodeURIComponent(projectKey)}/releases/${encodeURIComponent(releaseId)}/issues`,
+        { method: "POST", body: { issueKeys }, idempotentCreate: true }
+      )
+    )
+);
+
+server.registerTool(
+  "close_release",
+  {
+    title: "Close a Pulsar release",
+    description: "Mark a release as released. Its issue list can no longer be changed.",
+    inputSchema: releaseInputSchema,
+    annotations: { ...writeAnnotations, idempotentHint: true },
+  },
+  ({ projectKey, releaseId }) =>
+    runTool(() =>
+      client.request(
+        `/api/v1/projects/${encodeURIComponent(projectKey)}/releases/${encodeURIComponent(releaseId)}`,
+        { method: "PATCH", body: { status: "released" } }
+      )
+    )
+);
+
+server.registerTool(
+  "update_release_date",
+  {
+    title: "Update a Pulsar release date",
+    description: "Set a release's planned date as YYYY-MM-DD, or pass null to clear it.",
+    inputSchema: releaseInputSchema.extend({ plannedDate: releaseDateSchema.nullable() }),
+    annotations: { ...writeAnnotations, idempotentHint: true },
+  },
+  ({ projectKey, releaseId, plannedDate }) =>
+    runTool(() =>
+      client.request(
+        `/api/v1/projects/${encodeURIComponent(projectKey)}/releases/${encodeURIComponent(releaseId)}`,
+        { method: "PATCH", body: { plannedDate } }
       )
     )
 );

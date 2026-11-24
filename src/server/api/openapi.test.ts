@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 import { pulsarOpenApi } from "./openapi";
 
 describe("Pulsar REST/OpenAPI contract", () => {
-  it("documents every projects/issues/comments/Wiki operation used by MCP", () => {
+  it("documents every REST operation used by MCP", () => {
     expect(pulsarOpenApi.paths).toMatchObject({
       "/workspaces": { get: { operationId: "listWorkspaces" } },
       "/projects": {
         get: { operationId: "listProjects" },
         post: { operationId: "createProject" },
+      },
+      "/projects/{projectKey}/releases": {
+        get: { operationId: "listReleases" },
+        post: { operationId: "createRelease" },
+      },
+      "/projects/{projectKey}/releases/{releaseId}": {
+        patch: { operationId: "updateRelease" },
+      },
+      "/projects/{projectKey}/releases/{releaseId}/issues": {
+        post: { operationId: "addReleaseIssues" },
       },
       "/issues": {
         get: { operationId: "searchIssues" },
@@ -65,6 +75,8 @@ describe("Pulsar REST/OpenAPI contract", () => {
   it("requires idempotency keys for every create operation", () => {
     const operations = [
       pulsarOpenApi.paths["/projects"].post,
+      pulsarOpenApi.paths["/projects/{projectKey}/releases"].post,
+      pulsarOpenApi.paths["/projects/{projectKey}/releases/{releaseId}/issues"].post,
       pulsarOpenApi.paths["/issues"].post,
       pulsarOpenApi.paths["/issues/{key}/comments"].post,
       pulsarOpenApi.paths[

@@ -97,3 +97,30 @@ export const linkWikiPageApiSchema = z.object({
 export const attachmentIDApiSchema = z.string().uuid();
 
 export const prepareAttachmentUploadApiSchema = attachmentUploadInputSchema;
+
+const releaseDateApiSchema = z.iso.date().refine((date) => date >= "0001-01-01");
+
+export const releaseIDApiSchema = z.uuid();
+
+export const createReleaseApiSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  goal: z.string().trim().max(400).default(""),
+  plannedDate: releaseDateApiSchema.nullable().default(null),
+});
+
+export const updateReleaseApiSchema = z
+  .object({
+    plannedDate: releaseDateApiSchema.nullable().optional(),
+    status: z.literal("released").optional(),
+  })
+  .refine(
+    ({ plannedDate, status }) => plannedDate !== undefined || status !== undefined,
+    "Нужно передать плановую дату или закрыть релиз"
+  );
+
+export const addReleaseIssuesApiSchema = z.object({
+  issueKeys: z
+    .array(z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,9}$/))
+    .min(1)
+    .max(100),
+});

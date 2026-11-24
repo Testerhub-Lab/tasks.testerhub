@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import {
   DEFAULT_RELEASE_ISSUE_STATUS_FILTER, type Release, type ReleaseIssue, type ReleaseIssueStatusFilter, type ReleaseOption,
 } from "@/shared/releases";
-import { getZeroPool } from "@/zero/db";
+import { getZeroPool, type ZeroTransaction } from "@/zero/db";
 import { usesZeroUiStore, zeroStatusSQL } from "../ui/zero-legacy";
 import type { ReleaseAnalysisIssue } from "../releases/suggestReleases";
 
@@ -15,7 +15,16 @@ const query: Query = async (sql, params) =>
     ? (await getZeroPool().query(sql, params)).rows
     : prisma.$queryRawUnsafe(sql, ...params);
 
-async function inTransaction<T>(work: (run: Query) => Promise<T>) {
+function releaseQuery(transaction?: ZeroTransaction): Query {
+  return transaction
+    ? async (sql, params) =>
+        (await transaction.dbTransaction.wrappedTransaction.query(sql, params)).rows
+    : query;
+}
+
+async function inTransaction<T>(work: (run: Query) => Promise<T>, transaction?: ZeroTransaction) {
+  if (transaction) return work(releaseQuery(transaction));
+
   if (!usesZeroUiStore()) {
     return prisma.$transaction((tx) =>
       work((sql, params) => tx.$queryRawUnsafe(sql, ...params))
@@ -37,7 +46,7 @@ async function inTransaction<T>(work: (run: Query) => Promise<T>) {
 }
 
 // Both stores use the same release tables. Only the existing issue schema differs.
-const issueSource = () => usesZeroUiStore()
+const issueSource = (useZero = usesZeroUiStore()) => useZero
   ? {
       table: "issues issue",
       project: "issue.project_id",
@@ -70,8 +79,8 @@ const releaseColumns = `r.id, r.title, r.goal, to_char(r.planned_date, 'YYYY-MM-
 const idsFromJson = (parameter: string, type: string) =>
   `SELECT value::${type} FROM jsonb_array_elements_text(${parameter}::jsonb)`;
 
-export async function getProjectReleases(projectId: string) {
-  return query<Release & { issueCount: number }>(
+export async function getProjectReleases(projectId: string, transaction?: ZeroTransaction) {
+  return releaseQuery(transaction)<Release & { issueCount: number }>(
     `SELECT ${releaseColumns},
       (SELECT count(*)::int FROM release_issues WHERE release_id = r.id) AS "issueCount"
      FROM releases r WHERE r.project_id = $1
@@ -161,21 +170,35 @@ export async function getIssueReleaseAssignments(tasks: { id: string; projectId:
 
 export async function saveProjectRelease(
   projectId: string,
-  data: Pick<Release, "title" | "goal" | "plannedDate"> & { id?: string; status?: Release["status"] }
+  data: Pick<Release, "title" | "goal" | "plannedDate"> & { id?: string; status?: Release["status"] },
+  transaction?: ZeroTransaction
 ) {
-  const { id, title, goal, plannedDate, status } = data;
-  const [release] = id
-    ? await query<{ id: string }>(
-        `UPDATE releases SET title = $3, goal = $4, planned_date = $5::date,
-           status = coalesce($6, status)
-         WHERE project_id = $1 AND id = $2::uuid RETURNING id`,
-        [projectId, id, title, goal, plannedDate, status ?? null]
-      )
-    : await query<{ id: string }>(
-        `INSERT INTO releases (project_id, id, title, goal, planned_date)
-         VALUES ($1, $2::uuid, $3, $4, $5::date) RETURNING id`,
-        [projectId, randomUUID(), title, goal, plannedDate]
-      );
+  const { id, ...fields } = data;
+  if (id) return updateProjectRelease(projectId, id, fields, transaction);
+
+  const [release] = await releaseQuery(transaction)<Release>(
+    `INSERT INTO releases AS r (project_id, id, title, goal, planned_date)
+     VALUES ($1, $2::uuid, $3, $4, $5::date) RETURNING ${releaseColumns}`,
+    [projectId, randomUUID(), fields.title, fields.goal, fields.plannedDate]
+  );
+  return release;
+}
+
+export async function updateProjectRelease(
+  projectId: string,
+  releaseId: string,
+  { title, goal, plannedDate, status }: Partial<Omit<Release, "id">>,
+  transaction?: ZeroTransaction
+) {
+  const [release] = await releaseQuery(transaction)<Release>(
+    `UPDATE releases AS r SET
+       title = coalesce($3, r.title),
+       goal = coalesce($4, r.goal),
+       planned_date = CASE WHEN $5::boolean THEN $6::date ELSE r.planned_date END,
+       status = coalesce($7, r.status)
+     WHERE r.project_id = $1 AND r.id = $2::uuid RETURNING ${releaseColumns}`,
+    [projectId, releaseId, title ?? null, goal ?? null, plannedDate !== undefined, plannedDate ?? null, status ?? null]
+  );
   return release;
 }
 
@@ -183,9 +206,10 @@ export async function changeReleaseIssues(
   projectId: string,
   releaseId: string,
   issueIds: string[],
-  operation: "add" | "remove"
+  operation: "add" | "remove",
+  transaction?: ZeroTransaction
 ) {
-  const source = issueSource();
+  const source = issueSource(transaction !== undefined || usesZeroUiStore());
   const uniqueIds = [...new Set(issueIds)];
   const ids = JSON.stringify(uniqueIds);
   return inTransaction(async (run) => {
@@ -205,15 +229,16 @@ export async function changeReleaseIssues(
       return "ok";
     }
 
-    const eligibility = await lockReleaseCandidates(run, projectId, uniqueIds, releaseId);
+    const eligibility = await lockReleaseCandidates(run, source, projectId, uniqueIds, releaseId);
     if (eligibility !== "ok") return eligibility;
-    await attachReleaseIssues(run, projectId, releaseId, uniqueIds);
+    await attachReleaseIssues(run, source.idType, projectId, releaseId, uniqueIds);
     return "ok";
-  });
+  }, transaction);
 }
 
-async function lockReleaseCandidates(run: Query, projectId: string, issueIds: string[], releaseId: string | null) {
-  const source = issueSource();
+async function lockReleaseCandidates(
+  run: Query, source: ReturnType<typeof issueSource>, projectId: string, issueIds: string[], releaseId: string | null
+) {
   const ids = JSON.stringify(issueIds);
   // Lock issues in ID order so two planners cannot add the same tasks to different releases.
   const issues = await run<{ id: string }>(
@@ -233,26 +258,27 @@ async function lockReleaseCandidates(run: Query, projectId: string, issueIds: st
   return conflict ? "assigned" : "ok";
 }
 
-function attachReleaseIssues(run: Query, projectId: string, releaseId: string, issueIds: string[]) {
+function attachReleaseIssues(run: Query, idType: string, projectId: string, releaseId: string, issueIds: string[]) {
   return run(
     `INSERT INTO release_issues (project_id, release_id, issue_id)
-     SELECT $1, $2::uuid, id FROM (${idsFromJson("$3", issueSource().idType)}) selected(id)
+     SELECT $1, $2::uuid, id FROM (${idsFromJson("$3", idType)}) selected(id)
      ON CONFLICT (project_id, issue_id) DO NOTHING RETURNING issue_id`,
     [projectId, releaseId, JSON.stringify(issueIds)]
   );
 }
 
 export function createSuggestedReleaseDraft(projectId: string, title: string, goal: string, issueIds: string[]) {
+  const source = issueSource();
   return inTransaction(async (run) => {
     const ids = [...new Set(issueIds)];
-    const eligibility = await lockReleaseCandidates(run, projectId, ids, null);
+    const eligibility = await lockReleaseCandidates(run, source, projectId, ids, null);
     if (eligibility !== "ok") return { ok: false as const };
     const releaseId = randomUUID();
     await run(
       `INSERT INTO releases (project_id, id, title, goal) VALUES ($1, $2::uuid, $3, $4) RETURNING id`,
       [projectId, releaseId, title, goal]
     );
-    const assigned = await attachReleaseIssues(run, projectId, releaseId, ids);
+    const assigned = await attachReleaseIssues(run, source.idType, projectId, releaseId, ids);
     if (assigned.length !== ids.length) throw new Error("Draft release assignment changed concurrently");
     return { ok: true as const, releaseId };
   });
